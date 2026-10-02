@@ -1,0 +1,31 @@
+import type { RecordsConfig } from '../../features/records/types';
+
+export const stock: RecordsConfig = {
+  active: 'Stock por almacén',
+  title: 'Stock por almacén',
+  subtitle: 'Existencias actuales por producto y almacén, comparadas con el stock mínimo definido en Mantenimiento.',
+  breadcrumb: [{ label: 'Inicio', to: '/' }, { label: 'Inventario' }, { label: 'Stock por almacén' }],
+  entity: 'Stock de producto', titleKey: 'prod', subKey: 'alm', statusKey: 'estado',
+  statuses: { 'Normal': 'green', 'Bajo mínimo': 'red', 'Sin stock': 'red', 'Sobrestock': 'amber' },
+  keys: ['sku','prod','cat','alm','stock','min','res','estado'],
+  kpis: [{ label: 'Valor del inventario', value: 'S/ 190,680', note: '2 almacenes activos' }, { label: 'Bajo mínimo o sin stock', value: '7', note: 'requieren reposición', tone: 'red' }, { label: 'Sobrestock', value: '2', note: 'considerar transferencia', tone: 'amber' }],
+  columns: [{ k: 'prod', label: 'Producto', w: 'minmax(0, 1fr)', sub: 'sku' }, { k: 'alm', label: 'Almacén', w: '120px', muted: true }, { k: 'stock', label: 'Stock', w: '70px', fmt: 'int', align: 'right' }, { k: 'min', label: 'Mínimo', w: '70px', fmt: 'int', align: 'right', muted: true }, { k: 'res', label: 'Reservado', w: '80px', fmt: 'int', align: 'right', muted: true }, { k: 'estado', label: 'Estado', w: '110px', chip: true }],
+  fields: [{ k: 'prod', label: 'Producto', wide: true }, { k: 'sku', label: 'SKU', mono: true }, { k: 'cat', label: 'Categoría' }, { k: 'alm', label: 'Almacén' }, { k: 'stock', label: 'Stock actual', fmt: 'int' }, { k: 'min', label: 'Stock mínimo', fmt: 'int' }, { k: 'res', label: 'Reservado por órdenes', fmt: 'int' }],
+  actions: { 'Bajo mínimo': [{ label: 'Crear solicitud de compra →', href: '/compras/solicitudes', primary: true }, { label: 'Ver kardex', href: '/inventario/kardex' }], 'Sin stock': [{ label: 'Crear solicitud de compra →', href: '/compras/solicitudes', primary: true }, { label: 'Ver kardex', href: '/inventario/kardex' }], 'Sobrestock': [{ label: 'Crear transferencia', href: '/inventario/transferencias', primary: true }, { label: 'Ver kardex', href: '/inventario/kardex' }], 'Normal': [{ label: 'Ver kardex', href: '/inventario/kardex' }] },
+  rows: [
+    ['SKU-CEM-0042','Cemento Portland Tipo I 42.5 kg','Construcción','Almacén Lima',18,120,0,'Bajo mínimo'],
+    ['SKU-CEM-0042','Cemento Portland Tipo I 42.5 kg','Construcción','Almacén Callao',420,150,170,'Normal'],
+    ['SKU-PVC-0410','Tubo PVC 4" x 3 m clase 10','Gasfitería','Almacén Callao',9,40,0,'Bajo mínimo'],
+    ['SKU-EPP-1103','Guantes de nitrilo talla M x100','EPP','Almacén Lima',12,30,0,'Bajo mínimo'],
+    ['SKU-FIE-0912','Fierro corrugado 1/2" x 9 m','Construcción','Almacén Lima',240,100,0,'Normal'],
+    ['SKU-FIE-0912','Fierro corrugado 1/2" x 9 m','Construcción','Almacén Callao',310,100,60,'Normal'],
+    ['SKU-ALA-0016','Alambre negro recocido N.º 16','Construcción','Almacén Lima',38,80,0,'Bajo mínimo'],
+    ['SKU-CLA-0300','Clavos para madera 3"','Ferretería','Almacén Callao',95,40,25,'Normal'],
+    ['SKU-PEG-0025','Pegamento PVC 1/4 gal','Gasfitería','Almacén Callao',0,20,0,'Sin stock'],
+    ['SKU-CAB-1200','Cable THW 12 AWG x 100 m','Eléctricos','Almacén Lima',34,10,0,'Sobrestock'],
+    ['SKU-LAD-1818','Ladrillo King Kong 18 huecos','Construcción','Almacén Lima',5200,2000,0,'Normal'],
+    ['SKU-EPP-0201','Casco de seguridad ANSI','EPP','Almacén Callao',140,30,0,'Sobrestock'],
+    ['SKU-PIN-0004','Pintura látex blanco 4 L','Acabados','Almacén Lima',8,25,0,'Bajo mínimo'],
+    ['SKU-EPP-0310','Lentes de seguridad claros','EPP','Almacén Lima',6,24,0,'Bajo mínimo'],
+  ],
+};

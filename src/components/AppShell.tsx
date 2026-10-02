@@ -9,6 +9,8 @@ import './AppShell.css';
 export interface Crumb {
   label: string;
   to?: string;
+  /** Render as a document code (monospace). */
+  mono?: boolean;
 }
 
 interface AppShellProps {
@@ -17,6 +19,9 @@ interface AppShellProps {
   breadcrumb: Crumb[];
   /** Right-aligned topbar actions (e.g. the primary "Nuevo …" button). */
   actions?: ReactNode;
+  searchPlaceholder?: string;
+  /** Narrower content column for form-style pages. */
+  narrow?: boolean;
   children: ReactNode;
 }
 
@@ -24,7 +29,7 @@ const Chevron = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2" strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
 );
 
-export function AppShell({ active, breadcrumb, actions, children }: AppShellProps) {
+export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Buscar en EnterpriseCloud…', narrow, children }: AppShellProps) {
   const { theme, toggle } = useTheme();
   const now = useNow();
   const dateStr = now.toLocaleDateString('es-PE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '');
@@ -42,7 +47,7 @@ export function AppShell({ active, breadcrumb, actions, children }: AppShellProp
                 <Fragment key={c.label}>
                   {i > 0 && <Chevron />}
                   {last ? (
-                    <span className="crumbs__current" aria-current="page">{c.label}</span>
+                    <span className={'crumbs__current' + (c.mono ? ' mono' : '')} style={c.mono ? { fontSize: 12 } : undefined} aria-current="page">{c.label}</span>
                   ) : c.to ? (
                     <Link to={c.to} className="crumbs__link">{c.label}</Link>
                   ) : (
@@ -56,7 +61,7 @@ export function AppShell({ active, breadcrumb, actions, children }: AppShellProp
           <div className="topbar__search-wrap">
             <label className="search search--global">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-              <input placeholder="Buscar en EnterpriseCloud…" aria-label="Búsqueda global" />
+              <input placeholder={searchPlaceholder} aria-label="Búsqueda global" />
               <span className="kbd">⌘K</span>
             </label>
           </div>
@@ -82,7 +87,7 @@ export function AppShell({ active, breadcrumb, actions, children }: AppShellProp
           </div>
         </header>
 
-        <main className="page">{children}</main>
+        <main className="page" style={narrow ? { maxWidth: 1100 } : undefined}>{children}</main>
       </div>
     </div>
   );

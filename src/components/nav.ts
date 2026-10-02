@@ -91,7 +91,3 @@ export const NAV: NavEntry[] = [
   },
 ];
 
-/** Flat list of every routable screen, for the router. */
-export const ROUTES: { label: string; to: string }[] = NAV.flatMap(e =>
-  e.kind === 'section' ? [] : [...(e.to ? [{ label: e.label, to: e.to }] : []), ...(e.children ?? [])],
-);

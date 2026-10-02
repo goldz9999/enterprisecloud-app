@@ -1,0 +1,159 @@
+/* Shared list-screen styles: filter chips, data tables. */
+
+/* ---------- Filters ---------- */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+.filter-chip {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.filter-chip.is-on { background: var(--selected); color: var(--text); border-color: var(--border-strong); }
+.filter-chip__dot { width: 6px; height: 6px; border-radius: 50%; }
+.filter-chip__count { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
+
+.toolbar__search { margin-left: auto; height: 30px; width: 260px; }
+
+/* ---------- Table ---------- */
+.table {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Header and rows share the same grid tracks (set inline per table) so columns stay aligned. */
+.table__row {
+  display: grid;
+  gap: 12px;
+}
+
+.table__head {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 500;
+}
+.table__head > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.table__body-row {
+  align-items: center;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  cursor: pointer;
+  background: transparent;
+  outline: none;
+}
+.table__body-row:hover, .table__body-row:focus-visible { background: var(--row-hover); }
+.table__body-row.is-selected { background: var(--accent-bg); }
+
+.cell { min-width: 0; }
+.cell__main { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell__sub { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mono-cell { font-family: var(--font-mono); font-size: 12px; }
+.muted { color: var(--muted); }
+.t-right { text-align: right; }
+
+.table__empty { padding: 40px 16px; text-align: center; color: var(--muted); }
+
+.table__foot {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---------- Filter bar, segmented buttons, pagination ---------- */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.filters__group { display: flex; flex-direction: column; gap: 6px; }
+.seg-buttons { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg-buttons > button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.seg-buttons > button:last-child { border-right: 0; }
+.seg-buttons > button.is-on { background: var(--selected); color: var(--text); }
+.seg-buttons--sm { border-radius: 5px; }
+.seg-buttons--sm > button { height: 24px; padding: 0 8px; font-size: 11px; border-right: 0; }
+.search--inset { height: 30px; background: var(--bg); }
+.link-btn {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pager { display: flex; align-items: center; gap: 16px; padding: 10px 16px; color: var(--muted); font-size: 12px; }
+.pager__pages { margin-left: auto; display: flex; gap: 4px; }
+.pager__nav {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pager__nav:disabled { color: var(--faint); cursor: default; }
+.pager__num {
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.pager__num.is-on { border-color: var(--border-strong); background: var(--selected); color: var(--text); }
+
+/* Checkbox look (rows, login) */
+.check {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+}
+.check.is-on { background: var(--accent); border-color: var(--accent); }

@@ -15,3 +15,8 @@ export function StatusChip({ label, tone, dot = true }: StatusChipProps) {
     </span>
   );
 }
+
+/** Foreground colour for a tone (used for dots outside a chip). */
+export function toneColor(tone: Tone | undefined): string {
+  return !tone || tone === 'muted' ? 'var(--text-2)' : `var(--${tone})`;
+}

@@ -1,0 +1,14 @@
+.settings {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  padding: 20px;
+}
+.settings__desc { font-size: 12px; color: var(--muted); margin-top: 4px; text-wrap: pretty; }
+.settings__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+
+.field__control.is-changed { border-color: var(--amber); }
+

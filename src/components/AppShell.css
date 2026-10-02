@@ -87,5 +87,6 @@
   max-width: 1600px;
   width: 100%;
 }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .page__title { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.015em; }
 .page__subtitle { color: var(--muted); margin-top: 4px; text-wrap: pretty; }
