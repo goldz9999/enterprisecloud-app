@@ -1,3 +1,4 @@
+import { opts } from './shared';
 import type { RecordsConfig } from '../../features/records/types';
 
 export const categorias: RecordsConfig = {
@@ -9,9 +10,17 @@ export const categorias: RecordsConfig = {
   crud: true, entity: 'Categoría', titleKey: 'nombre', subKey: 'cod', statusKey: 'estado', newTitle: 'Nueva categoría', newKicker: 'Mantenimiento · Categorías', msgNew: 'Categoría creada', msgDel: 'Categoría eliminada',
   statuses: { 'Activo': 'green', 'Inactivo': 'muted' },
   keys: ['cod','nombre','desc','padre','prods','margen','estado'],
-  defaults: n => ({ cod: 'CAT-' + String(7 + n).padStart(2, '0'), prods: 0 }),
+  collection: 'categorias',
+  code: { key: 'cod', prefix: 'CAT-', width: 2 },
+  view: (row, d) => ({ ...row, prods: d.records.productos.filter(p => p.cat === row.nombre).length }),
+  onUpdate: (d, before, after) => {
+    if (after.nombre !== before.nombre) for (const p of d.records.productos.filter(x => x.cat === before.nombre)) p.cat = after.nombre;
+  },
+  canDelete: (row, d) => {
+    if (d.records.productos.some(p => p.cat === row.nombre)) return 'No se puede eliminar una categoría con productos asociados; primero reasígnalos.';
+  },
   columns: [{ k: 'cod', label: 'Código', w: '80px', mono: true, muted: true }, { k: 'nombre', label: 'Categoría', w: 'minmax(0, 1fr)', sub: 'desc', bold: true }, { k: 'padre', label: 'Categoría padre', w: '130px', muted: true }, { k: 'prods', label: 'Productos', w: '84px', fmt: 'int', align: 'right' }, { k: 'margen', label: 'Margen obj.', w: '90px', align: 'right', mono: true }, { k: 'estado', label: 'Estado', w: '96px', chip: true }],
-  fields: [{ k: 'nombre', label: 'Nombre', required: true }, { k: 'padre', label: 'Categoría padre', type: 'select', options: ['—', 'Construcción', 'Ferretería', 'Gasfitería', 'Eléctricos', 'Acabados', 'EPP'] }, { k: 'desc', label: 'Descripción', wide: true }, { k: 'margen', label: 'Margen objetivo', placeholder: 'Ej. 25%' }, { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] }],
+  fields: [{ k: 'nombre', label: 'Nombre', required: true }, { k: 'padre', label: 'Categoría padre', type: 'select', options: d => ['—', ...opts.categories(d)] }, { k: 'desc', label: 'Descripción', wide: true }, { k: 'margen', label: 'Margen objetivo', placeholder: 'Ej. 25%' }, { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] }],
   note: 'No se puede eliminar una categoría con productos asociados; primero reasígnalos.',
   rows: [
     ['CAT-01','Construcción','Cemento, fierro, agregados y ladrillos','—',42,'22%','Activo'],

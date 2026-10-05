@@ -125,3 +125,21 @@ select.field__control { padding: 0 8px; }
 .readfield { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .readfield__value { word-break: break-word; }
 .drawer-readonly { font-size: 12px; color: var(--faint); text-align: center; }
+
+.drawer-error {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 12px;
+  text-wrap: pretty;
+}
+.action-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg);
+}

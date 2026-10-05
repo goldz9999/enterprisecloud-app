@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, type FormEvent } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { INITIAL_PASSWORD, login } from '../data/domain/auth';
+import { useSession } from '../data/session';
+import { useDB } from '../data/store';
 import { useTheme } from '../lib/theme';
 import './LoginPage.css';
-
-const MAX_ATTEMPTS = 5;
-/** Prototype-only password until real authentication exists. */
-const DEMO_PASSWORD = 'demo1234';
 
 function validate(email: string, pass: string) {
   return {
@@ -16,34 +15,41 @@ function validate(email: string, pass: string) {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const session = useSession();
+  const d = useDB();
   const { theme, toggle } = useTheme();
-  const [email, setEmail] = useState('maria.rojas@empresa.pe');
+  const firstRun = d.records.usuarios.length === 0;
+  const [email, setEmail] = useState(firstRun ? '' : 'maria.rojas@empresa.pe');
   const [pass, setPass] = useState('');
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
   const [touched, setTouched] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  const [authError, setAuthError] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const [authError, setAuthError] = useState<{ title: string; msg: string } | null>(null);
+  const [info, setInfo] = useState('');
 
   const errors = validate(email, pass);
-  const locked = attempts >= MAX_ATTEMPTS;
-  const left = MAX_ATTEMPTS - attempts;
+  const next = params.get('next') || '/';
 
-  const submit = (e: FormEvent) => {
+  if (session && !loading) return <Navigate to={next} replace />;
+
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     setTouched(true);
-    setAuthError(false);
-    if (errors.email || errors.pass || locked) return;
+    setAuthError(null);
+    setInfo('');
+    if (errors.email || errors.pass) return;
     setLoading(true);
-    timer.current = setTimeout(() => {
-      if (pass === DEMO_PASSWORD) return navigate('/');
-      setLoading(false);
-      setAuthError(true);
-      setAttempts(a => a + 1);
-    }, 900);
+    // Small delay so the verifying state is visible, as in the design.
+    await new Promise(r => setTimeout(r, 500));
+    const res = await login(email, pass, remember);
+    if (res.ok) return navigate(next, { replace: true });
+    setLoading(false);
+    setAuthError({
+      title: res.locked ? 'Cuenta bloqueada' : 'No pudimos iniciar sesión',
+      msg: res.error + (res.left != null && res.left > 0 ? ` Te quedan ${res.left} intento${res.left === 1 ? '' : 's'} antes del bloqueo temporal.` : ''),
+    });
   };
 
   return (
@@ -68,19 +74,24 @@ export function LoginPage() {
           </div>
 
           <form className="login__card" onSubmit={submit} noValidate>
-            {(authError || locked) && !loading && (
+            {firstRun && (
+              <div className="login__info">
+                Primer ingreso: no hay usuarios registrados. Escribe tu correo y una contraseña (mínimo 8 caracteres); se creará tu usuario Administrador.
+              </div>
+            )}
+            {!firstRun && d.mode === 'demo' && (
+              <div className="login__info">Datos de ejemplo: entra con cualquier usuario de la lista (por ejemplo maria.rojas@empresa.pe) y la contraseña <b className="mono">{INITIAL_PASSWORD}</b>.</div>
+            )}
+            {authError && !loading && (
               <div role="alert" className="login__alert">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 3l10 18H2z" /><path d="M12 10v4M12 17.5v.01" /></svg>
                 <div>
-                  <div style={{ fontWeight: 500 }}>{locked ? 'Cuenta bloqueada temporalmente' : 'Correo o contraseña incorrectos'}</div>
-                  <div style={{ fontSize: 12, marginTop: 2, opacity: 0.9 }}>
-                    {locked
-                      ? 'Superaste 5 intentos. Intenta de nuevo en 15 minutos o contacta al administrador.'
-                      : `Te quedan ${left} intento${left === 1 ? '' : 's'} antes del bloqueo temporal. (Demo: ${DEMO_PASSWORD})`}
-                  </div>
+                  <div style={{ fontWeight: 500 }}>{authError.title}</div>
+                  <div style={{ fontSize: 12, marginTop: 2, opacity: 0.9 }}>{authError.msg}</div>
                 </div>
               </div>
             )}
+            {info && <div className="login__info">{info}</div>}
 
             <div className="login__field">
               <label htmlFor="ec-email">Correo corporativo</label>
@@ -90,7 +101,7 @@ export function LoginPage() {
                 autoComplete="username"
                 className={'login__input' + (touched && errors.email ? ' is-invalid' : '')}
                 value={email}
-                onChange={e => { setEmail(e.target.value); setAuthError(false); }}
+                onChange={e => { setEmail(e.target.value); setAuthError(null); }}
                 placeholder="nombre@empresa.pe"
               />
               {touched && errors.email && <span className="field__error">{errors.email}</span>}
@@ -99,7 +110,7 @@ export function LoginPage() {
             <div className="login__field">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <label htmlFor="ec-pass">Contraseña</label>
-                <a style={{ fontSize: 12, cursor: 'pointer' }}>¿Olvidaste tu contraseña?</a>
+                <a style={{ fontSize: 12, cursor: 'pointer' }} onClick={() => setInfo(`Pide al Administrador que la restablezca en Administración › Usuarios (vuelve a ${INITIAL_PASSWORD}). Luego cámbiala desde tu menú de cuenta.`)}>¿Olvidaste tu contraseña?</a>
               </div>
               <div className={'login__input login__pass' + (touched && errors.pass ? ' is-invalid' : '')}>
                 <input
@@ -107,7 +118,7 @@ export function LoginPage() {
                   type={show ? 'text' : 'password'}
                   autoComplete="current-password"
                   value={pass}
-                  onChange={e => { setPass(e.target.value); setAuthError(false); }}
+                  onChange={e => { setPass(e.target.value); setAuthError(null); }}
                   placeholder="••••••••"
                 />
                 <button type="button" title={show ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShow(s => !s)}>
@@ -123,13 +134,13 @@ export function LoginPage() {
               Mantener sesión iniciada en este equipo
             </label>
 
-            <button type="submit" className="btn btn--primary login__submit" disabled={loading} style={{ opacity: loading || locked ? 0.7 : 1 }}>
+            <button type="submit" className="btn btn--primary login__submit" disabled={loading} style={{ opacity: loading ? 0.7 : 1 }}>
               {loading && <span className="spinner" />}
-              {loading ? 'Verificando…' : 'Ingresar'}
+              {loading ? 'Verificando…' : firstRun ? 'Crear usuario e ingresar' : 'Ingresar'}
             </button>
 
             <div className="login__or"><span />o<span /></div>
-            <button type="button" className="btn login__sso">
+            <button type="button" className="btn login__sso" onClick={() => setInfo('El ingreso con SSO (Microsoft o Google de la empresa) requiere un servidor de identidad; no está disponible en la versión local.')}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /></svg>
               Ingresar con SSO de la empresa
             </button>

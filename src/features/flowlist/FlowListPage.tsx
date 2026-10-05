@@ -1,42 +1,132 @@
-import { Fragment, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, Fragment, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
 import { StatusChip, toneColor } from '../../components/StatusChip';
+import { Toast, useToast } from '../../components/Toast';
+import { renderDocHtml } from '../../data/domain/documents';
+import { convertToOrder, deleteFlowDoc, duplicateFlowDoc, flowTotal, saveFlowDoc, setFlowStatus } from '../../data/domain/flows';
+import { stockRow } from '../../data/domain/stock';
+import { can, type PermAction } from '../../data/permissions';
+import { getDB, mutate, useDB } from '../../data/store';
+import type { OrderLine } from '../../data/types';
+import { openPrintable } from '../../lib/csv';
 import { formatMoney } from '../../lib/format';
+import { FlowEditor } from './FlowEditor';
 import type { FlowListConfig, FlowRow } from './types';
 import './FlowListPage.css';
 
 const COLS = '104px minmax(0, 1fr) 96px 132px';
-const IGV = 1.18;
 
-const totalOf = (r: FlowRow) => r.items.reduce((a, i) => a + i.qty * i.price, 0) * IGV;
+interface FlowAction {
+  label: string;
+  primary?: boolean;
+  danger?: boolean;
+  /** Permission module and action required. */
+  perm: [string, PermAction];
+  run: () => void;
+}
 
 /** List + sticky detail panel for documents that start a flow (Cotizaciones, Solicitudes). */
 export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
+  const d = useDB();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const quote = cfg.kind === 'cotizacion';
+  const rows = quote ? d.cotizaciones : d.solicitudes;
   const [filter, setFilter] = useState('Todos');
-  const [query, setQuery] = useState('');
-  const [selId, setSelId] = useState(cfg.rows[0]?.id);
-  // Status changes made on this screen, by document id.
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [query, setQuery] = useState(params.get('q') ?? '');
+  // Follow ?q= when arriving from the global search or a link while already on this screen.
+  useEffect(() => setQuery(params.get('q') ?? ''), [params]);
+  const [selId, setSelId] = useState(rows[0]?.id);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [error, setError] = useState('');
+  const toast = useToast();
 
-  const all = cfg.rows.map(r => ({ ...r, status: overrides[r.id] ?? r.status }));
+  // Opened from Stock bajo mínimo: ?nuevo=SKU&alm=Almacén → new request pre-filled with that product.
+  const [editor, setEditor] = useState<{ row?: FlowRow; lines?: OrderLine[]; alm?: string } | null>(() => {
+    const sku = params.get('nuevo');
+    if (!sku || quote) return null;
+    const db = getDB();
+    const p = db.records.productos.find(x => x.sku === sku);
+    if (!p) return {};
+    const alm = params.get('alm') ?? undefined;
+    const st = alm ? stockRow(db, sku, alm) : undefined;
+    const qty = Math.max(1, Number(p.min) * 2 - Number(st?.stock ?? 0));
+    return { lines: [{ sku, name: String(p.nombre), unit: String(p.unidad).toLowerCase(), qty, price: Number(p.costo) || 0 }], alm };
+  });
+
   const q = query.trim().toLowerCase();
-  const searched = all.filter(r => !q || (r.id + r.party + r.partySub).toLowerCase().includes(q));
+  const searched = rows.filter(r => !q || (r.id + r.party + r.partySub).toLowerCase().includes(q));
   const list = filter === 'Todos' ? searched : searched.filter(r => r.status === filter);
-  const sel = all.find(r => r.id === selId);
-  const actions = sel ? cfg.actions[sel.status] ?? [] : [];
+  const sel = rows.find(r => r.id === selId) ?? list[0];
   const note = sel ? cfg.notes[sel.status] : undefined;
+  const orderModule = quote ? 'Órdenes de venta' : 'Órdenes de compra';
+
+  const act = (fn: (draft: ReturnType<typeof getDB>) => string | void, msg: string) => {
+    const err = mutate(fn);
+    if (err) return setError(err);
+    setError('');
+    toast.flash(msg);
+  };
+  const status = (to: string) => () => act(dr => setFlowStatus(dr, cfg.kind, sel!.id, to), `${sel!.id} · ${to}`);
+  const convert = () => {
+    let code = '';
+    const err = mutate(dr => {
+      const r = convertToOrder(dr, cfg.kind, sel!.id);
+      code = r.code ?? '';
+      return r.error;
+    });
+    if (err) return setError(err);
+    navigate(`/${quote ? 'ventas' : 'compras'}/orden/${code}`);
+  };
+
+  const actionsFor = (r: FlowRow): FlowAction[] => {
+    const edit: FlowAction = { label: 'Editar', perm: [cfg.active, 'Editar'], run: () => setEditor({ row: r }) };
+    const openOrder: FlowAction = { label: `Ver ${quote ? 'orden de venta' : 'orden de compra'} ${r.order ?? ''}`, perm: [orderModule, 'Ver'], run: () => r.order && navigate(`/${quote ? 'ventas' : 'compras'}/orden/${r.order}`) };
+    if (quote) {
+      switch (r.status) {
+        case 'Borrador': return [{ label: 'Enviar al cliente', primary: true, perm: [cfg.active, 'Editar'], run: status('Enviada') }, edit, { label: 'Eliminar borrador', danger: true, perm: [cfg.active, 'Eliminar'], run: () => setConfirmDelete(true) }];
+        case 'Enviada': return [{ label: 'Marcar como aprobada', primary: true, perm: [cfg.active, 'Editar'], run: status('Aprobada') }, { label: 'Marcar como rechazada', danger: true, perm: [cfg.active, 'Editar'], run: status('Rechazada') }, edit];
+        case 'Aprobada': return [{ label: 'Convertir en orden de venta →', primary: true, perm: [orderModule, 'Crear'], run: convert }];
+        case 'Convertida': return r.order ? [openOrder] : [];
+        case 'Rechazada': return [{ label: 'Duplicar como nueva cotización', perm: [cfg.active, 'Crear'], run: () => { let id = ''; act(dr => { id = duplicateFlowDoc(dr, cfg.kind, r.id) ?? ''; }, 'Cotización duplicada como borrador'); if (id) setSelId(id); } }];
+      }
+      return [];
+    }
+    switch (r.status) {
+      case 'Pendiente': return [{ label: 'Aprobar solicitud', primary: true, perm: [cfg.active, 'Aprobar'], run: status('Aprobada') }, { label: 'Rechazar', danger: true, perm: [cfg.active, 'Aprobar'], run: status('Rechazada') }, edit];
+      case 'Aprobada': return [{ label: 'Generar orden de compra →', primary: true, perm: [orderModule, 'Crear'], run: convert }];
+      case 'Atendida': return r.order ? [openOrder] : [];
+    }
+    return [];
+  };
+  const actions = sel ? actionsFor(sel).filter(a => can(d, ...a.perm)) : [];
+
+  const printQuote = (r: FlowRow) => {
+    const c = d.records.clientes.find(x => x.razon === r.party);
+    openPrintable(
+      renderDocHtml(d, {
+        title: quote ? 'Cotización' : 'Solicitud de compra',
+        number: r.id,
+        party: quote ? { name: r.party, ruc: String(c?.ndoc ?? ''), contact: '', terms: '', address: String(c?.dir ?? '') } : undefined,
+        lines: r.items.map(i => ({ sku: i.sku ?? '', name: i.name, unit: i.unit, qty: i.qty, price: i.price })),
+        igvRate: 0.18,
+        facts: r.facts.map(f => [f.k, f.v]),
+      }),
+    );
+  };
 
   return (
     <AppShell
       active={cfg.active}
       breadcrumb={[{ label: 'Inicio', to: '/' }, { label: cfg.section }, { label: cfg.title }]}
       actions={
-        <button type="button" className="btn btn--primary">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-          {cfg.newLabel}
-        </button>
+        can(d, cfg.active, 'Crear') && (
+          <button type="button" className="btn btn--primary" onClick={() => setEditor({})}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            {cfg.newLabel}
+          </button>
+        )
       }
     >
       <div>
@@ -80,7 +170,7 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
               tabIndex={0}
               className={'table__row table__body-row' + (r.id === sel?.id ? ' is-selected is-marked' : '')}
               style={{ gridTemplateColumns: COLS, gap: 10 }}
-              onClick={() => setSelId(r.id)}
+              onClick={() => { setSelId(r.id); setError(''); setConfirmDelete(false); }}
               onKeyDown={e => e.key === 'Enter' && setSelId(r.id)}
             >
               <div className="mono" style={{ whiteSpace: 'nowrap' }}>
@@ -91,11 +181,15 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
                 <div className="cell__main" style={{ fontWeight: 500 }}>{r.party}</div>
                 <div className="cell__sub">{r.partySub}</div>
               </div>
-              <span className="mono t-right" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatMoney(totalOf(r))}</span>
-              <span><StatusChip label={r.status} tone={cfg.statuses[r.status]} /></span>
+              <span className="mono t-right" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatMoney(flowTotal(r.items))}</span>
+              <span><StatusChip label={r.status} tone={cfg.statuses[r.status] ?? 'muted'} /></span>
             </div>
           ))}
-          {list.length === 0 && <div className="table__empty">Sin resultados.</div>}
+          {list.length === 0 && (
+            <div className="table__empty">
+              {rows.length === 0 ? <>Aún no hay registros. {can(d, cfg.active, 'Crear') && <a style={{ cursor: 'pointer' }} onClick={() => setEditor({})}>{cfg.newLabel}</a>}</> : 'Sin resultados.'}
+            </div>
+          )}
           <div className="table__foot">{list.length} registros</div>
         </div>
 
@@ -105,7 +199,8 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
               <div className="flowdetail__head">
                 <div className="flowdetail__idrow">
                   <span className="mono" style={{ fontWeight: 600 }}>{sel.id}</span>
-                  <StatusChip label={sel.status} tone={cfg.statuses[sel.status]} />
+                  <StatusChip label={sel.status} tone={cfg.statuses[sel.status] ?? 'muted'} />
+                  <button type="button" className="link-btn" style={{ marginLeft: 'auto', height: 22, padding: 0 }} onClick={() => printQuote(sel)}>Imprimir</button>
                 </div>
                 <div style={{ fontWeight: 500 }}>{sel.party}</div>
                 <div className="flowdetail__sub">{sel.partySub}</div>
@@ -115,6 +210,7 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
                   {sel.facts.map(f => (
                     <Fragment key={f.k}><span className="facts__k">{f.k}</span><span>{f.v}</span></Fragment>
                   ))}
+                  {sel.order && <><span className="facts__k">Orden generada</span><span className="mono">{sel.order}</span></>}
                 </div>
                 <div className="flowdetail__items">
                   <span className="field__label">Productos</span>
@@ -129,30 +225,58 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
                   ))}
                   <div className="lineitem__total">
                     <span>{cfg.amountHead} (inc. IGV)</span>
-                    <span className="mono">{formatMoney(totalOf(sel))}</span>
+                    <span className="mono">{formatMoney(flowTotal(sel.items))}</span>
                   </div>
                 </div>
                 {note && <div className="note">{note}</div>}
-                <div className="flowdetail__actions">
-                  {actions.map(a => (
-                    <button
-                      key={a.label}
-                      type="button"
-                      className={'btn btn--block' + (a.primary ? ' btn--primary' : '') + (a.danger ? ' btn--danger-text' : '')}
-                      onClick={() => {
-                        if (a.href) navigate(a.href);
-                        else if (a.to) setOverrides(o => ({ ...o, [sel.id]: a.to! }));
-                      }}
-                    >
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
+                {error && <div className="drawer-error" role="alert">{error}</div>}
+                {confirmDelete ? (
+                  <div className="confirm-del">
+                    <span className="confirm-del__text">¿Eliminar {sel.id}?</span>
+                    <button type="button" className="confirm-del__no" onClick={() => setConfirmDelete(false)}>No</button>
+                    <button type="button" className="confirm-del__yes" onClick={() => { setConfirmDelete(false); act(dr => deleteFlowDoc(dr, cfg.kind, sel.id), `${sel.id} eliminada`); }}>Sí, eliminar</button>
+                  </div>
+                ) : (
+                  <div className="flowdetail__actions">
+                    {actions.map(a => (
+                      <button key={a.label} type="button" className={'btn btn--block' + (a.primary ? ' btn--primary' : '') + (a.danger ? ' btn--danger-text' : '')} onClick={a.run}>
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
+          {!sel && <div className="flowdetail__body" style={{ color: 'var(--muted)' }}>Selecciona un documento para ver su detalle.</div>}
         </aside>
       </section>
+
+      {editor && (
+        <FlowEditor
+          kind={cfg.kind}
+          row={editor.row}
+          initialLines={editor.lines}
+          initialData={editor.alm ? { alm: editor.alm, motivo: 'Reposición por stock bajo mínimo' } : undefined}
+          onClose={() => {
+            setEditor(null);
+            if (params.has('nuevo')) setParams({}, { replace: true });
+          }}
+          onSave={(data, items) => {
+            let id = '';
+            const err = mutate(dr => {
+              id = saveFlowDoc(dr, cfg.kind, data, items, editor.row?.id);
+            });
+            if (err) return err;
+            setEditor(null);
+            if (params.has('nuevo')) setParams({}, { replace: true });
+            setFilter('Todos');
+            setSelId(id);
+            toast.flash(editor.row ? 'Cambios guardados' : `${id} creada`);
+          }}
+        />
+      )}
+      <Toast message={toast.message} />
     </AppShell>
   );
 }

@@ -90,3 +90,28 @@
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .page__title { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.015em; }
 .page__subtitle { color: var(--muted); margin-top: 4px; text-wrap: pretty; }
+
+.demo-chip {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  white-space: nowrap;
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+.demo-chip:hover { color: var(--amber); filter: brightness(1.1); }
+
+/* Compact table density (Configuración › Apariencia) */
+html[data-density="Compacta"] .table__body-row,
+html[data-density="Compacta"] .vrow,
+html[data-density="Compacta"] .sales-row--body,
+html[data-density="Compacta"] .audit-row--body { padding-top: 5px; padding-bottom: 5px; }
+button.demo-chip { border: 0; font: inherit; font-size: 12px; cursor: pointer; }
+
+/* Narrow screens: keep the time, drop the date, so the topbar fits at 1180px. */
+@media (max-width: 1320px) {
+  .clock > span:first-child { display: none; }
+}

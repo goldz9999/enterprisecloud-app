@@ -2,60 +2,42 @@ import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { Toast, useToast } from '../components/Toast';
+import { audit } from '../data/domain/audit';
+import { ACTIONS, can, MODULES } from '../data/permissions';
+import { mutate, useDB } from '../data/store';
+import type { PermMatrix } from '../data/types';
 import './PermisosPage.css';
 
-const ACTIONS = ['Ver', 'Crear', 'Editar', 'Eliminar', 'Aprobar'];
-const MODULES: [group: string, modules: string[]][] = [
-  ['Inicio', ['Dashboard']],
-  ['Ventas', ['Cotizaciones', 'Órdenes de venta', 'Comprobantes']],
-  ['Compras', ['Solicitudes', 'Órdenes de compra', 'Recepción']],
-  ['Inventario', ['Stock por almacén', 'Kardex', 'Transferencias', 'Ajustes']],
-  ['Finanzas', ['Cuentas por cobrar', 'Cuentas por pagar', 'Caja', 'Bancos']],
-  ['Documentos y reportes', ['Documentos', 'Reportes']],
-  ['Mantenimiento', ['Clientes', 'Proveedores', 'Productos', 'Categorías', 'Almacenes']],
-  ['Sistema', ['Usuarios', 'Roles', 'Permisos', 'Auditoría', 'Configuración']],
-];
-const ROLES: [role: string, users: number][] = [['Administrador', 1], ['Gerente', 1], ['Ventas', 2], ['Compras', 1], ['Almacén', 2], ['Contabilidad', 1]];
-
-/** role → module → [ver, crear, editar, eliminar, aprobar] */
-type Matrix = Record<string, Record<string, boolean[]>>;
-
-const P = (...flags: number[]) => flags.map(Boolean);
-const FULL = P(1, 1, 1, 1, 1), VIEW = P(1, 0, 0, 0, 0), WORK = P(1, 1, 1, 0, 0), NONE = P(0, 0, 0, 0, 0);
-
-function defaults(): Matrix {
-  const all: Matrix = {};
-  const set = (role: string, fn: (group: string, mod: string) => boolean[]) => {
-    all[role] = {};
-    for (const [g, ms] of MODULES) for (const m of ms) all[role][m] = fn(g, m).slice();
-  };
-  const isIn = (m: string, list: string[]) => list.includes(m);
-  set('Administrador', () => FULL);
-  set('Gerente', (g, m) => (g === 'Sistema' ? (m === 'Configuración' ? NONE : VIEW) : FULL));
-  set('Ventas', (g, m) => (g === 'Ventas' ? (m === 'Comprobantes' ? P(1, 1, 0, 0, 0) : WORK) : m === 'Clientes' ? WORK : isIn(m, ['Dashboard', 'Reportes', 'Stock por almacén', 'Documentos', 'Productos']) ? VIEW : NONE));
-  set('Compras', (g, m) => (g === 'Compras' || m === 'Proveedores' ? WORK : isIn(m, ['Dashboard', 'Reportes', 'Stock por almacén', 'Kardex', 'Documentos', 'Productos', 'Cuentas por pagar']) ? VIEW : NONE));
-  set('Almacén', (g, m) => (g === 'Inventario' || m === 'Recepción' ? WORK : m === 'Órdenes de venta' ? P(1, 0, 1, 0, 0) : m === 'Solicitudes' ? P(1, 1, 0, 0, 0) : isIn(m, ['Dashboard', 'Productos', 'Almacenes', 'Documentos']) ? VIEW : NONE));
-  set('Contabilidad', (g, m) => (g === 'Finanzas' ? FULL : m === 'Comprobantes' ? P(1, 1, 1, 0, 1) : isIn(m, ['Dashboard', 'Reportes', 'Documentos', 'Clientes', 'Proveedores', 'Auditoría']) ? VIEW : NONE));
-  return all;
-}
-
+type Matrix = PermMatrix;
 const clone = (m: Matrix): Matrix => JSON.parse(JSON.stringify(m));
 const COLS = 'minmax(0, 1fr) repeat(5, 76px) 64px';
 
 export function PermisosPage() {
-  const [role, setRole] = useState('Ventas');
-  const [saved, setSaved] = useState(defaults);
-  const [perms, setPerms] = useState(defaults);
+  const d = useDB();
+  const saved = d.permisos;
+  const roles = d.records.roles.filter(r => r.estado !== 'Inactivo').map(r => [String(r.nombre), d.records.usuarios.filter(u => u.rol === r.nombre).length] as const);
+  const [role, setRole] = useState(() => roles.find(([r]) => r === 'Ventas')?.[0] ?? roles[0]?.[0] ?? 'Administrador');
+  const [perms, setPerms] = useState(() => clone(saved));
   const toast = useToast();
-  const locked = role === 'Administrador';
+  const canEdit = can(d, 'Permisos', 'Editar');
+  const locked = role === 'Administrador' || !canEdit;
+  // Roles created after this screen opened get an empty row set.
+  const rowOf = (m: string) => perms[role]?.[m] ?? saved[role]?.[m] ?? [false, false, false, false, false];
 
-  let changes = 0;
-  for (const r of Object.keys(perms)) for (const m of Object.keys(perms[r])) perms[r][m].forEach((v, i) => { if (v !== saved[r][m][i]) changes++; });
+  const changed: [string, string, string][] = [];
+  for (const r of Object.keys(perms))
+    for (const m of Object.keys(perms[r]))
+      perms[r][m].forEach((v, i) => {
+        if (v !== (saved[r]?.[m]?.[i] ?? false)) changed.push([`${r} · ${m} · ${ACTIONS[i]}`, v ? 'No' : 'Sí', v ? 'Sí' : 'No']);
+      });
+  const changes = changed.length;
 
   const update = (fn: (row: boolean[]) => void, mod: string) => {
     if (locked) return;
     setPerms(p => {
       const next = clone(p);
+      next[role] ??= {};
+      next[role][mod] ??= [false, false, false, false, false];
       fn(next[role][mod]);
       return next;
     });
@@ -69,6 +51,14 @@ export function PermisosPage() {
       if (i === 0 && !row[0]) row.fill(false);
     }, mod);
 
+  const save = () => {
+    mutate(dr => {
+      dr.permisos = clone(perms);
+      audit(dr, { action: 'Editar', module: 'Administración', ref: 'Permisos', desc: `Permisos de rol actualizados · ${changes} cambio${changes === 1 ? '' : 's'}`, changes: changed.slice(0, 20) });
+    });
+    toast.flash('Permisos guardados · registrado en auditoría');
+  };
+
   return (
     <AppShell active="Permisos" breadcrumb={[{ label: 'Inicio', to: '/' }, { label: 'Administración' }, { label: 'Permisos' }]}>
       <div>
@@ -78,7 +68,7 @@ export function PermisosPage() {
 
       <div className="toolbar">
         <span style={{ fontSize: 12, color: 'var(--muted)', marginRight: 4 }}>Rol</span>
-        {ROLES.map(([r, n]) => (
+        {roles.map(([r, n]) => (
           <button key={r} type="button" className={'filter-chip' + (role === r ? ' is-on' : '')} aria-pressed={role === r} onClick={() => setRole(r)}>
             {r}
             <span className="filter-chip__count">{n}</span>
@@ -87,7 +77,8 @@ export function PermisosPage() {
         <Link to="/admin/roles" style={{ marginLeft: 'auto', fontSize: 12 }}>Gestionar roles →</Link>
       </div>
 
-      {locked && (
+      {!canEdit && <div className="info-banner">Tu rol puede ver los permisos pero no modificarlos.</div>}
+      {role === 'Administrador' && (
         <div className="info-banner">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
           El rol Administrador tiene acceso total y no se puede modificar.
@@ -104,13 +95,13 @@ export function PermisosPage() {
           <Fragment key={group}>
             <div className="perm-group">{group}</div>
             {mods.map(m => {
-              const row = perms[role][m];
+              const row = rowOf(m);
               const full = row.every(Boolean);
               return (
                 <div key={m} className="perm-row perm-row--body" style={{ gridTemplateColumns: COLS }}>
                   <span style={{ paddingLeft: 8 }}>{m}</span>
                   {row.map((on, i) => {
-                    const changed = on !== saved[role][m][i];
+                    const changed = on !== (saved[role]?.[m]?.[i] ?? false);
                     return (
                       <span key={i} className="t-center" style={{ display: 'flex', justifyContent: 'center' }}>
                         <button
@@ -145,7 +136,7 @@ export function PermisosPage() {
             {changes} cambio{changes === 1 ? '' : 's'} sin guardar · se aplicará al siguiente inicio de sesión de los usuarios
           </span>
           <button type="button" className="btn" onClick={() => setPerms(clone(saved))}>Descartar</button>
-          <button type="button" className="btn btn--primary" style={{ padding: '0 16px' }} onClick={() => { setSaved(clone(perms)); toast.flash('Permisos guardados · registrado en auditoría'); }}>
+          <button type="button" className="btn btn--primary" style={{ padding: '0 16px' }} onClick={save}>
             Guardar cambios
           </button>
         </div>

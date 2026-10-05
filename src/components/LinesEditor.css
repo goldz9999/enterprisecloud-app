@@ -1,0 +1,36 @@
+.lines-editor { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.le-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 104px 108px 28px;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.le-row .field__control { width: 100%; height: 32px; padding: 0 8px; }
+.le-row--head {
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 500;
+  border-bottom-color: var(--border);
+}
+.le-sub { font-size: 12px; line-height: 32px; white-space: nowrap; }
+.le-avail { font-size: 11px; color: var(--faint); margin-top: 3px; }
+.le-avail.is-short { color: var(--amber); }
+.le-del {
+  width: 28px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+}
+.le-del:hover { background: var(--hover); color: var(--red); }
+.le-foot { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 10px 12px; }
+.le-totals { display: grid; grid-template-columns: auto auto; gap: 4px 16px; font-size: 12px; text-align: right; }
+.le-totals > span:nth-child(odd) { color: var(--muted); }

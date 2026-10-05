@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Drawer } from '../../components/Drawer';
 import { StatusChip } from '../../components/StatusChip';
+import { useDB } from '../../data/store';
+import type { DB } from '../../data/types';
 import { formatValue } from '../../lib/format';
 import type { Action, Field, RecordsConfig, Row, Value } from './types';
 
@@ -12,34 +14,92 @@ interface RecordDrawerProps {
   mode: DrawerMode;
   /** null when creating. */
   row: Row | null;
+  /** Error from the last save/action, shown above the buttons. */
+  error?: string;
+  canDelete: boolean;
+  /** Actions the user is allowed to run. */
+  actions: Action[];
   onClose: () => void;
   onSave: (values: Record<string, Value>) => void;
   onDelete: () => void;
-  onAction: (a: Action) => void;
+  onAction: (a: Action, values: Record<string, string>) => void;
 }
 
-function initialForm(fields: Field[], row: Row | null): Record<string, string> {
+export function optionsOf(f: Field, d: DB): string[] {
+  return typeof f.options === 'function' ? f.options(d) : f.options ?? [];
+}
+
+function defaultOf(f: Field, d: DB, row?: Row): string {
+  if (typeof f.value === 'function') return f.value(d, row);
+  if (f.value != null) return f.value;
+  return f.type === 'select' ? optionsOf(f, d)[0] ?? '' : '';
+}
+
+function initialForm(fields: Field[], d: DB, row: Row | null): Record<string, string> {
   const form: Record<string, string> = {};
-  for (const f of fields) form[f.k] = row ? String(row[f.k] ?? '') : f.options ? f.options[0] : '';
+  for (const f of fields) {
+    if (!row) form[f.k] = defaultOf(f, d);
+    else if (row[f.k] != null) form[f.k] = String(row[f.k]);
+    else form[f.k] = f.value != null ? defaultOf(f, d, row) : '';
+  }
   return form;
 }
 
-export function RecordDrawer({ cfg, mode, row, onClose, onSave, onDelete, onAction }: RecordDrawerProps) {
+/** Form grid shared by record editing and action prompts. */
+function FieldGrid({ fields, form, setForm, showErrors, d }: { fields: Field[]; form: Record<string, string>; setForm: (fn: (f: Record<string, string>) => Record<string, string>) => void; showErrors: boolean; d: DB }) {
+  return (
+    <div className="form-grid">
+      {fields.map(f => {
+        const invalid = showErrors && !!f.required && !String(form[f.k] ?? '').trim();
+        const set = (value: string) => setForm(s => ({ ...s, [f.k]: value }));
+        const cls = 'field__control' + (invalid ? ' is-invalid' : '');
+        const opts = optionsOf(f, d);
+        const value = form[f.k] ?? '';
+        return (
+          <label key={f.k} className={'field' + (f.wide ? ' field--wide' : '')}>
+            <span className="field__label">{f.label}{f.required ? ' *' : ''}</span>
+            {f.type === 'select' ? (
+              <select className={cls} value={value} onChange={e => set(e.target.value)}>
+                {/* Keep a stored value visible even if it is no longer an option (e.g. a deleted category). */}
+                {value && !opts.includes(value) && <option>{value}</option>}
+                {!value && <option value="">— Selecciona —</option>}
+                {opts.map(o => <option key={o}>{o}</option>)}
+              </select>
+            ) : (
+              <input
+                className={cls}
+                type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+                step={f.type === 'number' ? 'any' : undefined}
+                value={value}
+                placeholder={f.placeholder}
+                onChange={e => set(e.target.value)}
+                aria-invalid={invalid || undefined}
+              />
+            )}
+            {invalid && <span className="field__error">Campo obligatorio</span>}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClose, onSave, onDelete, onAction }: RecordDrawerProps) {
   const navigate = useNavigate();
-  const [form, setForm] = useState(() => initialForm(cfg.fields, row));
+  const d = useDB();
+  const [form, setForm] = useState(() => initialForm(cfg.fields, d, row));
   const [showErrors, setShowErrors] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // An action that needs input before running.
+  const [pending, setPending] = useState<{ action: Action; fields: Field[]; form: Record<string, string> } | null>(null);
 
   const isNew = mode === 'new';
   const isEdit = mode !== 'view';
   const status = row ? String(row[cfg.statusKey]) : '';
   const note = (row && cfg.notes?.[status]) || cfg.note;
-  const actions = row && cfg.actions ? (cfg.actions[status] ?? cfg.actions['*'] ?? []) : [];
-
-  const isMissing = (f: Field) => !!f.required && !String(form[f.k] ?? '').trim();
 
   const save = () => {
-    if (cfg.fields.some(isMissing)) {
+    if (cfg.fields.some(f => f.required && !String(form[f.k] ?? '').trim())) {
       setShowErrors(true);
       return;
     }
@@ -48,9 +108,30 @@ export function RecordDrawer({ cfg, mode, row, onClose, onSave, onDelete, onActi
     onSave(values);
   };
 
+  const startAction = (a: Action) => {
+    if (a.href) return navigate(typeof a.href === 'function' ? a.href(row!) : a.href);
+    const fields = typeof a.fields === 'function' ? a.fields(row!, d) : a.fields;
+    if (fields?.length) {
+      setShowErrors(false);
+      setPending({ action: a, fields, form: initialForm(fields, d, null) });
+    } else onAction(a, {});
+  };
+
+  const confirmAction = () => {
+    if (!pending) return;
+    if (pending.fields.some(f => f.required && !String(pending.form[f.k] ?? '').trim())) {
+      setShowErrors(true);
+      return;
+    }
+    onAction(pending.action, pending.form);
+    setPending(null);
+  };
+
+  const errorBox = error && <div className="drawer-error" role="alert">{error}</div>;
+
   const editFooter = (
     <div className="drawer-actions">
-      {mode === 'edit' && (
+      {mode === 'edit' && canDelete && (
         <button type="button" className="btn btn--danger-text" onClick={() => setConfirmDelete(true)}>Eliminar</button>
       )}
       <span className="drawer-actions__spacer" />
@@ -61,13 +142,21 @@ export function RecordDrawer({ cfg, mode, row, onClose, onSave, onDelete, onActi
     </div>
   );
 
-  const viewFooter = actions.length ? (
+  const viewFooter = pending ? (
+    <div className="drawer-actions">
+      <span className="drawer-actions__spacer" />
+      <button type="button" className="btn" onClick={() => setPending(null)}>Cancelar</button>
+      <button type="button" className={'btn ' + (pending.action.danger ? 'btn--danger-text' : 'btn--primary')} style={{ padding: '0 16px' }} onClick={confirmAction}>
+        {pending.action.label.replace(' →', '')}
+      </button>
+    </div>
+  ) : actions.length ? (
     actions.map(a => (
       <button
         key={a.label}
         type="button"
         className={'btn btn--block' + (a.primary ? ' btn--primary' : '') + (a.danger ? ' btn--danger-text' : '')}
-        onClick={() => (a.href ? navigate(a.href) : onAction(a))}
+        onClick={() => startAction(a)}
       >
         {a.label}
       </button>
@@ -85,6 +174,7 @@ export function RecordDrawer({ cfg, mode, row, onClose, onSave, onDelete, onActi
       onClose={onClose}
       footer={
         <>
+          {errorBox}
           {confirmDelete && (
             <div className="confirm-del">
               <span className="confirm-del__text">¿Eliminar este registro? La acción queda registrada en auditoría.</span>
@@ -96,42 +186,27 @@ export function RecordDrawer({ cfg, mode, row, onClose, onSave, onDelete, onActi
         </>
       }
     >
-      <div className="form-grid">
-        {isEdit
-          ? cfg.fields.map(f => {
-              const invalid = showErrors && isMissing(f);
-              const set = (value: string) => setForm(s => ({ ...s, [f.k]: value }));
-              const cls = 'field__control' + (invalid ? ' is-invalid' : '');
-              return (
-                <label key={f.k} className={'field' + (f.wide ? ' field--wide' : '')}>
-                  <span className="field__label">{f.label}{f.required ? ' *' : ''}</span>
-                  {f.type === 'select' ? (
-                    <select className={cls} value={form[f.k]} onChange={e => set(e.target.value)}>
-                      {f.options?.map(o => <option key={o}>{o}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      className={cls}
-                      type={f.type === 'number' ? 'number' : 'text'}
-                      value={form[f.k]}
-                      placeholder={f.placeholder}
-                      onChange={e => set(e.target.value)}
-                      aria-invalid={invalid || undefined}
-                    />
-                  )}
-                  {invalid && <span className="field__error">Campo obligatorio</span>}
-                </label>
-              );
-            })
-          : row &&
-            cfg.fields.map(f => (
+      {isEdit ? (
+        <FieldGrid fields={cfg.fields} form={form} setForm={setForm} showErrors={showErrors} d={d} />
+      ) : (
+        row && (
+          <div className="form-grid">
+            {cfg.fields.map(f => (
               <div key={f.k} className={'readfield' + (f.wide ? ' field--wide' : '')}>
                 <span className="field__label">{f.label}</span>
                 <span className={'readfield__value' + (f.mono || f.fmt ? ' mono' : '')}>{formatValue(row[f.k], f.fmt)}</span>
               </div>
             ))}
-      </div>
-      {note && <div className="note">{note}</div>}
+          </div>
+        )
+      )}
+      {pending && (
+        <div className="action-form">
+          <div className="panel__title" style={{ fontSize: 13 }}>{pending.action.label.replace(' →', '')}</div>
+          <FieldGrid fields={pending.fields} form={pending.form} setForm={fn => setPending(p => p && { ...p, form: fn(p.form) })} showErrors={showErrors} d={d} />
+        </div>
+      )}
+      {note && !pending && <div className="note">{note}</div>}
     </Drawer>
   );
 }

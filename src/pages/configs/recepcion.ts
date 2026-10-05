@@ -1,23 +1,43 @@
 import type { RecordsConfig } from '../../features/records/types';
+import type { DB, Row } from '../../data/types';
+import { displayDate } from '../../lib/dates';
+
+const receptionRows = (d: DB): Row[] =>
+  d.orders
+    .filter(o => o.kind === 'compra' && !o.cancelled && o.done >= 2)
+    .map((o, i) => {
+      const received = o.done >= 3;
+      const f = o.forms[2] ?? {};
+      return {
+        _id: i + 1, oc: o.code, prov: o.party.name,
+        ni: received ? (o.docs[2] ?? '').replace('Ingreso ', '') : 'Pendiente',
+        fecha: received ? displayDate(f.fr) : 'Entrega ' + displayDate(o.forms[1]?.ent).slice(0, 6),
+        alm: received ? f.alm ?? o.warehouse : o.warehouse,
+        items: `${o.lines.length} ítem${o.lines.length === 1 ? '' : 's'} · ${o.lines.reduce((a, l) => a + l.qty, 0).toLocaleString('en-US')} unidades`,
+        estado: received ? f.est || 'Conforme' : 'Por recibir',
+        recibe: received ? f.rec ?? '—' : '—',
+        obs: f.obs ?? '',
+      };
+    });
 
 export const recepcion: RecordsConfig = {
   active: 'Recepción',
   title: 'Recepción',
   subtitle: 'Ingreso de mercadería de proveedores al almacén. Cada recepción genera una nota de ingreso y aumenta el stock.',
   breadcrumb: [{ label: 'Inicio', to: '/' }, { label: 'Compras' }, { label: 'Recepción' }],
+  source: receptionRows,
   entity: 'Recepción de mercadería', titleKey: 'oc', subKey: 'prov', statusKey: 'estado',
   statuses: { 'Por recibir': 'amber', 'Conforme': 'green', 'Con observaciones': 'red' },
   keys: ['ni','fecha','oc','prov','alm','items','estado','recibe'],
   columns: [{ k: 'ni', label: 'Nota de ingreso', w: '124px', mono: true, sub: 'fecha' }, { k: 'oc', label: 'Orden de compra', w: '120px', mono: true }, { k: 'prov', label: 'Proveedor', w: 'minmax(0, 1fr)', sub: 'items' }, { k: 'alm', label: 'Almacén', w: '120px', muted: true }, { k: 'estado', label: 'Estado', w: '140px', chip: true }],
-  fields: [{ k: 'ni', label: 'Nota de ingreso', mono: true }, { k: 'fecha', label: 'Fecha' }, { k: 'oc', label: 'Orden de compra', mono: true }, { k: 'prov', label: 'Proveedor' }, { k: 'alm', label: 'Almacén' }, { k: 'recibe', label: 'Recibido por' }, { k: 'items', label: 'Mercadería', wide: true }],
-  notes: { 'Por recibir': 'La orden fue aprobada y el proveedor debe entregar. Registra la recepción cuando llegue la mercadería.', 'Con observaciones': 'Se recibieron 4 cascos con fallas. El proveedor repondrá en su próxima entrega.' },
-  actions: { 'Por recibir': [{ label: 'Registrar recepción →', href: '/compras/orden?paso=2', primary: true }], 'Conforme': [{ label: 'Ver nota de ingreso', href: '/documentos' }], 'Con observaciones': [{ label: 'Marcar observación como resuelta', to: 'Conforme', primary: true, toast: 'Observación resuelta' }] },
-  rows: [
-    ['Pendiente','Entrega 03 oct','OC-2026-0412','Aceros del Sur S.A.C.','Almacén Lima','3 ítems · 570 unidades','Por recibir','—'],
-    ['Pendiente','Entrega 06 oct','OC-2026-0413','Cementos Pacasmayo Dist. S.A.','Almacén Lima','1 ítem · 500 bolsas','Por recibir','—'],
-    ['NI-2026-0608','29 sep 2026','OC-2026-0409','Plásticos Lima S.R.L.','Almacén Callao','1 ítem · 120 unidades','Conforme','Jorge Quispe'],
-    ['NI-2026-0603','22 sep 2026','OC-2026-0405','EPP Seguridad Total S.A.C.','Almacén Callao','2 ítems · 100 unidades','Con observaciones','Carlos Huamán'],
-    ['NI-2026-0597','15 sep 2026','OC-2026-0401','Pinturas Andinas S.A.','Almacén Lima','1 ítem · 120 galones','Conforme','Jorge Quispe'],
-    ['NI-2026-0590','09 sep 2026','OC-2026-0398','Cables y Conductores Perú S.A.','Almacén Lima','1 ítem · 30 rollos','Conforme','Carlos Huamán'],
-  ],
+  fields: [{ k: 'ni', label: 'Nota de ingreso', mono: true }, { k: 'fecha', label: 'Fecha' }, { k: 'oc', label: 'Orden de compra', mono: true }, { k: 'prov', label: 'Proveedor' }, { k: 'alm', label: 'Almacén' }, { k: 'recibe', label: 'Recibido por' }, { k: 'items', label: 'Mercadería', wide: true }, { k: 'obs', label: 'Observación', wide: true }],
+  notes: { 'Por recibir': 'La orden fue aprobada y el proveedor debe entregar. Registra la recepción cuando llegue la mercadería.', 'Con observaciones': 'La mercadería llegó con observaciones. Márcala como resuelta cuando el proveedor regularice.' },
+  actions: {
+    'Por recibir': [{ label: 'Registrar recepción →', href: r => `/compras/orden/${r.oc}`, primary: true }],
+    'Conforme': [{ label: 'Ver nota de ingreso', href: r => `/documentos?q=${r.ni}` }, { label: 'Abrir orden', href: r => `/compras/orden/${r.oc}` }],
+    'Con observaciones': [{
+      label: 'Marcar observación como resuelta', primary: true, toast: 'Observación resuelta',
+      run: (d, r) => { const o = d.orders.find(x => x.code === r.oc); if (o?.forms[2]) o.forms[2].est = 'Conforme'; },
+    }],
+  },
 };

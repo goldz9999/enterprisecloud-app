@@ -1,7 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { Modal } from '../components/Modal';
 import type { Tone } from '../components/StatusChip';
+import { Toast, useToast } from '../components/Toast';
+import { audit } from '../data/domain/audit';
+import { deleteFile, getFile, putFile } from '../data/files';
+import { can } from '../data/permissions';
+import { currentUser, getDB, mutate, nextId, useDB } from '../data/store';
+import type { DocFile } from '../data/types';
+import { downloadBlob, openPrintable } from '../lib/csv';
+import { displayDate, fmtDayMonth } from '../lib/dates';
 import './DocumentosPage.css';
 
 const CATEGORIES = ['Facturas', 'Contratos', 'Órdenes de compra', 'Guías de remisión', 'Otros'];
@@ -13,32 +22,7 @@ const ROLES: Record<string, string[]> = {
   'Guías de remisión': ['Ventas', 'Almacén'],
   Otros: ['Gerencia', 'Finanzas'],
 };
-
-interface Doc {
-  id: number;
-  name: string;
-  cat: string;
-  /** Linked operation code. */
-  ref: string;
-  entity: string;
-  size: string;
-  date: string;
-  by: string;
-  version: string;
-}
-
-const SEED: Doc[] = [
-  ['F001-00248.pdf', 'Facturas', 'OV-2026-1284', 'Distribuidora Andina S.A.C.', '182 KB', '02 oct 2026', 'María Rojas'],
-  ['F001-00248.xml', 'Facturas', 'OV-2026-1284', 'Distribuidora Andina S.A.C.', '14 KB', '02 oct 2026', 'Sistema'],
-  ['Contrato_suministro_2026_MineraAndes.pdf', 'Contratos', 'CLI-000318', 'Minera Los Andes S.A.', '2.4 MB', '01 oct 2026', 'Luis Paredes'],
-  ['OC-2026-0412_Aceros_del_Sur.pdf', 'Órdenes de compra', 'OC-2026-0412', 'Aceros del Sur S.A.C.', '96 KB', '30 sep 2026', 'Ana Torres'],
-  ['Guia_T001-00877.pdf', 'Guías de remisión', 'OV-2026-1282', 'Minera Los Andes S.A.', '128 KB', '30 sep 2026', 'Carlos Huamán'],
-  ['Conciliacion_bancaria_set2026.xlsx', 'Otros', 'FIN-CB-2026-09', 'Banco de Crédito · Cta. 191-2345', '312 KB', '29 sep 2026', 'Rosa Medina'],
-  ['F001-00241.pdf', 'Facturas', 'OV-2026-1281', 'Farmacias Salud Total S.A.C.', '176 KB', '27 sep 2026', 'María Rojas'],
-  ['Recepcion_almacen_OC0409.jpg', 'Órdenes de compra', 'OC-2026-0409', 'Plásticos Lima S.R.L.', '1.8 MB', '26 sep 2026', 'Jorge Quispe'],
-  ['Adenda_contrato_Textil_Arequipa.docx', 'Contratos', 'CLI-000207', 'Textil Arequipa S.R.L.', '64 KB', '24 sep 2026', 'Luis Paredes'],
-  ['Nota_credito_FC01-00032.pdf', 'Facturas', 'OV-2026-1265', 'Comercial Norte Trujillo S.A.', '88 KB', '22 sep 2026', 'Rosa Medina'],
-].map(([name, cat, ref, entity, size, date, by], i) => ({ id: i, name, cat, ref, entity, size, date, by, version: i % 3 === 0 ? 'v2 · actual' : 'v1 · actual' }));
+const MAX_BYTES = 25 * 1024 * 1024;
 
 const extOf = (name: string) => (name.split('.').pop() ?? '').toUpperCase();
 const humanSize = (n: number) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
@@ -49,14 +33,24 @@ function FileTag({ name }: { name: string }) {
   return <span className={'filetag chip--' + (EXT_TONE[ext] ?? 'muted')}>{ext}</span>;
 }
 
-function UploadModal({ onClose, onUpload }: { onClose: () => void; onUpload: (d: Omit<Doc, 'id'>) => void }) {
+/** Placeholder printable page for sample documents that have no real file. */
+const samplePage = (doc: DocFile) =>
+  `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${doc.name}</title></head><body style="font:14px system-ui;margin:48px"><h2>${doc.name}</h2><p>${doc.cat} · ${doc.ref} · ${doc.entity}</p><p style="color:#666">Documento de ejemplo: no tiene archivo adjunto. Sube tus propios archivos con "Subir documento".</p></body></html>`;
+
+function UploadModal({ onClose, onUpload, defaultRef }: { onClose: () => void; onUpload: (file: File, cat: string, ref: string) => void; defaultRef: string }) {
   const input = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<{ name: string; size: number } | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [cat, setCat] = useState('Facturas');
-  const [ref, setRef] = useState('');
+  const [ref, setRef] = useState(defaultRef);
+  const [error, setError] = useState('');
 
-  const pick = (f: File | undefined) => f && setFile({ name: f.name, size: f.size });
+  const pick = (f: File | undefined) => {
+    if (!f) return;
+    if (f.size > MAX_BYTES) return setError('El archivo supera los 25 MB.');
+    setError('');
+    setFile(f);
+  };
 
   return (
     <Modal
@@ -65,16 +59,7 @@ function UploadModal({ onClose, onUpload }: { onClose: () => void; onUpload: (d:
       footer={
         <>
           <button type="button" className="btn" style={{ height: 30 }} onClick={onClose}>Cancelar</button>
-          <button
-            type="button"
-            className="btn btn--primary"
-            style={{ height: 30, padding: '0 14px', opacity: file ? 1 : 0.5 }}
-            disabled={!file}
-            onClick={() =>
-              file &&
-              onUpload({ name: file.name, cat, ref: ref.trim() || 'Sin vincular', entity: ref.trim() ? 'Operación vinculada' : '—', size: humanSize(file.size), date: '02 oct 2026', by: 'María Rojas', version: 'v1 · actual' })
-            }
-          >
+          <button type="button" className="btn btn--primary" style={{ height: 30, padding: '0 14px', opacity: file ? 1 : 0.5 }} disabled={!file} onClick={() => file && onUpload(file, cat, ref.trim())}>
             Subir
           </button>
         </>
@@ -95,6 +80,7 @@ function UploadModal({ onClose, onUpload }: { onClose: () => void; onUpload: (d:
         <div style={{ fontWeight: 500 }}>{file ? file.name : 'Arrastra un archivo aquí o haz clic para seleccionar'}</div>
         <div style={{ fontSize: 12, color: 'var(--muted)' }}>{file ? humanSize(file.size) + ' · listo para subir' : 'PDF, XML, XLSX, DOCX o imágenes · máx. 25 MB'}</div>
       </div>
+      {error && <div className="drawer-error">{error}</div>}
       <label className="field">
         <span className="field__label">Categoría</span>
         <select className="field__control" style={{ height: 32 }} value={cat} onChange={e => setCat(e.target.value)}>
@@ -103,43 +89,118 @@ function UploadModal({ onClose, onUpload }: { onClose: () => void; onUpload: (d:
       </label>
       <label className="field">
         <span className="field__label">Relacionar con operación</span>
-        <input className="field__control mono" style={{ height: 32, fontSize: 12 }} value={ref} onChange={e => setRef(e.target.value)} placeholder="Ej. OV-2026-1284, OC-2026-0412" />
+        <input className="field__control mono" style={{ height: 32, fontSize: 12, padding: '0 10px' }} value={ref} onChange={e => setRef(e.target.value)} placeholder="Ej. OV-2026-1284, OC-2026-0412, CLI-000245" />
       </label>
+      <div style={{ fontSize: 12, color: 'var(--faint)' }}>El archivo se guarda en este navegador.</div>
     </Modal>
   );
 }
 
-export function DocumentosPage() {
-  const [docs, setDocs] = useState<Doc[]>(SEED);
-  const [cat, setCat] = useState('Todos');
-  const [query, setQuery] = useState('');
-  const [selId, setSelId] = useState(0);
-  const [uploading, setUploading] = useState(false);
+/** Finds who/what an operation code refers to, for the "Relacionado" column. */
+function entityOf(ref: string): string {
+  const d = getDB();
+  const o = d.orders.find(x => x.code === ref);
+  if (o) return o.party.name;
+  const c = d.records.clientes.find(x => x.cod === ref) ?? d.records.proveedores.find(x => x.cod === ref);
+  if (c) return String(c.razon);
+  return ref ? 'Operación vinculada' : '—';
+}
 
+export function DocumentosPage() {
+  const d = useDB();
+  const [params] = useSearchParams();
+  const [cat, setCat] = useState('Todos');
+  const [query, setQuery] = useState(params.get('q') ?? '');
+  // Follow ?q= when arriving from the global search or a link while already on this screen.
+  useEffect(() => setQuery(params.get('q') ?? ''), [params]);
+  const [selId, setSelId] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const toast = useToast();
+  const canCreate = can(d, 'Documentos', 'Crear');
+  const canRemove = can(d, 'Documentos', 'Eliminar');
+
+  const docs = d.documentos;
   const q = query.trim().toLowerCase();
-  const searched = docs.filter(d => !q || (d.name + d.ref + d.entity).toLowerCase().includes(q));
-  const list = cat === 'Todos' ? searched : searched.filter(d => d.cat === cat);
-  const sel = docs.find(d => d.id === selId) ?? list[0];
+  const searched = docs.filter(x => !q || (x.name + x.ref + x.entity).toLowerCase().includes(q));
+  const list = cat === 'Todos' ? searched : searched.filter(x => x.cat === cat);
+  const sel = docs.find(x => x.id === selId) ?? list[0];
+  const activity = sel ? d.audit.filter(e => e.ref === sel.name).slice(0, 6) : [];
+  // Storage use: real uploaded bytes are unknown without reading IndexedDB; estimate from the listed sizes.
+  const usedMb = docs.reduce((a, x) => a + (x.size.endsWith('MB') ? parseFloat(x.size) : parseFloat(x.size) / 1024), 0);
+
+  const download = async (doc: DocFile) => {
+    if (doc.blobKey) {
+      const blob = await getFile(doc.blobKey).catch(() => undefined);
+      if (!blob) return toast.flash('No se encontró el archivo en este navegador');
+      downloadBlob(doc.name, blob);
+    } else {
+      openPrintable(doc.html ?? samplePage(doc));
+    }
+    mutate(dr => audit(dr, { action: 'Descargar', module: 'Documentos', ref: doc.name, desc: `Descarga de ${doc.cat.toLowerCase()}` }));
+  };
+
+  const share = async (doc: DocFile) => {
+    const text = `${doc.name} · ${doc.cat} · ${doc.ref} (${doc.entity})`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.flash('Datos del documento copiados al portapapeles');
+    } catch {
+      toast.flash(text);
+    }
+  };
+
+  const remove = async (doc: DocFile) => {
+    if (doc.blobKey) await deleteFile(doc.blobKey).catch(() => {});
+    mutate(dr => {
+      dr.documentos = dr.documentos.filter(x => x.id !== doc.id);
+      audit(dr, { action: 'Eliminar', module: 'Documentos', ref: doc.name, desc: 'Documento eliminado' });
+    });
+    setConfirmDelete(false);
+    setSelId(null);
+    toast.flash('Documento eliminado');
+  };
+
+  const upload = async (file: File, category: string, ref: string) => {
+    const id = nextId(getDB().documentos.map(x => ({ _id: x.id })));
+    const blobKey = `doc-${Date.now()}-${id}`;
+    try {
+      await putFile(blobKey, file);
+    } catch {
+      return toast.flash('No se pudo guardar el archivo en este navegador');
+    }
+    mutate(dr => {
+      dr.documentos.unshift({ id, name: file.name, cat: category, ref: ref || 'Sin vincular', entity: entityOf(ref), size: humanSize(file.size), date: new Date().toISOString(), by: currentUser(dr).name, version: 'v1 · actual', blobKey });
+      audit(dr, { action: 'Crear', module: 'Documentos', ref: file.name, desc: `Documento subido · ${category}` });
+    });
+    setCat('Todos');
+    setQuery('');
+    setSelId(id);
+    setUploading(false);
+    toast.flash('Documento subido');
+  };
 
   return (
     <AppShell
       active="Documentos"
       breadcrumb={[{ label: 'Inicio', to: '/' }, { label: 'Documentos' }]}
       actions={
-        <button type="button" className="btn btn--primary" onClick={() => setUploading(true)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3M7 8l5-5 5 5M4 21h16" /></svg>
-          Subir documento
-        </button>
+        canCreate && (
+          <button type="button" className="btn btn--primary" onClick={() => setUploading(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3M7 8l5-5 5 5M4 21h16" /></svg>
+            Subir documento
+          </button>
+        )
       }
     >
       <div className="page-head">
         <div>
           <h1 className="page__title">Documentos</h1>
-          <div className="page__subtitle">Repositorio documental de la empresa · archivos en la nube vinculados a cada operación</div>
+          <div className="page__subtitle">Repositorio documental de la empresa · archivos vinculados a cada operación, guardados en este navegador</div>
         </div>
         <div className="storage">
-          <div className="storage__row"><span>Almacenamiento</span><span className="mono" style={{ color: 'var(--text-2)' }}>18.4 / 50 GB</span></div>
-          <div className="meter"><div style={{ width: '37%', background: 'var(--accent)' }} /></div>
+          <div className="storage__row"><span>Almacenamiento</span><span className="mono" style={{ color: 'var(--text-2)' }}>{usedMb.toFixed(1)} MB · {docs.length} archivos</span></div>
+          <div className="meter"><div style={{ width: Math.min(100, (usedMb / 500) * 100) + '%', background: 'var(--accent)' }} /></div>
         </div>
       </div>
 
@@ -147,7 +208,7 @@ export function DocumentosPage() {
         {['Todos', ...CATEGORIES].map(c => (
           <button key={c} type="button" className={'filter-chip' + (cat === c ? ' is-on' : '')} aria-pressed={cat === c} onClick={() => setCat(c)}>
             {c}
-            <span className="filter-chip__count">{c === 'Todos' ? searched.length : searched.filter(d => d.cat === c).length}</span>
+            <span className="filter-chip__count">{c === 'Todos' ? searched.length : searched.filter(x => x.cat === c).length}</span>
           </button>
         ))}
         <label className="search toolbar__search">
@@ -161,60 +222,76 @@ export function DocumentosPage() {
           <div className="table__row table__head" style={{ gridTemplateColumns: COLS, gap: 10 }}>
             <span>Nombre</span><span>Relacionado con</span><span className="t-right">Tamaño</span><span className="t-right">Fecha</span><span />
           </div>
-          {list.map(d => (
+          {list.map(x => (
             <div
-              key={d.id}
+              key={x.id}
               role="row"
               tabIndex={0}
-              className={'table__row table__body-row' + (d.id === sel?.id ? ' is-selected is-marked' : '')}
+              className={'table__row table__body-row' + (x.id === sel?.id ? ' is-selected is-marked' : '')}
               style={{ gridTemplateColumns: COLS, gap: 10 }}
-              onClick={() => setSelId(d.id)}
-              onKeyDown={e => e.key === 'Enter' && setSelId(d.id)}
+              onClick={() => { setSelId(x.id); setConfirmDelete(false); }}
+              onKeyDown={e => e.key === 'Enter' && setSelId(x.id)}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <FileTag name={d.name} />
+                <FileTag name={x.name} />
                 <div style={{ minWidth: 0 }}>
-                  <div className="ellipsis" style={{ fontWeight: 500 }}>{d.name}</div>
-                  <div className="cell__sub">{d.cat} · {d.by}</div>
+                  <div className="ellipsis" style={{ fontWeight: 500 }}>{x.name}</div>
+                  <div className="cell__sub">{x.cat} · {x.by}</div>
                 </div>
               </div>
               <div style={{ minWidth: 0 }}>
-                <div className="mono" style={{ fontSize: 11.5, color: 'var(--blue)', whiteSpace: 'nowrap' }}>{d.ref}</div>
-                <div className="cell__sub">{d.entity}</div>
+                <div className="mono" style={{ fontSize: 11.5, color: 'var(--blue)', whiteSpace: 'nowrap' }}>{x.ref}</div>
+                <div className="cell__sub">{x.entity}</div>
               </div>
-              <span className="mono t-right" style={{ fontSize: 12, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{d.size}</span>
-              <span className="mono t-right" style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{d.date}</span>
-              <div className="row-actions"><button type="button" title="Descargar" onClick={e => e.stopPropagation()}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></svg>
-              </button></div>
+              <span className="mono t-right" style={{ fontSize: 12, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{x.size}</span>
+              <span className="mono t-right" style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{fmtDayMonth(new Date(x.date))}</span>
+              <div className="row-actions">
+                <button type="button" title="Descargar" onClick={e => { e.stopPropagation(); download(x); }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></svg>
+                </button>
+              </div>
             </div>
           ))}
-          {list.length === 0 && <div className="table__empty">No hay documentos que coincidan.</div>}
+          {list.length === 0 && <div className="table__empty">{docs.length ? 'No hay documentos que coincidan.' : 'Aún no hay documentos. Se generan al despachar, facturar o recibir, o puedes subirlos.'}</div>}
           <div className="table__foot">{list.length} documentos</div>
         </div>
 
         <aside className="flowdetail">
-          {sel && (
+          {sel ? (
             <>
-              <div className="preview"><span className="mono">vista previa del documento</span></div>
+              <div className="preview"><span className="mono">{sel.blobKey ? 'archivo subido' : sel.html ? 'documento generado' : 'documento de ejemplo'}</span></div>
               <div className="flowdetail__body">
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   <FileTag name={sel.name} />
                   <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>{sel.name}</div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="btn btn--primary" style={{ flex: 1, height: 30 }}>Descargar</button>
-                  <button type="button" className="btn" style={{ flex: 1, height: 30 }}>Compartir</button>
-                  <button type="button" className="btn btn--danger-text" title="Eliminar" style={{ width: 30, height: 30, padding: 0 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
-                  </button>
-                </div>
+                {confirmDelete ? (
+                  <div className="confirm-del">
+                    <span className="confirm-del__text">¿Eliminar este documento?</span>
+                    <button type="button" className="confirm-del__no" onClick={() => setConfirmDelete(false)}>No</button>
+                    <button type="button" className="confirm-del__yes" onClick={() => remove(sel)}>Sí, eliminar</button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="btn btn--primary" style={{ flex: 1, height: 30 }} onClick={() => download(sel)}>{sel.blobKey ? 'Descargar' : 'Ver / imprimir'}</button>
+                    <button type="button" className="btn" style={{ flex: 1, height: 30 }} onClick={() => share(sel)}>Copiar datos</button>
+                    {canRemove && (
+                      <button type="button" className="btn btn--danger-text" title="Eliminar" aria-label="Eliminar documento" style={{ width: 30, height: 30, padding: 0 }} onClick={() => setConfirmDelete(true)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className="kv" style={{ gridTemplateColumns: '96px minmax(0, 1fr)', rowGap: 8, columnGap: 8 }}>
                   <span>Categoría</span><span>{sel.cat}</span>
-                  <span>Relacionado</span><span><a className="mono" style={{ cursor: 'pointer' }}>{sel.ref}</a><br /><span style={{ color: 'var(--text-2)' }}>{sel.entity}</span></span>
+                  <span>Relacionado</span>
+                  <span>
+                    {/^O[VC]-/.test(sel.ref) ? <Link className="mono" to={`/${sel.ref.startsWith('OV') ? 'ventas' : 'compras'}/orden/${sel.ref}`}>{sel.ref}</Link> : <span className="mono">{sel.ref}</span>}
+                    <br /><span style={{ color: 'var(--text-2)' }}>{sel.entity}</span>
+                  </span>
                   <span>Tamaño</span><span className="mono">{sel.size}</span>
                   <span>Subido por</span><span>{sel.by}</span>
-                  <span>Fecha</span><span className="mono">{sel.date}</span>
+                  <span>Fecha</span><span className="mono">{displayDate(sel.date)}</span>
                   <span>Versión</span><span>{sel.version}</span>
                 </div>
                 <div className="flowdetail__items">
@@ -225,36 +302,30 @@ export function DocumentosPage() {
                 </div>
                 <div className="flowdetail__items">
                   <span className="field__label">Actividad</span>
-                  {[
-                    { who: sel.by, what: 'subió el documento', when: sel.date.slice(0, 6) },
-                    { who: 'Rosa Medina', what: 'lo visualizó', when: sel.date.slice(0, 6) },
-                    { who: 'Luis Paredes', what: 'lo descargó', when: '02 oct' },
-                  ].map(a => (
-                    <div key={a.what} className="history">
+                  <div className="history">
+                    <span className="history__dot" style={{ background: 'var(--border-strong)' }} />
+                    <div style={{ flex: 1 }}>{sel.by} <span style={{ color: 'var(--muted)' }}>{sel.by === 'Sistema' ? 'generó el documento' : 'subió el documento'}</span></div>
+                    <span className="mono" style={{ color: 'var(--faint)', whiteSpace: 'nowrap' }}>{fmtDayMonth(new Date(sel.date))}</span>
+                  </div>
+                  {activity.filter(a => a.action !== 'Crear').map(a => (
+                    <div key={a.id} className="history">
                       <span className="history__dot" style={{ background: 'var(--border-strong)' }} />
-                      <div style={{ flex: 1 }}>{a.who} <span style={{ color: 'var(--muted)' }}>{a.what}</span></div>
-                      <span className="mono" style={{ color: 'var(--faint)', whiteSpace: 'nowrap' }}>{a.when}</span>
+                      <div style={{ flex: 1 }}>{a.user} <span style={{ color: 'var(--muted)' }}>{a.action === 'Descargar' ? 'lo descargó' : a.desc.toLowerCase()}</span></div>
+                      <span className="mono" style={{ color: 'var(--faint)', whiteSpace: 'nowrap' }}>{fmtDayMonth(new Date(a.at))}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </>
+          ) : (
+            <div className="flowdetail__body" style={{ color: 'var(--muted)' }}>Selecciona un documento.</div>
           )}
         </aside>
       </section>
 
-      {uploading && (
-        <UploadModal
-          onClose={() => setUploading(false)}
-          onUpload={d => {
-            const id = 1000 + docs.length;
-            setDocs(list => [{ ...d, id }, ...list]);
-            setCat('Todos');
-            setSelId(id);
-            setUploading(false);
-          }}
-        />
-      )}
+      {uploading && <UploadModal onClose={() => setUploading(false)} onUpload={upload} defaultRef={/^O[VC]-|^CLI-|^PRV-/.test(query) ? query : ''} />}
+      <Toast message={toast.message} />
     </AppShell>
   );
 }
+

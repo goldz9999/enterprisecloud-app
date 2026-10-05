@@ -1,4 +1,10 @@
 import type { RecordsConfig } from '../../features/records/types';
+import { audit } from '../../data/domain/audit';
+import { moveStock, productByName, stockRow } from '../../data/domain/stock';
+import type { DB, Row } from '../../data/types';
+import { opts, thisYear, todayLabel } from './shared';
+
+const skuOf = (d: DB, r: Row) => String(productByName(d, String(r.prod))?.sku ?? '');
 
 export const transferencias: RecordsConfig = {
   active: 'Transferencias',
@@ -6,20 +12,56 @@ export const transferencias: RecordsConfig = {
   subtitle: 'Traslado de mercadería entre almacenes. Descuenta del origen al despachar y suma al destino al confirmar la recepción.',
   breadcrumb: [{ label: 'Inicio', to: '/' }, { label: 'Inventario' }, { label: 'Transferencias' }],
   newLabel: 'Nueva transferencia',
+  collection: 'transferencias',
   entity: 'Transferencia', titleKey: 'cod', subKey: 'items', statusKey: 'estado', newTitle: 'Nueva transferencia', newKicker: 'Inventario', msgNew: 'Transferencia creada',
   statuses: { 'Pendiente': 'amber', 'En tránsito': 'blue', 'Recibida': 'green', 'Anulada': 'muted' },
-  keys: ['cod','fecha','orig','dest','items','resp','estado'],
-  defaults: n => ({ cod: 'TRF-2026-' + String(91 + n - 6).padStart(4, '0'), fecha: '02 oct 2026', estado: 'Pendiente' }),
+  keys: ['cod','fecha','orig','dest','items','resp','estado','prod','cant'],
+  code: { key: 'cod', prefix: () => `TRF-${thisYear()}-`, width: 4 },
+  defaults: () => ({ fecha: todayLabel(), estado: 'Pendiente' }),
+  onCreate: (_d, row) => {
+    if (row.orig === row.dest) return 'El almacén de origen y el de destino deben ser distintos.';
+    if (!(Number(row.cant) > 0)) return 'La cantidad debe ser mayor que cero.';
+    row.items = `${row.prod} × ${Number(row.cant).toLocaleString('en-US')}`;
+  },
   columns: [{ k: 'cod', label: 'Código', w: '120px', mono: true, sub: 'fecha' }, { k: 'orig', label: 'Origen', w: '120px' }, { k: 'dest', label: 'Destino', w: '120px' }, { k: 'items', label: 'Mercadería', w: 'minmax(0, 1fr)', sub: 'resp' }, { k: 'estado', label: 'Estado', w: '112px', chip: true }],
-  fields: [{ k: 'orig', label: 'Almacén origen', type: 'select', options: ['Almacén Lima', 'Almacén Callao'] }, { k: 'dest', label: 'Almacén destino', type: 'select', options: ['Almacén Callao', 'Almacén Lima'] }, { k: 'items', label: 'Productos y cantidades', required: true, wide: true, placeholder: 'Ej. Cemento Portland 42.5 kg × 100' }, { k: 'resp', label: 'Responsable', type: 'select', options: ['Jorge Quispe', 'Carlos Huamán'] }],
-  notes: { 'Pendiente': 'Al despachar se descuenta el stock del almacén de origen y la mercadería pasa al almacén en tránsito.', 'En tránsito': 'Confirma cuando la mercadería llegue al destino para sumar el stock.' },
-  actions: { 'Pendiente': [{ label: 'Despachar', to: 'En tránsito', primary: true, toast: 'Transferencia despachada · stock descontado del origen' }, { label: 'Anular', to: 'Anulada', danger: true, toast: 'Transferencia anulada' }], 'En tránsito': [{ label: 'Confirmar recepción en destino', to: 'Recibida', primary: true, toast: 'Recepción confirmada · stock sumado al destino' }] },
+  fields: [
+    { k: 'prod', label: 'Producto', type: 'select', options: opts.products, wide: true, required: true },
+    { k: 'cant', label: 'Cantidad', type: 'number', required: true, placeholder: 'Unidades' },
+    { k: 'resp', label: 'Responsable', type: 'select', options: opts.usersWithRole('Almacén') },
+    { k: 'orig', label: 'Almacén origen', type: 'select', options: opts.warehouses },
+    { k: 'dest', label: 'Almacén destino', type: 'select', options: opts.warehouses, value: d => opts.warehouses(d)[1] ?? opts.warehouses(d)[0] },
+  ],
+  notes: { 'Pendiente': 'Al despachar se descuenta el stock del almacén de origen.', 'En tránsito': 'Confirma cuando la mercadería llegue al destino para sumar el stock.' },
+  actions: {
+    'Pendiente': [
+      {
+        label: 'Despachar', to: 'En tránsito', primary: true, toast: 'Transferencia despachada · stock descontado del origen',
+        run: (d, r) => {
+          const sku = skuOf(d, r);
+          if (!sku) return 'Esta transferencia no tiene un producto del catálogo; no se puede mover stock.';
+          if (d.settings.neg !== true && Number(stockRow(d, sku, String(r.orig))?.stock ?? 0) < Number(r.cant)) return `Stock insuficiente de ${r.prod} en ${r.orig}.`;
+          moveStock(d, { sku, alm: String(r.orig), delta: -Number(r.cant), tipo: 'Transferencia', doc: String(r.cod) });
+        },
+      },
+      { label: 'Anular', to: 'Anulada', danger: true, toast: 'Transferencia anulada' },
+    ],
+    'En tránsito': [
+      {
+        label: 'Confirmar recepción en destino', to: 'Recibida', primary: true, toast: 'Recepción confirmada · stock sumado al destino',
+        run: (d, r) => {
+          const sku = skuOf(d, r);
+          if (sku) moveStock(d, { sku, alm: String(r.dest), delta: Number(r.cant), tipo: 'Transferencia', doc: String(r.cod) });
+          else audit(d, { action: 'Editar', module: 'Inventario', ref: String(r.cod), desc: 'Recepción sin producto de catálogo: no se movió stock' });
+        },
+      },
+    ],
+  },
   rows: [
-    ['TRF-2026-0091','02 oct 2026','Almacén Callao','Almacén Lima','Cemento Portland 42.5 kg × 150','Jorge Quispe','Pendiente'],
-    ['TRF-2026-0090','01 oct 2026','Almacén Lima','Almacén Callao','Cable THW 12 AWG × 10','Carlos Huamán','En tránsito'],
-    ['TRF-2026-0089','30 sep 2026','Almacén Callao','Almacén Lima','Casco de seguridad × 60, Guantes de nitrilo × 20','Carlos Huamán','En tránsito'],
-    ['TRF-2026-0088','29 sep 2026','Almacén Lima','Almacén Callao','Cemento Portland 42.5 kg × 200 y 5 ítems más','Jorge Quispe','Recibida'],
-    ['TRF-2026-0085','20 sep 2026','Almacén Lima','Almacén Callao','Ladrillo King Kong × 1,000','Jorge Quispe','Recibida'],
-    ['TRF-2026-0083','15 sep 2026','Almacén Callao','Almacén Lima','Tubo PVC 4" × 30','Carlos Huamán','Anulada'],
+    ['TRF-2026-0091','02 oct 2026','Almacén Callao','Almacén Lima','Cemento Portland Tipo I 42.5 kg × 150','Jorge Quispe','Pendiente','Cemento Portland Tipo I 42.5 kg',150],
+    ['TRF-2026-0090','01 oct 2026','Almacén Lima','Almacén Callao','Cable THW 12 AWG x 100 m × 10','Carlos Huamán','En tránsito','Cable THW 12 AWG x 100 m',10],
+    ['TRF-2026-0089','30 sep 2026','Almacén Callao','Almacén Lima','Casco de seguridad ANSI × 60','Carlos Huamán','En tránsito','Casco de seguridad ANSI',60],
+    ['TRF-2026-0088','29 sep 2026','Almacén Lima','Almacén Callao','Cemento Portland 42.5 kg × 200 y 5 ítems más','Jorge Quispe','Recibida','',0],
+    ['TRF-2026-0085','20 sep 2026','Almacén Lima','Almacén Callao','Ladrillo King Kong × 1,000','Jorge Quispe','Recibida','',0],
+    ['TRF-2026-0083','15 sep 2026','Almacén Callao','Almacén Lima','Tubo PVC 4" × 30','Carlos Huamán','Anulada','',0],
   ],
 };

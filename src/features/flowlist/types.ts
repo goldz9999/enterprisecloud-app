@@ -1,11 +1,11 @@
 import type { Tone } from '../../components/StatusChip';
-import type { Action } from '../records/types';
 
 export interface FlowItem {
+  sku?: string;
   name: string;
   qty: number;
   unit: string;
-  /** Unit price before IGV. */
+  /** Unit price (quotation) or estimated cost (request), before IGV. */
   price: number;
 }
 
@@ -16,11 +16,17 @@ export interface FlowRow {
   partySub: string;
   status: string;
   items: FlowItem[];
+  /** Label/value pairs shown in the detail panel. */
   facts: { k: string; v: string }[];
+  /** Structured values entered in the form (for editing and conversion). */
+  data?: Record<string, string>;
+  /** Order generated from this document. */
+  order?: string;
 }
 
 /** A document list that is the first step of a business flow (quotations, purchase requests). */
 export interface FlowListConfig {
+  kind: 'cotizacion' | 'solicitud';
   active: string;
   section: string;
   title: string;
@@ -32,7 +38,7 @@ export interface FlowListConfig {
   /** Steps of the flow this document starts; the first one is this screen. */
   flow: string[];
   statuses: Record<string, Tone>;
-  actions: Record<string, Action[]>;
   notes: Record<string, string>;
+  /** Sample rows loaded in demo mode. */
   rows: FlowRow[];
 }

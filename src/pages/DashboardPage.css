@@ -141,3 +141,9 @@
   cursor: pointer;
 }
 .btn-resend:hover { border-color: var(--accent); }
+
+a.dash-kpi { color: var(--text); }
+a.dash-kpi:hover { color: var(--text); border-color: var(--border-strong); }
+.segmented > button { border: 0; background: transparent; font: inherit; cursor: pointer; }
+.alert-row.is-read { opacity: .55; }
+.alert-more { display: block; padding: 4px 16px 8px; font-size: 12px; }

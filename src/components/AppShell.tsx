@@ -1,9 +1,14 @@
 import type { ReactNode } from 'react';
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useDB } from '../data/store';
 import { useTheme } from '../lib/theme';
 import { useNow } from '../lib/useNow';
+import { DataDialog } from './DataDialog';
+import { GlobalSearch } from './GlobalSearch';
+import { NotificationsMenu } from './NotificationsMenu';
 import { Sidebar } from './Sidebar';
+import { Toast, useToast } from './Toast';
 import './AppShell.css';
 
 export interface Crumb {
@@ -31,6 +36,9 @@ const Chevron = () => (
 
 export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Buscar en EnterpriseCloud…', narrow, children }: AppShellProps) {
   const { theme, toggle } = useTheme();
+  const d = useDB();
+  const [dataOpen, setDataOpen] = useState(false);
+  const toast = useToast();
   const now = useNow();
   const dateStr = now.toLocaleDateString('es-PE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '');
   const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -59,14 +67,15 @@ export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Bus
           </nav>
 
           <div className="topbar__search-wrap">
-            <label className="search search--global">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-              <input placeholder={searchPlaceholder} aria-label="Búsqueda global" />
-              <span className="kbd">⌘K</span>
-            </label>
+            <GlobalSearch placeholder={searchPlaceholder} />
           </div>
 
           <div className="topbar__right">
+            {d.mode === 'demo' && (
+              <button type="button" className="demo-chip" title="Estás viendo datos de ejemplo. Haz clic para quitarlos y usar tus propios datos." onClick={() => setDataOpen(true)}>
+                Datos de ejemplo
+              </button>
+            )}
             <div className="clock">
               <span>{dateStr}</span>
               <span className="clock__time">{timeStr}</span>
@@ -79,15 +88,14 @@ export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Bus
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
               )}
             </button>
-            <button type="button" className="icon-btn" title="Notificaciones">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10 21a2 2 0 0 0 4 0" /></svg>
-              <span className="notif-badge">6</span>
-            </button>
+            <NotificationsMenu />
             {actions}
           </div>
         </header>
 
         <main className="page" style={narrow ? { maxWidth: 1100 } : undefined}>{children}</main>
+        {dataOpen && <DataDialog onClose={() => setDataOpen(false)} onDone={toast.flash} />}
+        <Toast message={toast.message} />
       </div>
     </div>
   );

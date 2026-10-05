@@ -1,52 +1,18 @@
-import { Fragment, useMemo, useState } from 'react';
+import { useEffect, Fragment, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { Pagination } from '../components/Pagination';
 import { StatusChip, type Tone } from '../components/StatusChip';
+import { audit } from '../data/domain/audit';
+import { mutate, useDB } from '../data/store';
+import { downloadCsv } from '../lib/csv';
 import './AuditoriaPage.css';
 
-const USERS: Record<string, [string, string]> = {
-  MR: ['María Rojas', 'Gerente de Operaciones'],
-  RM: ['Rosa Medina', 'Contadora'],
-  LP: ['Luis Paredes', 'Ejecutivo comercial'],
-  AT: ['Ana Torres', 'Jefa de Compras'],
-  JQ: ['Jorge Quispe', 'Almacén'],
-  CH: ['Carlos Huamán', 'Almacén'],
-  SY: ['Sistema', 'Proceso automático'],
-};
-
 type Result = 'Exitoso' | 'Fallido' | 'Denegado';
-type Change = [field: string, before: string, after: string];
-// [minutes ago, user, action, module, record, description, result, changes | note]
-type RawEvent = [number, keyof typeof USERS, string, string, string, string, Result, Change[] | string];
-
-const EVENTS: RawEvent[] = [
-  [4, 'MR', 'Ingreso', 'Seguridad', 'maria.rojas@empresa.pe', 'Inicio de sesión', 'Exitoso', 'Autenticación con correo y contraseña. Sesión válida por 8 horas.'],
-  [18, 'LP', 'Crear', 'Ventas', 'OV-2026-1284', 'Orden de venta · Distribuidora Andina', 'Exitoso', [['Total', '—', 'S/ 12,480.00'], ['Estado', '—', 'Pendiente']]],
-  [26, 'RM', 'Editar', 'Ventas', 'OV-2026-1284', 'Cambio de estado de cobro', 'Exitoso', [['Estado', 'Pendiente', 'Pagado'], ['Medio de pago', '—', 'Transferencia BCP']]],
-  [41, 'JQ', 'Ingreso', 'Seguridad', 'jorge.quispe@empresa.pe', 'Inicio de sesión', 'Fallido', 'Contraseña incorrecta (intento 2 de 5). La cuenta aún no confirmó su correo.'],
-  [55, 'JQ', 'Editar', 'Finanzas', 'CxP · FA-0098', 'Intento de acceso a cuentas por pagar', 'Denegado', 'El rol Almacén no tiene el permiso finanzas.cxp.editar. Principio de mínimo privilegio.'],
-  [72, 'SY', 'Crear', 'Documentos', 'F001-00248.xml', 'Comprobante electrónico generado', 'Exitoso', 'XML firmado y almacenado en el repositorio documental.'],
-  [96, 'AT', 'Crear', 'Compras', 'OC-2026-0412', 'Orden de compra · Aceros del Sur', 'Exitoso', [['Total', '—', 'S/ 18,240.00'], ['Proveedor', '—', 'Aceros del Sur S.A.C.']]],
-  [130, 'CH', 'Editar', 'Inventario', 'SKU-CEM-0042', 'Ajuste de stock · Almacén Lima', 'Exitoso', [['Stock', '42', '18'], ['Motivo', '—', 'Merma por humedad']]],
-  [185, 'MR', 'Exportar', 'Ventas', 'Reporte ventas set-2026', 'Exportación a Excel · 312 filas', 'Exitoso', 'Archivo generado: ventas_2026-09.xlsx'],
-  [240, 'LP', 'Descargar', 'Documentos', 'Contrato_suministro_2026_MineraAndes.pdf', 'Descarga de contrato', 'Exitoso', 'Descarga autorizada para el rol Ejecutivo comercial.'],
-  [310, 'RM', 'Eliminar', 'Finanzas', 'MOV-CAJA-00871', 'Movimiento de caja duplicado', 'Exitoso', [['Monto', 'S/ 450.00', '—'], ['Estado', 'Registrado', 'Anulado']]],
-  [420, 'MR', 'Crear', 'Administración', 'jorge.quispe@empresa.pe', 'Invitación de usuario · rol Almacén', 'Exitoso', [['Rol', '—', 'Almacén'], ['Estado', '—', 'Sin confirmar']]],
-  [1460, 'AT', 'Editar', 'Compras', 'PRV-000142', 'Datos bancarios de proveedor', 'Exitoso', [['Cuenta', '191-0045…', '193-2210…'], ['Banco', 'BCP', 'Interbank']]],
-  [1530, 'LP', 'Eliminar', 'Ventas', 'COT-2026-0311', 'Intento de eliminar cotización aprobada', 'Denegado', 'Las cotizaciones aprobadas solo pueden anularse por un Gerente.'],
-  [1610, 'SY', 'Ingreso', 'Seguridad', 'admin@empresa.pe', 'Inicio de sesión desde IP desconocida', 'Fallido', '5 intentos fallidos. Cuenta bloqueada temporalmente por 15 minutos.'],
-  [2900, 'CH', 'Crear', 'Inventario', 'TRF-2026-0088', 'Transferencia Lima → Callao', 'Exitoso', [['Productos', '—', '6 ítems'], ['Estado', '—', 'En tránsito']]],
-  [3100, 'RM', 'Exportar', 'Finanzas', 'Conciliación set-2026', 'Exportación a Excel', 'Exitoso', 'Archivo generado: conciliacion_2026-09.xlsx'],
-  [4400, 'MR', 'Editar', 'Administración', 'Rol: Ventas', 'Permisos de rol actualizados', 'Exitoso', [['ventas.descuento', 'Hasta 5%', 'Hasta 10%']]],
-  [7300, 'LP', 'Crear', 'Ventas', 'OV-2026-1270', 'Orden de venta · Clínica San Gabriel', 'Exitoso', [['Total', '—', 'S/ 9,460.00']]],
-  [11800, 'AT', 'Descargar', 'Documentos', 'OC-2026-0399.pdf', 'Descarga de orden de compra', 'Exitoso', 'Descarga autorizada para el rol Compras.'],
-  [20500, 'JQ', 'Ingreso', 'Seguridad', 'jorge.quispe@empresa.pe', 'Inicio de sesión', 'Fallido', 'Contraseña incorrecta (intento 1 de 5).'],
-  [30100, 'MR', 'Eliminar', 'Documentos', 'Borrador_contrato_v0.docx', 'Documento eliminado', 'Exitoso', 'El archivo pasa a la papelera por 30 días antes de borrarse definitivamente.'],
-];
 
 const ACTION_COLOR: Record<string, string> = { Ingreso: 'var(--faint)', Crear: 'var(--green)', Editar: 'var(--blue)', Eliminar: 'var(--red)', Exportar: 'var(--amber)', Descargar: 'var(--amber)' };
 const RESULT_TONE: Record<Result, Tone> = { Exitoso: 'green', Fallido: 'red', Denegado: 'amber' };
-const RANGE_MINUTES = { Hoy: 700, '7 días': 10080, '30 días': 43200 } as const;
+const RANGE_MINUTES = { Hoy: 0, '7 días': 10080, '30 días': 43200, Todo: Infinity } as const;
 type Range = keyof typeof RANGE_MINUTES;
 const MODULES = ['Todos', 'Seguridad', 'Ventas', 'Compras', 'Inventario', 'Finanzas', 'Documentos', 'Administración'];
 const ACTIONS = ['Todas', 'Ingreso', 'Crear', 'Editar', 'Eliminar', 'Exportar', 'Descargar'];
@@ -56,35 +22,35 @@ const PAGE_SIZE = 12;
 
 const p2 = (n: number) => String(n).padStart(2, '0');
 
-/** Expands the compact sample events into display records (timestamps relative to 02 oct 2026 10:46). */
-function buildEvents() {
-  const base = new Date(2026, 9, 2, 10, 46, 12).getTime();
-  return EVENTS.map(([mins, u, action, module, ref, desc, result, extra], i) => {
-    const t = new Date(base - mins * 60000 - i * 17000);
-    const system = u === 'SY';
-    return {
-      id: 'AUD-' + (884120 - i),
-      mins, action, module, ref, desc, result,
-      user: USERS[u][0],
-      role: USERS[u][1],
-      changes: Array.isArray(extra) ? extra : [],
-      note: Array.isArray(extra) ? '' : extra,
-      day: p2(t.getDate()) + ' ' + MES[t.getMonth()],
-      time: `${p2(t.getHours())}:${p2(t.getMinutes())}:${p2(t.getSeconds())}`,
-      full: `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())} ${p2(t.getHours())}:${p2(t.getMinutes())}:${p2(t.getSeconds())} (UTC−5)`,
-      ip: system && action === 'Ingreso' ? '181.65.203.17' : system ? 'interno' : `10.0.${12 + (i % 4)}.${20 + ((i * 7) % 200)}`,
-      device: system ? (action === 'Ingreso' ? 'Desconocido · Linux' : 'Servicio backend') : ['Chrome · Windows', 'Edge · Windows', 'Safari · macOS', 'Chrome · Android'][i % 4],
-    };
-  });
+/** Audit events with display fields (relative age, day/time, exact timestamp). */
+function useEvents() {
+  const d = useDB();
+  return useMemo(() => {
+    const now = Date.now();
+    return d.audit.map(e => {
+      const t = new Date(e.at);
+      return {
+        ...e,
+        mins: (now - t.getTime()) / 60000,
+        day: p2(t.getDate()) + ' ' + MES[t.getMonth()],
+        time: `${p2(t.getHours())}:${p2(t.getMinutes())}:${p2(t.getSeconds())}`,
+        full: `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())} ${p2(t.getHours())}:${p2(t.getMinutes())}:${p2(t.getSeconds())} (UTC−5)`,
+      };
+    });
+  }, [d]);
 }
 
 export function AuditoriaPage() {
-  const events = useMemo(buildEvents, []);
+  const events = useEvents();
+  const modules = ['Todos', ...new Set([...MODULES.slice(1), ...events.map(e => e.module)])];
   const [range, setRange] = useState<Range>('7 días');
   const [result, setResult] = useState<'Todos' | Result>('Todos');
   const [mod, setMod] = useState('Todos');
   const [act, setAct] = useState('Todas');
-  const [query, setQuery] = useState('');
+  const [params] = useSearchParams();
+  const [query, setQuery] = useState(params.get('q') ?? '');
+  // Follow ?q= when arriving from the global search or a link while already on this screen.
+  useEffect(() => setQuery(params.get('q') ?? ''), [params]);
   const [open, setOpen] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
@@ -98,7 +64,7 @@ export function AuditoriaPage() {
   const q = query.trim().toLowerCase();
   const list = events.filter(
     e =>
-      e.mins <= RANGE_MINUTES[range] &&
+      (range === 'Hoy' ? new Date(e.at).toDateString() === new Date().toDateString() : e.mins <= RANGE_MINUTES[range]) &&
       (result === 'Todos' || e.result === result) &&
       (mod === 'Todos' || e.module === mod) &&
       (act === 'Todas' || e.action === act) &&
@@ -107,6 +73,11 @@ export function AuditoriaPage() {
   const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
   const cur = Math.min(page, pages);
   const hasFilters = range !== '7 días' || result !== 'Todos' || mod !== 'Todos' || act !== 'Todas' || !!q;
+  const exportCsv = () => {
+    downloadCsv('auditoria.csv', ['ID', 'Fecha', 'Usuario', 'Rol', 'Acción', 'Módulo', 'Registro', 'Descripción', 'Resultado', 'Cambios', 'Detalle', 'IP', 'Dispositivo'],
+      list.map(e => [e.id, e.full, e.user, e.role, e.action, e.module, e.ref, e.desc, e.result, e.changes.map(c => `${c[0]}: ${c[1]} → ${c[2]}`).join(' | '), e.note, e.ip, e.device]));
+    mutate(dr => audit(dr, { action: 'Exportar', module: 'Administración', ref: 'Auditoría', desc: `Registro exportado a CSV · ${list.length} eventos` }));
+  };
   const clear = () => refilter(() => { setRange('7 días'); setResult('Todos'); setMod('Todos'); setAct('Todas'); setQuery(''); });
 
   return (
@@ -114,7 +85,7 @@ export function AuditoriaPage() {
       active="Auditoría"
       breadcrumb={[{ label: 'Inicio', to: '/' }, { label: 'Administración' }, { label: 'Auditoría' }]}
       actions={
-        <button type="button" className="btn btn--primary">
+        <button type="button" className="btn btn--primary" onClick={exportCsv}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></svg>
           Exportar registro
         </button>
@@ -152,7 +123,7 @@ export function AuditoriaPage() {
         <label className="filters__group">
           <span className="field__label">Módulo</span>
           <select className="field__control" style={{ height: 30 }} value={mod} onChange={e => refilter(() => setMod(e.target.value))}>
-            {MODULES.map(m => <option key={m}>{m}</option>)}
+            {modules.map(m => <option key={m}>{m}</option>)}
           </select>
         </label>
         <label className="filters__group">

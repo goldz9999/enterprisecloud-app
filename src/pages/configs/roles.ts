@@ -1,3 +1,5 @@
+import { MODULES } from '../../data/permissions';
+import { opts } from './shared';
 import type { RecordsConfig } from '../../features/records/types';
 
 export const roles: RecordsConfig = {
@@ -9,9 +11,38 @@ export const roles: RecordsConfig = {
   crud: true, entity: 'Rol', titleKey: 'nombre', subKey: 'desc', statusKey: 'estado', newTitle: 'Nuevo rol', newKicker: 'Administración · Roles', msgNew: 'Rol creado · configura sus permisos', msgDel: 'Rol eliminado',
   statuses: { 'Activo': 'green', 'Inactivo': 'muted' },
   keys: ['nombre','desc','usuarios','modulos','tipo','estado','base'],
-  defaults: () => ({ usuarios: 0, tipo: 'Personalizado', modulos: 'Según rol base' }),
+  collection: 'roles',
+  defaults: () => ({ usuarios: 0, tipo: 'Personalizado', modulos: '' }),
+  view: (row, d) => {
+    const perms = d.permisos[String(row.nombre)];
+    const mods = perms ? Object.entries(perms).filter(([, p]) => p[0]).map(([m]) => m) : [];
+    const total = MODULES.reduce((a, [, ms]) => a + ms.length, 0);
+    return {
+      ...row,
+      usuarios: d.records.usuarios.filter(u => u.rol === row.nombre).length,
+      modulos: row.nombre === 'Administrador' || mods.length === total ? 'Todos' : mods.length ? `${mods.length} módulos: ${mods.slice(0, 3).join(', ')}${mods.length > 3 ? '…' : ''}` : 'Sin acceso',
+    };
+  },
+  onCreate: (d, row) => {
+    if (d.records.roles.some(r => r.nombre === row.nombre)) return `Ya existe el rol ${row.nombre}.`;
+    const base = d.permisos[String(row.base)];
+    d.permisos[String(row.nombre)] = base ? structuredClone(base) : Object.fromEntries(MODULES.flatMap(([, ms]) => ms).map(m => [m, [false, false, false, false, false]]));
+  },
+  onUpdate: (d, before, after) => {
+    if (before.tipo === 'Sistema' && after.nombre !== before.nombre) return 'Los roles de tipo Sistema no se pueden renombrar.';
+    if (after.nombre !== before.nombre) {
+      d.permisos[String(after.nombre)] = d.permisos[String(before.nombre)] ?? {};
+      delete d.permisos[String(before.nombre)];
+      for (const u of d.records.usuarios.filter(x => x.rol === before.nombre)) u.rol = after.nombre;
+    }
+  },
+  canDelete: (row, d) => {
+    if (row.tipo === 'Sistema') return 'Los roles de tipo Sistema no se pueden eliminar.';
+    if (d.records.usuarios.some(u => u.rol === row.nombre)) return 'Hay usuarios con este rol. Asígnales otro rol antes de eliminarlo.';
+    delete d.permisos[String(row.nombre)];
+  },
   columns: [{ k: 'nombre', label: 'Rol', w: 'minmax(0, 1.2fr)', sub: 'desc' }, { k: 'usuarios', label: 'Usuarios', w: '80px', fmt: 'int', align: 'right' }, { k: 'modulos', label: 'Módulos con acceso', w: 'minmax(0, 1fr)', muted: true }, { k: 'tipo', label: 'Tipo', w: '110px', muted: true }, { k: 'estado', label: 'Estado', w: '96px', chip: true }],
-  fields: [{ k: 'nombre', label: 'Nombre del rol', required: true }, { k: 'base', label: 'Copiar permisos de', type: 'select', options: ['— Ninguno —', 'Ventas', 'Compras', 'Almacén', 'Contabilidad', 'Gerente'] }, { k: 'desc', label: 'Descripción', wide: true }, { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] }],
+  fields: [{ k: 'nombre', label: 'Nombre del rol', required: true }, { k: 'base', label: 'Copiar permisos de', type: 'select', options: d => ['— Ninguno —', ...opts.roles(d)] }, { k: 'desc', label: 'Descripción', wide: true }, { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] }],
   note: 'Define qué puede ver, crear, editar, eliminar y aprobar este rol en Administración › Permisos. Los roles de tipo Sistema no se pueden eliminar.',
   rows: [
     ['Administrador','Acceso total y configuración del sistema',1,'Todos','Sistema','Activo','—'],

@@ -10,11 +10,13 @@ interface DrawerProps {
   badge?: ReactNode;
   footer: ReactNode;
   onClose: () => void;
+  /** Panel width in px (default 460). */
+  width?: number;
   children: ReactNode;
 }
 
 /** Right-side panel over a dimmed backdrop. Closes on backdrop click or Esc. */
-export function Drawer({ kicker, title, subtitle, badge, footer, onClose, children }: DrawerProps) {
+export function Drawer({ kicker, title, subtitle, badge, footer, onClose, width, children }: DrawerProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -25,7 +27,7 @@ export function Drawer({ kicker, title, subtitle, badge, footer, onClose, childr
 
   return (
     <div className="drawer-backdrop" onClick={onClose}>
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
+      <aside className="drawer" style={width ? { width } : undefined} role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
         <div className="drawer__head">
           <div className="drawer__titles">
             <div className="drawer__kicker">{kicker}</div>

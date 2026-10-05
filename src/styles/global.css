@@ -138,3 +138,11 @@ input::placeholder { color: var(--faint); }
   font-size: 9.5px;
   font-weight: 500;
 }
+
+/* ---------- Print: only the page content ---------- */
+@media print {
+  .sidebar, .topbar, .no-print, .toast { display: none !important; }
+  .shell { min-width: 0; }
+  .page { padding: 0; max-width: none; }
+  .split { grid-template-columns: 1fr !important; }
+}
