@@ -73,6 +73,8 @@ export const NAV: NavEntry[] = [
       { label: 'Productos', to: '/mantenimiento/productos' },
       { label: 'Categorías', to: '/mantenimiento/categorias' },
       { label: 'Almacenes', to: '/mantenimiento/almacenes' },
+      { label: 'Conductores', to: '/mantenimiento/conductores' },
+      { label: 'Vehículos', to: '/mantenimiento/vehiculos' },
     ],
   },
   { kind: 'section', label: 'Sistema' },
@@ -90,4 +92,3 @@ export const NAV: NavEntry[] = [
     icon: 'M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6M12 2v3M12 19v3M4.9 4.9L7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1',
   },
 ];
-

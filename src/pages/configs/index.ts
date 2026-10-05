@@ -14,6 +14,8 @@ import { productos } from './productos';
 import { proveedores } from './proveedores';
 import { recepcion } from './recepcion';
 import { roles } from './roles';
+import { conductores } from './conductores';
+import { vehiculos } from './vehiculos';
 import { stock } from './stock';
 import { transferencias } from './transferencias';
 import { usuarios } from './usuarios';
@@ -36,6 +38,8 @@ export const RECORD_PAGES: Record<string, RecordsConfig> = {
   '/mantenimiento/productos': productos,
   '/mantenimiento/categorias': categorias,
   '/mantenimiento/almacenes': almacenes,
+  '/mantenimiento/conductores': conductores,
+  '/mantenimiento/vehiculos': vehiculos,
   '/admin/usuarios': usuarios,
   '/admin/roles': roles,
 };

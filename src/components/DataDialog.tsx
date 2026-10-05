@@ -1,21 +1,8 @@
 import { useState } from 'react';
 import { audit } from '../data/domain/audit';
-import { can } from '../data/permissions';
-import { clearSampleData, currentUser, exportBackup, mutate, resetToDemo, useDB } from '../data/store';
-import type { DB } from '../data/types';
-import { downloadBlob } from '../lib/csv';
-import { isoDate } from '../lib/dates';
+import { clearSampleData, mutate, resetToDemo, useDB } from '../data/store';
+import { canManageData, downloadBackup } from '../lib/dataManagement';
 import { Modal } from './Modal';
-
-/** Who may wipe, restore or import the whole dataset. */
-export function canManageData(d: DB): boolean {
-  const role = currentUser(d).role;
-  return role === 'Administrador' || role === 'Gerente' || can(d, 'Configuración', 'Editar');
-}
-
-export function downloadBackup() {
-  downloadBlob(`enterprisecloud-respaldo-${isoDate(new Date())}.json`, new Blob([exportBackup()], { type: 'application/json' }));
-}
 
 type Step = 'menu' | 'clear' | 'demo';
 

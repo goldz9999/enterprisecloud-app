@@ -13,7 +13,7 @@ export const MODULES: [group: string, modules: string[]][] = [
   ['Inventario', ['Stock por almacén', 'Kardex', 'Transferencias', 'Ajustes']],
   ['Finanzas', ['Cuentas por cobrar', 'Cuentas por pagar', 'Caja', 'Bancos']],
   ['Documentos y reportes', ['Documentos', 'Reportes']],
-  ['Mantenimiento', ['Clientes', 'Proveedores', 'Productos', 'Categorías', 'Almacenes']],
+  ['Mantenimiento', ['Clientes', 'Proveedores', 'Productos', 'Categorías', 'Almacenes', 'Conductores', 'Vehículos']],
   ['Sistema', ['Usuarios', 'Roles', 'Permisos', 'Auditoría', 'Configuración']],
 ];
 
@@ -28,7 +28,7 @@ export function defaultPermissions(): PermMatrix {
   };
   const isIn = (m: string, list: string[]) => list.includes(m);
   set('Administrador', () => FULL);
-  set('Gerente', (g, m) => (g === 'Sistema' ? (m === 'Configuración' ? NONE : VIEW) : FULL));
+  set('Gerente', (g, m) => (g === 'Sistema' ? VIEW : FULL));
   set('Ventas', (g, m) => (g === 'Ventas' ? (m === 'Comprobantes' ? P(1, 1, 0, 0, 0) : WORK) : m === 'Clientes' ? WORK : isIn(m, ['Dashboard', 'Reportes', 'Stock por almacén', 'Documentos', 'Productos']) ? VIEW : NONE));
   set('Compras', (g, m) => (g === 'Compras' || m === 'Proveedores' ? WORK : isIn(m, ['Dashboard', 'Reportes', 'Stock por almacén', 'Kardex', 'Documentos', 'Productos', 'Cuentas por pagar']) ? VIEW : NONE));
   set('Almacén', (g, m) => (g === 'Inventario' || m === 'Recepción' ? WORK : m === 'Órdenes de venta' ? P(1, 0, 1, 0, 0) : m === 'Solicitudes' ? P(1, 1, 0, 0, 0) : isIn(m, ['Dashboard', 'Productos', 'Almacenes', 'Documentos']) ? VIEW : NONE));

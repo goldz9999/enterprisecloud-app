@@ -6,7 +6,7 @@ export type Row = Record<string, Value> & { _id: number };
 
 export const RECORD_COLLECTIONS = [
   'clientes', 'proveedores', 'productos', 'categorias', 'almacenes', 'usuarios', 'roles',
-  'stock', 'kardex', 'transferencias', 'ajustes', 'caja', 'bancos', 'comprobantes', 'cxc', 'cxp',
+  'conductores', 'vehiculos', 'stock', 'kardex', 'transferencias', 'ajustes', 'caja', 'bancos', 'comprobantes', 'cxc', 'cxp',
 ] as const;
 export type RecordCollection = (typeof RECORD_COLLECTIONS)[number];
 

@@ -25,7 +25,7 @@ interface RecordDrawerProps {
   onAction: (a: Action, values: Record<string, string>) => void;
 }
 
-export function optionsOf(f: Field, d: DB): string[] {
+function optionsOf(f: Field, d: DB): string[] {
   return typeof f.options === 'function' ? f.options(d) : f.options ?? [];
 }
 

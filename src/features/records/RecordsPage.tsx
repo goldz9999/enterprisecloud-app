@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
-import { KpiCard, KpiRow } from '../../components/KpiCard';
 import { StatusChip, toneColor } from '../../components/StatusChip';
 import { Toast, useToast } from '../../components/Toast';
 import { audit, diff } from '../../data/domain/audit';
@@ -28,25 +27,68 @@ function Cell({ col, row, first }: { col: Column; row: Row; first: boolean }) {
   );
 }
 
-/** Rows as stored (or derived) — before any display transformation. */
+/** Side panel shown instead of the KPI cards + drawer when cfg.sidePanel = true */
+function SidePanel({ cfg, row, kpis }: { cfg: RecordsConfig; row: Row | null; kpis: { label: string; value: string; note: string; tone?: string }[] }) {
+  const tone = (t?: string) => t && t !== 'muted' ? `var(--${t})` : 'var(--text)';
+  return (
+    <aside className="records-side">
+      {/* KPIs compactos */}
+      <div className="records-side__kpis">
+        {kpis.map(k => (
+          <div key={k.label} className="records-side__kpi">
+            <div className="records-side__kpi-label">{k.label}</div>
+            <div className="records-side__kpi-value" style={{ color: tone(k.tone) }}>{k.value}</div>
+            {k.note && <div className="records-side__kpi-note">{k.note}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Detalle del registro seleccionado */}
+      <div className="records-side__detail">
+        {!row ? (
+          <div className="records-side__empty">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12h6M9 16h6M5 8h14M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z" /></svg>
+            <span>Selecciona una fila para ver el detalle</span>
+          </div>
+        ) : (
+          <>
+            <div className="records-side__detail-head">
+              <div className="records-side__detail-title">{String(row[cfg.titleKey] ?? '')}</div>
+              {cfg.subKey && <div className="records-side__detail-sub mono">{String(row[cfg.subKey] ?? '')}</div>}
+              {cfg.statusKey && <StatusChip label={String(row[cfg.statusKey])} tone={cfg.statuses[String(row[cfg.statusKey])] ?? 'muted'} />}
+            </div>
+            <div className="records-side__fields">
+              {cfg.fields.map(f => {
+                const val = row[f.k];
+                if (val == null || val === '') return null;
+                return (
+                  <div key={f.k} className="records-side__field">
+                    <span className="records-side__field-label">{f.label}</span>
+                    <span className={'records-side__field-value' + (f.mono ? ' mono' : '')}>{formatValue(val, f.fmt)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {cfg.note && <div className="records-side__note">{cfg.note}</div>}
+          </>
+        )}
+      </div>
+    </aside>
+  );
+}
+
 function rawRows(cfg: RecordsConfig, d: DB): Row[] {
   return cfg.collection ? d.records[cfg.collection] : cfg.source?.(d) ?? [];
 }
 
-/** Audit module = the breadcrumb section (Ventas, Inventario, Mantenimiento…). */
 const moduleOf = (cfg: RecordsConfig) => cfg.breadcrumb[1]?.label ?? cfg.title;
 
-/**
- * Generic list screen: KPI row, status filter chips + search, a grid table and a side drawer.
- * Reads and writes the local database; per-screen effects (stock, finance…) live in each config.
- */
 export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
   const d = useDB();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [filter, setFilter] = useState('Todos');
   const [query, setQuery] = useState(params.get('q') ?? '');
-  // Follow ?q= when arriving from the global search or a link while already on this screen.
   useEffect(() => setQuery(params.get('q') ?? ''), [params]);
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; id: number | null } | null>(null);
   const [error, setError] = useState('');
@@ -67,7 +109,13 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
   const editable = !!cfg.crud && canEdit;
   const actions = current && cfg.actions ? (cfg.actions[String(current[sk])] ?? cfg.actions['*'] ?? []).filter(a => a.href || can(d, mod, a.perm ?? 'Editar')) : [];
 
+  // Side panel mode: clicking a row selects it (shows detail) instead of opening a drawer
+  const sidePanel = !!(cfg as any).sidePanel;
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const selectedRow = selectedId != null ? rows.find(r => r._id === selectedId) ?? null : null;
+
   const open = (mode: DrawerMode, id: number | null) => {
+    if (sidePanel && mode !== 'new') { setSelectedId(id); return; }
     setError('');
     setDrawer({ mode, id });
   };
@@ -99,7 +147,7 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
       }
     });
     if (err) return setError(err);
-    if (isNew) setFilter('Todos'); // make sure the new record is visible
+    if (isNew) setFilter('Todos');
     toast.flash(isNew ? cfg.msgNew ?? 'Registro creado' : 'Cambios guardados');
     close();
   };
@@ -135,12 +183,60 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
   };
 
   const exportCsv = () => {
-    const cols = cfg.fields.length ? cfg.fields : cfg.columns.map(c => ({ k: c.k, label: c.label }));
-    const keys = [...new Set([...cfg.columns.map(c => c.k), ...cols.map(c => c.k)])];
-    const label = (k: string) => cfg.columns.find(c => c.k === k)?.label ?? cols.find(c => c.k === k)?.label ?? k;
+    const fields = cfg.fields.length ? cfg.fields : cfg.columns.map(c => ({ k: c.k, label: c.label }));
+    const keys = [...new Set([...cfg.columns.map(c => c.k), ...fields.map(c => c.k)])];
+    const label = (k: string) => cfg.columns.find(c => c.k === k)?.label ?? fields.find(c => c.k === k)?.label ?? k;
     downloadCsv(`${cfg.title.toLowerCase().replace(/\s+/g, '-')}.csv`, keys.map(label), visible.map(r => keys.map(k => r[k] ?? '')));
     mutate(draft => audit(draft, { action: 'Exportar', module: moduleOf(cfg), ref: cfg.title, desc: `Exportación a CSV · ${visible.length} filas` }));
   };
+
+  const tableSection = (
+    <section className="table" aria-label={cfg.title}>
+      <div className="table__row table__head" role="row" style={{ gridTemplateColumns: cols }}>
+        {cfg.columns.map(c => <span key={c.k} style={{ textAlign: c.align ?? 'left' }}>{c.label}</span>)}
+      </div>
+
+      {visible.map(r => (
+        <div
+          key={r._id}
+          role="row"
+          tabIndex={0}
+          className={'table__row table__body-row' + ((sidePanel ? selectedId === r._id : current?._id === r._id) ? ' is-selected' : '')}
+          style={{ gridTemplateColumns: cols }}
+          onClick={() => open(editable ? 'edit' : 'view', r._id)}
+          onKeyDown={e => { if (e.key === 'Enter') open(editable ? 'edit' : 'view', r._id); }}
+        >
+          {cfg.columns.map((c, i) =>
+            c.chip ? (
+              <div key={c.k} className="cell"><StatusChip label={String(r[c.k])} tone={cfg.statuses[String(r[c.k])] ?? 'muted'} /></div>
+            ) : (
+              <Cell key={c.k} col={c} row={r} first={i === 0} />
+            ),
+          )}
+        </div>
+      ))}
+
+      {visible.length === 0 && (
+        <div className="table__empty">
+          {rows.length === 0 ? (
+            <>
+              Aún no hay registros.
+              {cfg.newLabel && canCreate && (
+                <> <a style={{ cursor: 'pointer' }} onClick={() => (cfg.newTo ? navigate(cfg.newTo) : open('new', null))}>{cfg.newLabel}</a></>
+              )}
+            </>
+          ) : (
+            'No hay registros que coincidan.'
+          )}
+        </div>
+      )}
+
+      <div className="table__foot">
+        <span>{visible.length} registros</span>
+        <span>{editable ? 'Haz clic en una fila para editar' : 'Haz clic en una fila para ver el detalle'}</span>
+      </div>
+    </section>
+  );
 
   return (
     <AppShell
@@ -159,12 +255,6 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
         <h1 className="page__title">{cfg.title}</h1>
         <div className="page__subtitle">{cfg.subtitle}</div>
       </div>
-
-      {kpis.length > 0 && (
-        <KpiRow>
-          {kpis.map(k => <KpiCard key={k.label} {...k} />)}
-        </KpiRow>
-      )}
 
       <div className="toolbar">
         {['Todos', ...Object.keys(cfg.statuses)].map(f => {
@@ -186,58 +276,29 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
         </button>
       </div>
 
-      <section className="table" aria-label={cfg.title}>
-        <div className="table__row table__head" role="row" style={{ gridTemplateColumns: cols }}>
-          {cfg.columns.map(c => <span key={c.k} style={{ textAlign: c.align ?? 'left' }}>{c.label}</span>)}
+      {sidePanel ? (
+        <div className="records-layout">
+          <div className="records-layout__table">{tableSection}</div>
+          <SidePanel cfg={cfg} row={selectedRow} kpis={kpis as any} />
         </div>
+      ) : (
+        <>
+          {kpis.length > 0 && (
+            <div className="kpi-row">
+              {kpis.map((k: any) => (
+                <div key={k.label} className="kpi">
+                  <div className="kpi__label">{k.label}</div>
+                  <div className="kpi__value" style={{ color: k.tone && k.tone !== 'muted' ? `var(--${k.tone})` : 'var(--text)' }}>{k.value}</div>
+                  {k.note && <div className="kpi__note">{k.note}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          {tableSection}
+        </>
+      )}
 
-        {visible.map(r => (
-          <div
-            key={r._id}
-            role="row"
-            tabIndex={0}
-            className={'table__row table__body-row' + (current?._id === r._id ? ' is-selected' : '')}
-            style={{ gridTemplateColumns: cols }}
-            onClick={() => open(editable ? 'edit' : 'view', r._id)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') open(editable ? 'edit' : 'view', r._id);
-            }}
-          >
-            {cfg.columns.map((c, i) =>
-              c.chip ? (
-                <div key={c.k} className="cell"><StatusChip label={String(r[c.k])} tone={cfg.statuses[String(r[c.k])] ?? 'muted'} /></div>
-              ) : (
-                <Cell key={c.k} col={c} row={r} first={i === 0} />
-              ),
-            )}
-          </div>
-        ))}
-
-        {visible.length === 0 && (
-          <div className="table__empty">
-            {rows.length === 0 ? (
-              <>
-                Aún no hay registros.
-                {cfg.newLabel && canCreate && (
-                  <>
-                    {' '}
-                    <a style={{ cursor: 'pointer' }} onClick={() => (cfg.newTo ? navigate(cfg.newTo) : open('new', null))}>{cfg.newLabel}</a>
-                  </>
-                )}
-              </>
-            ) : (
-              'No hay registros que coincidan.'
-            )}
-          </div>
-        )}
-
-        <div className="table__foot">
-          <span>{visible.length} registros</span>
-          <span>{editable ? 'Haz clic en una fila para editar' : 'Haz clic en una fila para ver el detalle'}</span>
-        </div>
-      </section>
-
-      {drawer && (drawer.mode === 'new' || current) && (
+      {!sidePanel && drawer && (drawer.mode === 'new' || current) && (
         <RecordDrawer
           key={drawer.mode + (drawer.id ?? 'new')}
           cfg={cfg}

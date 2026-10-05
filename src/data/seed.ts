@@ -14,6 +14,8 @@ import { kardex } from '../pages/configs/kardex';
 import { productos } from '../pages/configs/productos';
 import { proveedores } from '../pages/configs/proveedores';
 import { roles } from '../pages/configs/roles';
+import { conductores } from '../pages/configs/conductores';
+import { vehiculos } from '../pages/configs/vehiculos';
 import { solicitudes } from '../pages/configs/solicitudes';
 import { stock } from '../pages/configs/stock';
 import { transferencias } from '../pages/configs/transferencias';
@@ -25,7 +27,7 @@ import type { DB, Order, OrderLine, OrderParty, RecordCollection, Row } from './
 
 /** Collections seeded from each generic screen's sample rows. */
 const RECORD_SOURCES: Record<RecordCollection, Pick<RecordsConfig, 'keys' | 'rows'>> = {
-  clientes, proveedores, productos, categorias, almacenes, usuarios, roles, stock, kardex, transferencias, ajustes, caja, bancos, comprobantes,
+  clientes, proveedores, productos, categorias, almacenes, usuarios, roles, conductores, vehiculos, stock, kardex, transferencias, ajustes, caja, bancos, comprobantes,
   cxc: cuentasPorCobrar, cxp: cuentasPorPagar,
 };
 
@@ -216,4 +218,3 @@ export function buildDemoDB(): DB {
 
   return db;
 }
-

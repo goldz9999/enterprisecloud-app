@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
-import { LinesEditor, linesError } from '../../components/LinesEditor';
+import { LinesEditor } from '../../components/LinesEditor';
+import { linesError } from '../../lib/lines';
 import { createOrder, igvRate, partyFromClient, partyFromSupplier, warehouses } from '../../data/domain/orders';
 import { can } from '../../data/permissions';
 import { currentUser, mutate, useDB } from '../../data/store';

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Drawer } from '../../components/Drawer';
-import { LinesEditor, linesError } from '../../components/LinesEditor';
+import { LinesEditor } from '../../components/LinesEditor';
+import { linesError } from '../../lib/lines';
 import { dataOf, type FlowData, type FlowKind } from '../../data/domain/flows';
 import { PAY_TERMS, warehouses } from '../../data/domain/orders';
 import { currentUser, useDB } from '../../data/store';
@@ -44,9 +45,9 @@ export function FlowEditor({ kind, row, initialLines, initialData, onClose, onSa
   const [lines, setLines] = useState<OrderLine[]>(() =>
     row
       ? row.items.map(i => {
-          const p = d.records.productos.find(x => x.sku === i.sku || x.nombre === i.name);
-          return { sku: String(p?.sku ?? i.sku ?? i.name), name: String(p?.nombre ?? i.name), unit: i.unit, qty: i.qty, price: i.price };
-        })
+        const p = d.records.productos.find(x => x.sku === i.sku || x.nombre === i.name);
+        return { sku: String(p?.sku ?? i.sku ?? i.name), name: String(p?.nombre ?? i.name), unit: i.unit, qty: i.qty, price: i.price };
+      })
       : initialLines ?? [],
   );
   const [error, setError] = useState('');

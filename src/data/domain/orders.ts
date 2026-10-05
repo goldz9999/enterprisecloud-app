@@ -127,15 +127,42 @@ const SALE_STEPS: StepDef[] = [
     title: 'Despacho', action: 'Registrar despacho', verb: 'despachar', pending: 'Genera guía y salida de stock', histo: 'registró el despacho y la guía de remisión',
     intro: 'Registra el traslado de la mercadería al cliente. Se emite la guía de remisión electrónica y se descuenta el stock.',
     submit: 'Generar guía y registrar salida',
-    fields: (o, d) => [
-      { k: 'ft', label: 'Fecha de traslado', type: 'date', value: today(), required: true },
-      { k: 'mot', label: 'Motivo de traslado', type: 'select', options: ['Venta', 'Venta sujeta a confirmación'], value: 'Venta' },
-      { k: 'tra', label: 'Transportista', type: 'select', options: ['Movilidad propia', ...d.records.proveedores.filter(p => p.rubro === 'Transporte' && p.estado !== 'Inactivo').map(p => String(p.razon))], value: 'Movilidad propia' },
-      { k: 'pla', label: 'Placa del vehículo', value: '', placeholder: 'Ej. F4Q-728', required: true },
-      { k: 'con', label: 'Conductor', value: '', placeholder: 'Nombre y DNI', required: true },
-      { k: 'lle', label: 'Punto de llegada', value: o.forms[1]?.dir ?? o.party.address, required: true },
-    ],
-    note: o => `Se descontará del ${o.warehouse}: ${lineSummary(o)}.`,
+    fields: (o, d, values) => {
+      const tra = values.tra ?? 'Movilidad propia';
+      const isMobPropia = tra === 'Movilidad propia';
+      // Vehicles and conductors filtered by the selected transportista
+      const vehiculosEmpresa = (d.records as any).vehiculos
+        ? (d.records as any).vehiculos.filter((v: any) => v.estado === 'Activo' && (isMobPropia ? v.empresa === 'Movilidad propia' : v.empresa === tra))
+        : [];
+      const placas = vehiculosEmpresa.map((v: any) => String(v.placa));
+      const conductoresList = (d.records as any).conductores
+        ? (d.records as any).conductores.filter((c: any) => c.estado === 'Activo' && (isMobPropia ? c.empresa === 'Movilidad propia' : c.empresa === tra))
+        : [];
+      const nombresConductores = conductoresList.map((c: any) => String(c.nombre));
+      // Autocomplete: if placa chosen, find its conductor and vice-versa
+      const selectedVehiculo = vehiculosEmpresa.find((v: any) => v.placa === values.pla);
+      const selectedConductor = conductoresList.find((c: any) => c.nombre === values.con || (selectedVehiculo && selectedVehiculo.conductor?.startsWith(c.nombre)));
+      const autoPlaca = selectedConductor
+        ? (vehiculosEmpresa.find((v: any) => v.conductor?.startsWith(selectedConductor.nombre))?.placa ?? values.pla ?? '')
+        : values.pla ?? '';
+      const autoCon = selectedVehiculo
+        ? (selectedVehiculo.conductor?.split(' · ')[0] ?? values.con ?? '')
+        : values.con ?? '';
+      const useRegistered = placas.length > 0;
+      return [
+        { k: 'ft', label: 'Fecha de traslado', type: 'date', value: today(), required: true },
+        { k: 'mot', label: 'Motivo de traslado', type: 'select', options: ['Venta', 'Venta sujeta a confirmación'], value: 'Venta' },
+        { k: 'tra', label: 'Transportista', type: 'select', options: ['Movilidad propia', ...d.records.proveedores.filter(p => p.rubro === 'Transporte' && p.estado !== 'Inactivo').map(p => String(p.razon))], value: 'Movilidad propia' },
+        useRegistered
+          ? { k: 'pla', label: 'Placa del vehículo', type: 'select' as const, options: placas, value: autoPlaca || placas[0], required: true }
+          : { k: 'pla', label: 'Placa del vehículo', value: values.pla ?? '', placeholder: 'Ej. F4Q-728', required: true },
+        useRegistered && nombresConductores.length > 0
+          ? { k: 'con', label: 'Conductor', type: 'select' as const, options: nombresConductores, value: autoCon || nombresConductores[0], required: true }
+          : { k: 'con', label: 'Conductor (nombre)', value: values.con ?? '', placeholder: 'Ej. Juan Pérez García', required: true },
+        { k: 'lle', label: 'Punto de llegada', value: o.forms[1]?.dir ?? o.party.address, required: true },
+      ];
+    },
+    note: o => `Se descontará del ${o.warehouse}: ${o.lines.map(l => l.qty.toLocaleString('en-US') + ' ' + l.unit).join(', ')}.`,
     meta: o => `Salida de ${o.warehouse}`,
     doneMsg: o => `Guía de remisión ${o.docs[2]?.replace('Guía ', '')} generada. Stock descontado y registrado en el kardex.`,
     apply: (d, o, v) => {
