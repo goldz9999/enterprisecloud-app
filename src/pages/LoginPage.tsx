@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { INITIAL_PASSWORD, login } from '../data/domain/auth';
+import { login } from '../data/domain/auth';
 import { useSession } from '../data/session';
 import { useDB } from '../data/store';
 import { useTheme } from '../lib/theme';
@@ -79,9 +79,6 @@ export function LoginPage() {
                 Primer ingreso: no hay usuarios registrados. Escribe tu correo y una contraseña (mínimo 8 caracteres); se creará tu usuario Administrador.
               </div>
             )}
-            {!firstRun && d.mode === 'demo' && (
-              <div className="login__info">Datos de ejemplo: entra con cualquier usuario de la lista (por ejemplo maria.rojas@empresa.pe) y la contraseña <b className="mono">{INITIAL_PASSWORD}</b>.</div>
-            )}
             {authError && !loading && (
               <div role="alert" className="login__alert">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 3l10 18H2z" /><path d="M12 10v4M12 17.5v.01" /></svg>
@@ -110,7 +107,7 @@ export function LoginPage() {
             <div className="login__field">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <label htmlFor="ec-pass">Contraseña</label>
-                <a style={{ fontSize: 12, cursor: 'pointer' }} onClick={() => setInfo(`Pide al Administrador que la restablezca en Administración › Usuarios (vuelve a ${INITIAL_PASSWORD}). Luego cámbiala desde tu menú de cuenta.`)}>¿Olvidaste tu contraseña?</a>
+                <a style={{ fontSize: 12, cursor: 'pointer' }} onClick={() => setInfo(`Pide al Administrador que la restablezca en Administración › Usuarios. Luego cámbiala desde tu menú de cuenta.`)}>¿Olvidaste tu contraseña?</a>
               </div>
               <div className={'login__input login__pass' + (touched && errors.pass ? ' is-invalid' : '')}>
                 <input

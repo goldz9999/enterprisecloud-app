@@ -92,10 +92,8 @@ export interface RecordsConfig {
   statusKey: string;
   statuses: Record<string, Tone>;
 
-  /** Column keys for the sample rows below (positional). */
+  /** Column keys of the stored records. */
   keys: string[];
-  /** Sample rows loaded in demo mode. */
-  rows?: Value[][];
   columns: Column[];
   fields: Field[];
 

@@ -11,7 +11,7 @@ import type { Settings } from '../data/types';
 import { useTheme } from '../lib/theme';
 import './ConfiguracionPage.css';
 
-type Confirm = 'clear' | 'demo' | null;
+type Confirm = 'clear' | null;
 
 // Map section titles to anchor ids
 const sectionId = (title: string) => title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -114,12 +114,12 @@ export function ConfiguracionPage() {
         <div className="cfg-content">
 
           {/* Only the active section is rendered */}
-          {activeSection === 'datos' && renderSection('datos', 'Datos', 'Todo lo que haces se guarda en este navegador. Puedes quitar los datos de ejemplo para empezar a usar el sistema con tus propios datos.', (
+          {activeSection === 'datos' && renderSection('datos', 'Datos', 'Todo lo que haces se guarda en este navegador. Descarga respaldos con frecuencia.', (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div className={'data-mode' + (d.mode === 'demo' ? ' is-demo' : '')}>
+              <div className="data-mode">
                 <span className="data-mode__dot" />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500 }}>{d.mode === 'demo' ? 'Usando datos de ejemplo' : 'Usando tus datos locales'}</div>
+                  <div style={{ fontWeight: 500 }}>Usando tus datos locales</div>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                     {counts.clientes} clientes · {counts.productos} productos · {counts.ventas} ventas · {counts.compras} compras · {counts.documentos} documentos · {counts.eventos} eventos de auditoría · {sizeKb} KB
                   </div>
@@ -128,16 +128,15 @@ export function ConfiguracionPage() {
               {canManageData(d) ? (
                 <div className="data-actions">
                   <button type="button" className="btn btn--danger-text" onClick={() => setConfirm('clear')}>
-                    {d.mode === 'demo' ? 'Quitar datos de ejemplo' : 'Borrar todos los datos'}
+                    Borrar todos los datos
                   </button>
-                  <button type="button" className="btn" onClick={() => setConfirm('demo')}>Restaurar datos de ejemplo</button>
                   <span style={{ flex: 1 }} />
                   <button type="button" className="btn" onClick={doBackup}>Exportar respaldo</button>
                   <button type="button" className="btn" onClick={() => fileInput.current?.click()}>Importar respaldo</button>
                   <input ref={fileInput} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { doImport(e.target.files?.[0]); e.target.value = ''; }} />
                 </div>
               ) : (
-                <div style={{ fontSize: 12, color: 'var(--faint)' }}>Solo un Administrador o Gerente puede borrar, restaurar o importar datos.</div>
+                <div style={{ fontSize: 12, color: 'var(--faint)' }}>Solo un Administrador o Gerente puede borrar o importar datos.</div>
               )}
               {importError && <div className="drawer-error">{importError}</div>}
             </div>

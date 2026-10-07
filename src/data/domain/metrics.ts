@@ -37,26 +37,11 @@ const inRange = (iso: string, [a, b]: [Date, Date]) => {
 export const liveSales = (d: DB) => d.orders.filter(o => o.kind === 'venta' && !o.cancelled);
 export const livePurchases = (d: DB) => d.orders.filter(o => o.kind === 'compra' && !o.cancelled);
 
-/** Months fully covered by [a, b), as YYYY-MM keys. */
-function monthsIn([a, b]: [Date, Date]): string[] {
-  const out: string[] = [];
-  for (let m = new Date(a.getFullYear(), a.getMonth(), 1); m < b; m = new Date(m.getFullYear(), m.getMonth() + 1, 1)) {
-    const end = new Date(m.getFullYear(), m.getMonth() + 1, 1);
-    if (m >= a && end <= b) out.push(monthKey(m));
-  }
-  return out;
-}
-
-/** Sales total (with IGV) and order count in a range: live orders plus pre-recorded monthly history. */
+/** Sales total (with IGV) and order count in a range. */
 export function salesIn(d: DB, range: [Date, Date]): { total: number; orders: number; list: Order[] } {
   const list = liveSales(d).filter(o => inRange(o.createdAt, range));
-  let total = list.reduce((a, o) => a + orderTotal(o), 0);
-  let orders = list.length;
-  for (const k of monthsIn(range)) {
-    total += d.history.salesByMonth[k]?.total ?? 0;
-    orders += d.history.salesByMonth[k]?.orders ?? 0;
-  }
-  return { total, orders, list };
+  const total = list.reduce((a, o) => a + orderTotal(o), 0);
+  return { total, orders: list.length, list };
 }
 
 export function purchasesIn(d: DB, range: [Date, Date]) {
@@ -125,4 +110,3 @@ export function alerts(d: DB): Alert[] {
 }
 
 export const unreadAlerts = (d: DB) => alerts(d).filter(a => !d.alertsRead.includes(a.key));
-

@@ -15,7 +15,7 @@ export const transferencias: RecordsConfig = {
   collection: 'transferencias',
   entity: 'Transferencia', titleKey: 'cod', subKey: 'items', statusKey: 'estado', newTitle: 'Nueva transferencia', newKicker: 'Inventario', msgNew: 'Transferencia creada',
   statuses: { 'Pendiente': 'amber', 'En tránsito': 'blue', 'Recibida': 'green', 'Anulada': 'muted' },
-  keys: ['cod','fecha','orig','dest','items','resp','estado','prod','cant'],
+  keys: ['cod', 'fecha', 'orig', 'dest', 'items', 'resp', 'estado', 'prod', 'cant'],
   code: { key: 'cod', prefix: () => `TRF-${thisYear()}-`, width: 4 },
   defaults: () => ({ fecha: todayLabel(), estado: 'Pendiente' }),
   onCreate: (_d, row) => {
@@ -56,12 +56,4 @@ export const transferencias: RecordsConfig = {
       },
     ],
   },
-  rows: [
-    ['TRF-2026-0091','02 oct 2026','Almacén Callao','Almacén Lima','Cemento Portland Tipo I 42.5 kg × 150','Jorge Quispe','Pendiente','Cemento Portland Tipo I 42.5 kg',150],
-    ['TRF-2026-0090','01 oct 2026','Almacén Lima','Almacén Callao','Cable THW 12 AWG x 100 m × 10','Carlos Huamán','En tránsito','Cable THW 12 AWG x 100 m',10],
-    ['TRF-2026-0089','30 sep 2026','Almacén Callao','Almacén Lima','Casco de seguridad ANSI × 60','Carlos Huamán','En tránsito','Casco de seguridad ANSI',60],
-    ['TRF-2026-0088','29 sep 2026','Almacén Lima','Almacén Callao','Cemento Portland 42.5 kg × 200 y 5 ítems más','Jorge Quispe','Recibida','',0],
-    ['TRF-2026-0085','20 sep 2026','Almacén Lima','Almacén Callao','Ladrillo King Kong × 1,000','Jorge Quispe','Recibida','',0],
-    ['TRF-2026-0083','15 sep 2026','Almacén Callao','Almacén Lima','Tubo PVC 4" × 30','Carlos Huamán','Anulada','',0],
-  ],
 };

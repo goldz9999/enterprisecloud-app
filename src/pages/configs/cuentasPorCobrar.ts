@@ -29,7 +29,7 @@ export const cuentasPorCobrar: RecordsConfig = {
   collection: 'cxc',
   entity: 'Cuenta por cobrar', titleKey: 'doc', subKey: 'cliente', statusKey: 'estado',
   statuses: { 'Por vencer': 'blue', 'Vencida': 'red', 'Cobro parcial': 'amber', 'Cobrada': 'green' },
-  keys: ['doc','emision','cliente','ruc','vence','total','saldo','estado','dias'],
+  keys: ['doc', 'emision', 'cliente', 'ruc', 'vence', 'total', 'saldo', 'estado', 'dias'],
   view: receivableView,
   kpis: rows => {
     const open = rows.filter(r => r.estado !== 'Cobrada');
@@ -50,13 +50,4 @@ export const cuentasPorCobrar: RecordsConfig = {
     'Vencida': [{ label: 'Registrar cobro', primary: true, toast: 'Cobro registrado', fields: payFields, run: registerCollection }, reminder],
     'Cobro parcial': [{ label: 'Registrar saldo restante', primary: true, toast: 'Cobro registrado', fields: payFields, run: registerCollection }, reminder],
   },
-  rows: [
-    ['F001-00249','03 oct 2026','Constructora Pacífico E.I.R.L.','20601122334','02 nov 2026',8920.5,8920.5,'Por vencer','vence en 31 días'],
-    ['F001-00244','29 sep 2026','Agroexportadora Ica S.A.C.','20577889900','29 oct 2026',5320,5320,'Por vencer','vence en 27 días'],
-    ['F001-00234','26 sep 2026','Farmacias Salud Total S.A.C.','20488776651','27 sep 2026',3145.9,3145.9,'Vencida','5 días vencida'],
-    ['F001-00219','20 sep 2026','Comercial Norte Trujillo S.A.','20399887766','20 sep 2026',7820,7820,'Vencida','12 días vencida'],
-    ['F001-00187','02 ago 2026','Inversiones Cusco Plaza S.A.C.','20522334455','01 sep 2026',4930,2930,'Cobro parcial','31 días vencida'],
-    ['F001-00152','15 jul 2026','Ferretería El Constructor E.I.R.L.','20611223344','14 ago 2026',1450,1450,'Vencida','49 días vencida'],
-    ['F001-00248','02 oct 2026','Distribuidora Andina S.A.C.','20512345671','02 oct 2026',12480,0,'Cobrada','cobrada 02 oct'],
-  ],
 };

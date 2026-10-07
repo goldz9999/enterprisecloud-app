@@ -37,10 +37,4 @@ export const vehiculos: RecordsConfig = {
         { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] },
     ],
     note: 'El conductor asignado es el habitual para este vehículo. Al seleccionar la placa en un despacho, se precarga automáticamente.',
-    rows: [
-        ['F4Q-728', 'Camión', 'Mercedes-Benz', 'Atego 1726', '10 Tn', 'Movilidad propia', 'CON-00001', 'Carlos Huamán Quispe · 45213387', 'Activo'],
-        ['C3M-901', 'Camioneta', 'Toyota', 'Hilux 2.8', '1.5 Tn', 'Movilidad propia', 'CON-00003', 'Martín Ccopa Vargas · 41887632', 'Activo'],
-        ['V8K-512', 'Camión', 'Volvo', 'FH 460', '18 Tn', 'Transportes Rápido Sur S.A.C.', 'CON-00002', 'Julio Ramos Pérez · 32109876', 'Activo'],
-        ['T1P-344', 'Furgón', 'Hyundai', 'HD 78', '4 Tn', 'Transportes Rápido Sur S.A.C.', 'CON-00004', 'Roberto Salas Díaz · 28934512', 'Inactivo'],
-    ],
 };

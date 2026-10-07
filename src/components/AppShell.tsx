@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react';
-import { Fragment, useState } from 'react';
+import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
-import { useDB } from '../data/store';
 import { useTheme } from '../lib/theme';
 import { useNow } from '../lib/useNow';
-import { DataDialog } from './DataDialog';
 import { GlobalSearch } from './GlobalSearch';
 import { NotificationsMenu } from './NotificationsMenu';
 import { Sidebar } from './Sidebar';
@@ -36,8 +34,6 @@ const Chevron = () => (
 
 export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Buscar en EnterpriseCloud…', narrow, children }: AppShellProps) {
   const { theme, toggle } = useTheme();
-  const d = useDB();
-  const [dataOpen, setDataOpen] = useState(false);
   const toast = useToast();
   const now = useNow();
   const dateStr = now.toLocaleDateString('es-PE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '');
@@ -71,11 +67,6 @@ export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Bus
           </div>
 
           <div className="topbar__right">
-            {d.mode === 'demo' && (
-              <button type="button" className="demo-chip" title="Estás viendo datos de ejemplo. Haz clic para quitarlos y usar tus propios datos." onClick={() => setDataOpen(true)}>
-                Datos de ejemplo
-              </button>
-            )}
             <div className="clock">
               <span>{dateStr}</span>
               <span className="clock__time">{timeStr}</span>
@@ -94,7 +85,6 @@ export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Bus
         </header>
 
         <main className="page" style={narrow ? { maxWidth: 1100 } : undefined}>{children}</main>
-        {dataOpen && <DataDialog onClose={() => setDataOpen(false)} onDone={toast.flash} />}
         <Toast message={toast.message} />
       </div>
     </div>

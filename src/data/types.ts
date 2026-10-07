@@ -94,8 +94,6 @@ export type Settings = Record<string, string | boolean>;
 
 export interface DB {
   version: 1;
-  /** 'demo' while the sample data is loaded; 'local' once the user cleared it. */
-  mode: 'demo' | 'local';
   records: Record<RecordCollection, Row[]>;
   cotizaciones: FlowRow[];
   solicitudes: FlowRow[];
@@ -104,16 +102,6 @@ export interface DB {
   audit: AuditEvent[];
   permisos: PermMatrix;
   settings: Settings;
-  /** Monthly aggregates that predate the orders in `orders` (sample history for reports). */
-  history: {
-    salesByMonth: Record<string, { total: number; orders: number }>;
-    salesByClient: Record<string, number>;
-    purchasesBySupplier: Record<string, number>;
-    /** Units sold per SKU in the 90 days before the sample orders. */
-    unitsSold90: Record<string, number>;
-  };
-  /** Opening balance per bank account, so balances = opening + movements. */
-  bankOpening: Record<string, number>;
   /** Last number used per code prefix (e.g. "OV-2026-"). */
   counters: Record<string, number>;
   /** Keys of alerts the user marked as read. */

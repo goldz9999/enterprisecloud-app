@@ -13,7 +13,7 @@ export const caja: RecordsConfig = {
   collection: 'caja',
   entity: 'Movimiento de caja', titleKey: 'concepto', subKey: 'cod', statusKey: 'tipo', newTitle: 'Nuevo movimiento de caja', newKicker: 'Caja', msgNew: 'Movimiento registrado',
   statuses: { 'Ingreso': 'green', 'Egreso': 'red' },
-  keys: ['cod','hora','concepto','tipo','monto','medio','resp'],
+  keys: ['cod', 'hora', 'concepto', 'tipo', 'monto', 'medio', 'resp'],
   code: { key: 'cod', prefix: 'MOV-CAJA-', width: 5 },
   defaults: () => ({ hora: fmtTime(new Date()), fecha: todayLabel() }),
   onSave: r => ({ ...r, monto: (r.tipo === 'Egreso' ? -1 : 1) * Math.abs(Number(r.monto) || 0) }),
@@ -42,12 +42,5 @@ export const caja: RecordsConfig = {
     { k: 'concepto', label: 'Concepto', required: true, wide: true, placeholder: 'Ej. Pago de movilidad · o "Apertura de caja"' },
     { k: 'medio', label: 'Medio', type: 'select', options: ['Efectivo', 'Yape', 'Plin', 'POS'] },
     { k: 'resp', label: 'Responsable', type: 'select', options: opts.activeUsers, value: d => currentUser(d).name },
-  ],
-  rows: [
-    ['MOV-CAJA-00884','10:32','Venta mostrador B001-01822','Ingreso',386.4,'Efectivo','María Rojas'],
-    ['MOV-CAJA-00883','10:05','Compra de útiles de oficina','Egreso',-64.5,'Efectivo','Rosa Medina'],
-    ['MOV-CAJA-00882','09:48','Cobro parcial F001-00187','Ingreso',500,'Yape','Rosa Medina'],
-    ['MOV-CAJA-00881','09:20','Movilidad para despacho','Egreso',-45,'Efectivo','Carlos Huamán'],
-    ['MOV-CAJA-00880','08:30','Apertura de caja','Ingreso',800,'Efectivo','Rosa Medina'],
   ],
 };

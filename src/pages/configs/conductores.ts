@@ -33,10 +33,4 @@ export const conductores: RecordsConfig = {
         { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] },
     ],
     note: 'Los conductores con empresa "Movilidad propia" son empleados directos. Los demás pertenecen a transportistas registrados en Proveedores.',
-    rows: [
-        ['CON-00001', 'Carlos Huamán Quispe', '45213387', '947 221 088', 'Q03512345', 'A-IIIb', 'Movilidad propia', 'Activo'],
-        ['CON-00002', 'Julio Ramos Pérez', '32109876', '951 334 220', 'Q07788123', 'A-IIIb', 'Transportes Rápido Sur S.A.C.', 'Activo'],
-        ['CON-00003', 'Martín Ccopa Vargas', '41887632', '966 445 117', 'Q01234567', 'A-IIb', 'Movilidad propia', 'Activo'],
-        ['CON-00004', 'Roberto Salas Díaz', '28934512', '970 112 334', 'Q09988123', 'A-IIIc', 'Transportes Rápido Sur S.A.C.', 'Inactivo'],
-    ],
 };

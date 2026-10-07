@@ -13,11 +13,11 @@ export function bankAccounts(d: DB): string[] {
     .map(s => s.trim())
     .filter(Boolean);
   const fromMovements = d.records.bancos.map(b => String(b.cuenta));
-  return [...new Set([...fromSettings, ...Object.keys(d.bankOpening), ...fromMovements])];
+  return [...new Set([...fromSettings, ...fromMovements])];
 }
 
 export function bankBalance(d: DB, account: string): number {
-  return (d.bankOpening[account] ?? 0) + d.records.bancos.filter(b => b.cuenta === account).reduce((a, b) => a + Number(b.monto), 0);
+  return d.records.bancos.filter(b => b.cuenta === account).reduce((a, b) => a + Number(b.monto), 0);
 }
 
 export interface Payment {

@@ -39,6 +39,4 @@ export interface FlowListConfig {
   flow: string[];
   statuses: Record<string, Tone>;
   notes: Record<string, string>;
-  /** Sample rows loaded in demo mode. */
-  rows: FlowRow[];
 }

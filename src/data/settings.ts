@@ -22,10 +22,10 @@ export const SETTING_SECTIONS: { title: string; desc: string; fields: SettingFie
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
-  ruc: '20601987451', razon: 'Comercializadora Andina de Materiales S.A.C.', dir: 'Av. Argentina 1820, Cercado de Lima, Lima', moneda: 'Soles (PEN)', zona: 'America/Lima (UTC−5)',
+  ruc: '', razon: '', dir: '', moneda: 'Soles (PEN)', zona: 'America/Lima (UTC−5)',
   sf: 'F001', sb: 'B001', sg: 'T001', snc: 'FC01', auto: true, mail: true,
   igv: '18%', incl: 'No incluyen IGV', desc: '5%', vcot: '14 días',
-  cuentas: 'BCP · 191-2345678, Interbank · 200-3011, BBVA · 0011-0245',
-  cost: 'Promedio ponderado móvil', almdef: 'Almacén Lima', neg: false, alert: true,
+  cuentas: '',
+  cost: 'Promedio ponderado móvil', almdef: '', neg: false, alert: true,
   ses: '8 horas', int: '5', mfa: true, aud: '5 años', dens: 'Cómoda',
 };

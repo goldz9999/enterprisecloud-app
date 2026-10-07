@@ -12,7 +12,7 @@ export const comprobantes: RecordsConfig = {
   collection: 'comprobantes',
   entity: 'Comprobante electrónico', titleKey: 'num', subKey: 'cliente', statusKey: 'sunat',
   statuses: { 'Aceptado': 'green', 'Pendiente': 'amber', 'Rechazado': 'red', 'Anulado': 'muted' },
-  keys: ['num','tipo','cliente','ruc','emision','vence','total','sunat','orden'],
+  keys: ['num', 'tipo', 'cliente', 'ruc', 'emision', 'vence', 'total', 'sunat', 'orden'],
   kpis: rows => {
     const now = new Date();
     const month = rows.filter(r => {
@@ -47,14 +47,4 @@ export const comprobantes: RecordsConfig = {
     ],
     'Rechazado': [{ label: 'Corregir y reenviar', to: 'Pendiente', primary: true, toast: 'Comprobante reenviado a SUNAT' }],
   },
-  rows: [
-    ['F001-00249','Factura','Constructora Pacífico E.I.R.L.','20601122334','03 oct 2026','02 nov 2026',8920.5,'Pendiente','OV-2026-1283'],
-    ['F001-00248','Factura','Distribuidora Andina S.A.C.','20512345671','02 oct 2026','01 nov 2026',12480,'Aceptado','OV-2026-1284'],
-    ['F001-00247','Factura','Minera Los Andes S.A.','20100987652','01 oct 2026','15 nov 2026',21300,'Aceptado','OV-2026-1282'],
-    ['B001-01822','Boleta','Juan Carlos Mendoza','DNI 41827364','01 oct 2026','01 oct 2026',386.4,'Aceptado','OV-2026-1279'],
-    ['F001-00241','Factura','Farmacias Salud Total S.A.C.','20488776651','27 sep 2026','27 sep 2026',3145.9,'Aceptado','OV-2026-1281'],
-    ['F001-00240','Factura','Textil Arequipa S.R.L.','20455667788','26 sep 2026','26 oct 2026',6760,'Rechazado','OV-2026-1280'],
-    ['FC01-00032','Nota de crédito','Comercial Norte Trujillo S.A.','20399887766','22 sep 2026','—',-1250,'Aceptado','F001-00219'],
-    ['F001-00236','Factura','Inversiones Cusco Plaza S.A.C.','20522334455','20 sep 2026','20 oct 2026',2930,'Anulado','OV-2026-1266'],
-  ],
 };

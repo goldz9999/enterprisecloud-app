@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { clearFiles } from './files';
-import { buildDemoDB, buildEmptyDB } from './seed';
+import { buildEmptyDB } from './seed';
 import { getSession } from './session';
 import type { DB, Row } from './types';
 
@@ -20,7 +20,6 @@ function normalize(parsed: DB): DB {
     ...empty,
     ...parsed,
     records: { ...empty.records, ...parsed.records },
-    history: { ...empty.history, ...parsed.history },
     settings: { ...empty.settings, ...parsed.settings },
     alertsRead: parsed.alertsRead ?? [],
     counters: parsed.counters ?? {},
@@ -35,9 +34,9 @@ function load(): DB {
       if (parsed && parsed.version === 1) return normalize(parsed);
     }
   } catch {
-    // Corrupt or unavailable storage: start from the sample data.
+    // Corrupt or unavailable storage: start empty.
   }
-  return buildDemoDB();
+  return buildEmptyDB();
 }
 
 let saveError = '';
@@ -116,21 +115,15 @@ export function replaceDB(next: DB) {
   emit();
 }
 
-/** Discards everything and reloads the sample data. */
-export function resetToDemo() {
-  clearFiles().catch(() => {});
-  replaceDB(buildDemoDB());
-}
-
 /**
- * Removes all sample business data so the app can be used with real data.
+ * Removes all business data so the app starts from scratch.
  * Keeps configuration (settings, roles, permissions) and the signed-in user, as Administrador.
  */
-export function clearSampleData() {
+export function clearAllData() {
   const me = currentUser(db);
   const next = buildEmptyDB({ settings: db.settings, permisos: db.permisos, roles: db.records.roles });
   next.records.usuarios = [{ _id: 1, nombre: me.name, correo: me.email, rol: 'Administrador', area: me.area || 'Gerencia', acceso: 'Hoy', mfa: 'Desactivado', estado: 'Activo', ...(me.password ? { password: me.password } : {}) }];
-  clearFiles().catch(() => {});
+  clearFiles().catch(() => { });
   replaceDB(next);
 }
 

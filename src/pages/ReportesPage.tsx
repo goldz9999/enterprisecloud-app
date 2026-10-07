@@ -43,12 +43,11 @@ const inWindow = (iso: string, w: Window) => {
   return t >= start && t < end;
 };
 
-/** Monthly sales: pre-recorded history plus live orders. */
+/** Monthly sales from the recorded orders. */
 function monthly(d: DB, m: Date) {
   const key = monthKey(m);
   const live = liveSales(d).filter(o => monthKey(new Date(o.createdAt)) === key);
-  const h = d.history.salesByMonth[key];
-  return { total: (h?.total ?? 0) + live.reduce((a, o) => a + orderTotal(o), 0), orders: (h?.orders ?? 0) + live.length };
+  return { total: live.reduce((a, o) => a + orderTotal(o), 0), orders: live.length };
 }
 
 /** Cell: value plus optional styling (mono numbers default to 12px). */
@@ -105,9 +104,6 @@ function build(id: ReportId, d: DB, w: Window): Report {
   if (id === 'vc' || id === 'cp') {
     const sales = id === 'vc';
     const totals = new Map<string, { amount: number; orders: number }>();
-    const isLast12 = w.label.startsWith('Últimos');
-    // Pre-recorded history only covers the last 12 months.
-    if (isLast12) for (const [name, v] of Object.entries(sales ? d.history.salesByClient : d.history.purchasesBySupplier)) totals.set(name, { amount: v, orders: Math.round(v / 6200) });
     for (const o of (sales ? liveSales(d) : livePurchases(d)).filter(o => inWindow(o.createdAt, w))) {
       const t = totals.get(o.party.name) ?? { amount: 0, orders: 0 };
       totals.set(o.party.name, { amount: t.amount + orderTotal(o), orders: t.orders + 1 });
@@ -161,12 +157,12 @@ function build(id: ReportId, d: DB, w: Window): Report {
       empty: open.length ? undefined : 'No hay cuentas por cobrar abiertas.',
     };
   }
-  // Rotation: stock on hand vs. units sold in the last 90 days (kardex exits + sample history).
+  // Rotation: stock on hand vs. units sold in the last 90 days (kardex exits).
   const since = new Date(Date.now() - 90 * 86400000);
-  const sold = new Map<string, number>(Object.entries(d.history.unitsSold90));
+  const sold = new Map<string, number>();
   for (const k of d.records.kardex) {
     const t = k.at ? new Date(String(k.at)) : parseDate(String(k.fecha));
-    if (k.tipo === 'Salida' && t && t >= since && !(String(k.sku) in d.history.unitsSold90 && !k.at)) sold.set(String(k.sku), (sold.get(String(k.sku)) ?? 0) - Number(k.cant));
+    if (k.tipo === 'Salida' && t && t >= since) sold.set(String(k.sku), (sold.get(String(k.sku)) ?? 0) - Number(k.cant));
   }
   const products = d.records.productos.map(p => {
     const stock = d.records.stock.filter(s => s.sku === p.sku).reduce((a, s) => a + Number(s.stock), 0);
@@ -441,4 +437,3 @@ export function ReportesPage() {
     </AppShell>
   );
 }
-

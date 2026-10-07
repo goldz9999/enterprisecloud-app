@@ -35,7 +35,7 @@ function FileTag({ name }: { name: string }) {
 
 /** Placeholder printable page for sample documents that have no real file. */
 const samplePage = (doc: DocFile) =>
-  `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${doc.name}</title></head><body style="font:14px system-ui;margin:48px"><h2>${doc.name}</h2><p>${doc.cat} · ${doc.ref} · ${doc.entity}</p><p style="color:#666">Documento de ejemplo: no tiene archivo adjunto. Sube tus propios archivos con "Subir documento".</p></body></html>`;
+  `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${doc.name}</title></head><body style="font:14px system-ui;margin:48px"><h2>${doc.name}</h2><p>${doc.cat} · ${doc.ref} · ${doc.entity}</p><p style="color:#666">Este documento no tiene archivo adjunto.</p></body></html>`;
 
 function UploadModal({ onClose, onUpload, defaultRef }: { onClose: () => void; onUpload: (file: File, cat: string, ref: string) => void; defaultRef: string }) {
   const input = useRef<HTMLInputElement>(null);
@@ -151,7 +151,7 @@ export function DocumentosPage() {
   };
 
   const remove = async (doc: DocFile) => {
-    if (doc.blobKey) await deleteFile(doc.blobKey).catch(() => {});
+    if (doc.blobKey) await deleteFile(doc.blobKey).catch(() => { });
     mutate(dr => {
       dr.documentos = dr.documentos.filter(x => x.id !== doc.id);
       audit(dr, { action: 'Eliminar', module: 'Documentos', ref: doc.name, desc: 'Documento eliminado' });
@@ -259,7 +259,7 @@ export function DocumentosPage() {
         <aside className="flowdetail">
           {sel ? (
             <>
-              <div className="preview"><span className="mono">{sel.blobKey ? 'archivo subido' : sel.html ? 'documento generado' : 'documento de ejemplo'}</span></div>
+              <div className="preview"><span className="mono">{sel.blobKey ? 'archivo subido' : sel.html ? 'documento generado' : 'sin archivo adjunto'}</span></div>
               <div className="flowdetail__body">
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   <FileTag name={sel.name} />
@@ -328,4 +328,3 @@ export function DocumentosPage() {
     </AppShell>
   );
 }
-
