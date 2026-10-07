@@ -2,6 +2,6 @@ import { UserStatus } from '@prisma/client';
 import { IsIn } from 'class-validator';
 
 export class SetUserStatusDto {
-  @IsIn([UserStatus.ACTIVE, UserStatus.INACTIVE])
+  @IsIn([UserStatus.ACTIVE, UserStatus.INACTIVE, UserStatus.LOCKED])
   status!: UserStatus;
 }

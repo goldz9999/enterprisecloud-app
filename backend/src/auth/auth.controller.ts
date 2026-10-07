@@ -5,40 +5,52 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  Req,
-  UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import { Throttle } from '@nestjs/throttler';
+import { AnyAuthenticated } from './decorators/permissions.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { Public } from './decorators/public.decorator';
+import { ReqMeta, type RequestMeta } from './decorators/request-meta.decorator';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthService } from './auth.service';
-import { JwtAuthGuard } from './jwt-auth.guard';
 import type { AuthenticatedUser } from './interfaces/authenticated-user.interface';
-
-type AuthenticatedRequest = Request & { user: AuthenticatedUser };
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  /** Máx. 10 intentos por minuto y por IP, además del bloqueo por cuenta. */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  login(@Req() request: Request, @Body() dto: LoginDto) {
-    return this.authService.login(dto, {
-      ip: request.ip ?? null,
-      userAgent: request.get('user-agent') ?? null,
-    });
+  login(@Body() dto: LoginDto, @ReqMeta() meta: RequestMeta) {
+    return this.authService.login(dto, meta);
   }
 
+  @AnyAuthenticated()
   @Post('logout')
-  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  logout(@Req() request: AuthenticatedRequest) {
-    return this.authService.logout(request.user);
+  logout(@CurrentUser() user: AuthenticatedUser, @ReqMeta() meta: RequestMeta) {
+    return this.authService.logout(user, meta);
   }
 
+  @AnyAuthenticated()
   @Get('me')
-  @UseGuards(JwtAuthGuard)
-  me(@Req() request: AuthenticatedRequest) {
-    return this.authService.me(request.user);
+  me(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.me(user);
+  }
+
+  @AnyAuthenticated()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('change-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+    @ReqMeta() meta: RequestMeta,
+  ) {
+    return this.authService.changePassword(user, dto, meta);
   }
 }

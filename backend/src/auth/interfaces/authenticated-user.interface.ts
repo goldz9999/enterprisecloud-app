@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import type { PermissionMap } from '../../permissions/permissions.service';
 
 export const authenticatedUserSelect = {
   id: true,
@@ -48,4 +49,6 @@ export interface LoginResponse {
   tokenType: 'Bearer';
   expiresIn: string;
   user: SafeAuthUser;
+  /** Permisos efectivos del rol: módulo → acciones. */
+  permissions: PermissionMap;
 }

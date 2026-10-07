@@ -19,14 +19,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const exceptionResponse = exception instanceof HttpException
       ? exception.getResponse()
       : undefined;
-    const message = typeof exceptionResponse === 'object' && exceptionResponse !== null
-      ? (exceptionResponse as { message?: string | string[] }).message
+    const body = typeof exceptionResponse === 'object' && exceptionResponse !== null
+      ? (exceptionResponse as { message?: string | string[]; code?: string })
       : undefined;
+    const message = body?.message;
 
     response.status(status).json({
       statusCode: status,
       message: message ?? (status === HttpStatus.INTERNAL_SERVER_ERROR ? 'Internal server error' : 'Request failed'),
       timestamp: new Date().toISOString(),
+      ...(body?.code ? { code: body.code } : {}),
       path: request.url,
     });
   }
