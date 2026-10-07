@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { changePassword, logout } from '../data/domain/auth';
 import { can } from '../data/permissions';
+import { useSession } from '../data/session';
+import { fmtDayTime } from '../lib/dates';
 import { currentUser, mutate, useDB } from '../data/store';
 import { audit } from '../data/domain/audit';
 import { Modal } from './Modal';
@@ -21,6 +23,7 @@ export function Sidebar({ active, startCollapsed = false }: SidebarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);
   const d = useDB();
+  useSession(); // permissions can change after /auth/me
   const me = currentUser(d);
   const initials = me.name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   const [dialog, setDialog] = useState<'perfil' | 'clave' | null>(null);
@@ -253,7 +256,7 @@ function ProfileDialog({ onClose }: { onClose: () => void }) {
         <span>Correo</span><span>{me.email}</span>
         <span>Rol</span><span>{me.role}</span>
         <span>Área</span><span>{me.area || '—'}</span>
-        <span>Último acceso</span><span>{String(me.row?.acceso ?? '—')}</span>
+        <span>Último acceso</span><span>{me.lastLogin ? fmtDayTime(new Date(me.lastLogin)) : String(me.row?.acceso ?? '—')}</span>
       </div>
       {saved && <div className="success" style={{ fontSize: 12, padding: '8px 12px' }}>Perfil actualizado.</div>}
       <div style={{ fontSize: 12, color: 'var(--faint)' }}>El rol y el área los cambia el Administrador en Administración › Usuarios.</div>

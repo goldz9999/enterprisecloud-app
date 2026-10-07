@@ -92,6 +92,8 @@ export interface Alert {
   /** For stock alerts: quantity vs minimum. */
   qty?: number;
   min?: number;
+  /** For user alerts: the person's name (for the avatar). */
+  name?: string;
 }
 
 /** System alerts shown in the bell and on the Dashboard. */

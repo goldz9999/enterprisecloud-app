@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { StatusChip, type Tone } from '../components/StatusChip';
-import { Toast, useToast } from '../components/Toast';
-import { audit } from '../data/domain/audit';
-import { alerts, criticalStock, grossMargin, openPayables, openReceivables, periodRange, purchasesIn, salesIn, turnover, type Period } from '../data/domain/metrics';
-import { orderTotal, saleListStatus } from '../data/domain/orders';
+import { alertsFrom, useDashboard, type SaleStatus } from '../data/domain/dashboard';
+import type { Period } from '../data/domain/metrics';
 import { can } from '../data/permissions';
 import { currentUser, mutate, useDB } from '../data/store';
 import { fmtDayMonth, fmtTime, MES } from '../lib/dates';
@@ -13,6 +11,7 @@ import { formatMoney } from '../lib/format';
 import './DashboardPage.css';
 
 const SALE_TONE: Record<string, Tone> = { Pagado: 'green', Pendiente: 'amber', Vencido: 'red', Anulado: 'muted' };
+const SALE_LABEL: Record<SaleStatus, string> = { PAID: 'Pagado', PENDING: 'Pendiente', OVERDUE: 'Vencido', CANCELLED: 'Anulado' };
 const FILTERS = ['Todas', 'Pagado', 'Pendiente', 'Vencido'] as const;
 const PERIODS: Period[] = ['Hoy', 'Semana', 'Mes', 'Año'];
 const PERIOD_PREV: Record<Period, string> = { Hoy: 'vs. ayer', Semana: 'vs. semana anterior', Mes: 'vs. mes anterior', Año: 'vs. año anterior' };
@@ -29,56 +28,44 @@ function greeting(now: Date) {
 export function DashboardPage() {
   const d = useDB();
   const navigate = useNavigate();
-  const toast = useToast();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('Todas');
   const [period, setPeriod] = useState<Period>('Mes');
+  const { data, loading, error, reload } = useDashboard(period);
   const me = currentUser(d);
   const now = new Date();
 
-  const { cur, prev } = periodRange(period, now);
-  const sales = salesIn(d, cur);
-  const salesPrev = salesIn(d, prev);
-  const purchases = purchasesIn(d, cur);
-  const purchasesPrev = purchasesIn(d, prev);
-  const margin = grossMargin(d, sales.list.length ? sales.list : undefined);
-  const profit = (sales.total / 1.18) * margin;
-  const critical = criticalStock(d);
-  const toReceive = d.orders.filter(o => o.kind === 'compra' && !o.cancelled && o.done === 2).length;
-  const receivables = openReceivables(d);
-  const payables = openPayables(d);
-  const rot = turnover(d);
-  const salesChange = change(sales.total, salesPrev.total);
-  const purchChange = change(purchases.total, purchasesPrev.total);
+  const sales = data?.sales ?? { total: 0, previousTotal: 0, count: 0 };
+  const purchases = data?.purchases ?? { total: 0, previousTotal: 0, count: 0, toReceive: 0 };
+  const margin = data?.grossProfit.margin ?? 0;
+  const profit = data?.grossProfit.amount ?? 0;
+  const critical = data?.criticalStock.count ?? 0;
+  const receivables = data?.receivables ?? { count: 0, overdue: 0, balance: 0 };
+  const payables = data?.payables ?? { count: 0, dueThisWeek: 0, overdue: 0, balance: 0 };
+  const rot = data?.turnover ?? null;
+  const salesChange = change(sales.total, sales.previousTotal);
+  const purchChange = change(purchases.total, purchases.previousTotal);
 
   const kpis: { label: string; value: string; badge: string; note: string; tone: Tone; icon: string; to: string }[] = [
     { label: `Ventas · ${period.toLowerCase()}`, value: S0(sales.total), badge: arrow(salesChange), note: PERIOD_PREV[period], tone: salesChange >= 0 ? 'green' : 'red', icon: 'M3 17l6-6 4 4 8-8M15 7h6v6', to: '/ventas/ordenes' },
-    { label: `Compras · ${period.toLowerCase()}`, value: S0(purchases.total), badge: arrow(purchChange), note: `${toReceive} órdenes por recibir`, tone: 'amber', icon: 'M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8', to: '/compras/ordenes' },
+    { label: `Compras · ${period.toLowerCase()}`, value: S0(purchases.total), badge: arrow(purchChange), note: `${purchases.toReceive} órdenes por recibir`, tone: 'amber', icon: 'M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8', to: '/compras/ordenes' },
     { label: 'Utilidad bruta', value: S0(profit), badge: (margin * 100).toFixed(1) + '%', note: 'margen sobre ventas', tone: 'blue', icon: 'M3 3v18h18M8 17v-5M13 17V8M18 17V5', to: '/reportes' },
-    { label: 'Productos con stock crítico', value: String(critical.length), badge: critical.length ? '↓ Crítico' : 'OK', note: critical.length ? 'necesita atención' : 'todo sobre el mínimo', tone: critical.length ? 'red' : 'green', icon: 'M12 3l10 18H2zM12 10v4M12 17.5v.01', to: '/inventario/stock' },
+    { label: 'Productos con stock crítico', value: String(critical), badge: critical ? '↓ Crítico' : 'OK', note: critical ? 'necesita atención' : 'todo sobre el mínimo', tone: critical ? 'red' : 'green', icon: 'M12 3l10 18H2zM12 10v4M12 17.5v.01', to: '/inventario/stock' },
   ];
 
   const secondary = [
-    { label: 'Cuentas por cobrar', note: `${receivables.length} documentos · ${receivables.filter(r => r.estado === 'Vencida').length} vencidos`, value: S0(receivables.reduce((a, r) => a + Number(r.saldo), 0)), to: '/finanzas/cxc' },
-    { label: 'Cuentas por pagar', note: `${payables.length} facturas · ${payables.filter(r => r.estado === 'Vence esta semana').length} vencen esta semana`, value: S0(payables.reduce((a, r) => a + Number(r.saldo), 0)), to: '/finanzas/cxp' },
+    { label: 'Cuentas por cobrar', note: `${receivables.count} documentos · ${receivables.overdue} vencidos`, value: S0(receivables.balance), to: '/finanzas/cxc' },
+    { label: 'Cuentas por pagar', note: `${payables.count} facturas · ${payables.dueThisWeek} vencen esta semana`, value: S0(payables.balance), to: '/finanzas/cxp' },
     { label: 'Rotación de inventario', note: rot ? `${rot.days} días promedio en almacén` : 'sin datos suficientes', value: rot ? rot.times.toFixed(1) + '×' : '—', to: '/reportes' },
   ];
 
-  const latest = d.orders
-    .filter(o => o.kind === 'venta')
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .map(o => ({ o, status: saleListStatus(d, o) }));
+  const latest = (data?.latestSales ?? []).map(o => ({ o, status: SALE_LABEL[o.status] }));
   const rows = latest.filter(r => filter === 'Todas' || r.status === filter).slice(0, 5);
 
-  const all = alerts(d);
+  const all = alertsFrom(data);
   const unread = all.filter(a => !d.alertsRead.includes(a.key)).length;
   const stockAlerts = all.filter(a => a.group === 'stock');
   const debtAlerts = all.filter(a => a.group === 'cxc');
   const userAlerts = all.filter(a => a.group === 'user');
-
-  const resend = (email: string, name: string) => {
-    mutate(dr => audit(dr, { action: 'Editar', module: 'Administración', ref: email, desc: `Invitación reenviada a ${name}` }));
-    toast.flash(`Invitación reenviada a ${name}`);
-  };
 
   return (
     <AppShell active="Dashboard" breadcrumb={[{ label: 'Inicio' }, { label: 'Dashboard' }]} searchPlaceholder="Buscar órdenes, clientes, productos, facturas…">
@@ -101,6 +88,14 @@ export function DashboardPage() {
           )}
         </div>
       </div>
+
+      {error && (
+        <div role="alert" className="login__alert" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ flex: 1 }}>{error}</span>
+          <button type="button" className="btn" style={{ height: 28 }} onClick={() => void reload()}>Reintentar</button>
+        </div>
+      )}
+      {loading && !data && <div className="page__subtitle" style={{ marginBottom: 8 }}>Cargando datos…</div>}
 
       <section className="dash-kpis">
         {kpis.map(k => (
@@ -153,10 +148,10 @@ export function DashboardPage() {
                 <div key={o.code} role="row" tabIndex={0} className="sales-row sales-row--body" onClick={() => navigate(`/ventas/orden/${o.code}`)} onKeyDown={e => e.key === 'Enter' && navigate(`/ventas/orden/${o.code}`)}>
                   <span className="mono ellipsis" style={{ fontSize: 11.5, color: 'var(--text-2)', minWidth: 0 }}>{o.code}</span>
                   <div style={{ minWidth: 0 }}>
-                    <div className="ellipsis" style={{ fontWeight: 500 }}>{o.party.name}</div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--faint)', whiteSpace: 'nowrap' }}>RUC {o.party.ruc}</div>
+                    <div className="ellipsis" style={{ fontWeight: 500 }}>{o.partyName}</div>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--faint)', whiteSpace: 'nowrap' }}>{o.partyTaxId ? `RUC ${o.partyTaxId}` : '—'}</div>
                   </div>
-                  <span className="mono t-right" style={{ whiteSpace: 'nowrap' }}>{formatMoney(orderTotal(o))}</span>
+                  <span className="mono t-right" style={{ whiteSpace: 'nowrap' }}>{formatMoney(o.total)}</span>
                   <span><StatusChip label={status} tone={SALE_TONE[status]} /></span>
                   <div className="mono t-right" style={{ whiteSpace: 'nowrap' }}>
                     <div style={{ fontSize: 12, color: 'var(--text-2)' }}>{fmtDayMonth(t)}</div>
@@ -172,7 +167,7 @@ export function DashboardPage() {
             </div>
           )}
           <div className="table__foot" style={{ alignItems: 'center' }}>
-            <span>Mostrando {rows.length} de {latest.length.toLocaleString('en-US')} órdenes</span>
+            <span>Mostrando {rows.length} de {(data?.salesTotalCount ?? 0).toLocaleString('en-US')} órdenes</span>
             <Link to="/ventas/ordenes" style={{ fontSize: 12 }}>Ir a órdenes de venta</Link>
           </div>
         </div>
@@ -182,7 +177,7 @@ export function DashboardPage() {
             <div className="panel__title">Alertas del sistema</div>
             {unread > 0 && <span className="count-badge">{unread}</span>}
             {unread > 0 && (
-              <button type="button" className="link-btn" style={{ marginLeft: 'auto', height: 'auto', padding: 0 }} onClick={() => mutate(dr => { dr.alertsRead = alerts(dr).map(a => a.key); })}>
+              <button type="button" className="link-btn" style={{ marginLeft: 'auto', height: 'auto', padding: 0 }} onClick={() => mutate(dr => { dr.alertsRead = [...new Set([...dr.alertsRead, ...all.map(a => a.key)])]; })}>
                 Marcar como leídas
               </button>
             )}
@@ -209,7 +204,7 @@ export function DashboardPage() {
                   </div>
                 </div>
               ))}
-              {stockAlerts.length > 3 && <Link className="alert-more" to="/inventario/stock">Ver {stockAlerts.length - 3} más</Link>}
+              {(data?.criticalStock.count ?? 0) > 3 && <Link className="alert-more" to="/inventario/stock">Ver {(data?.criticalStock.count ?? 0) - 3} más</Link>}
             </>
           )}
 
@@ -237,8 +232,7 @@ export function DashboardPage() {
                 <span className="alert-group__dot" style={{ background: 'var(--blue)' }} />Usuarios · {userAlerts.length}
               </div>
               {userAlerts.map(u => {
-                const row = d.records.usuarios.find(x => u.key.startsWith(`user:${x.correo}:`));
-                const initials = String(row?.nombre ?? '?').split(' ').map(w => w[0]).slice(0, 2).join('');
+                const initials = String(u.name ?? '?').split(' ').map(w => w[0]).slice(0, 2).join('');
                 return (
                   <div key={u.key} className="alert-row alert-row--static" style={{ paddingBottom: 14 }}>
                     <div className="mini-avatar">{initials}</div>
@@ -246,11 +240,7 @@ export function DashboardPage() {
                       <div style={{ fontWeight: 500 }}>{u.title}</div>
                       <div style={{ fontSize: 11, color: 'var(--faint)' }}>{u.sub}</div>
                     </div>
-                    {row?.estado === 'Sin confirmar' ? (
-                      <button type="button" className="btn-resend" onClick={() => resend(String(row.correo), String(row.nombre))}>Reenviar</button>
-                    ) : (
-                      <button type="button" className="btn-resend" onClick={() => navigate(u.to)}>Revisar</button>
-                    )}
+                    <button type="button" className="btn-resend" onClick={() => navigate(u.to)}>Revisar</button>
                   </div>
                 );
               })}
@@ -258,7 +248,6 @@ export function DashboardPage() {
           )}
         </div>
       </section>
-      <Toast message={toast.message} />
     </AppShell>
   );
 }

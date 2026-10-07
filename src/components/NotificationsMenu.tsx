@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { alerts } from '../data/domain/metrics';
+import { alertsFrom, useDashboard } from '../data/domain/dashboard';
 import { mutate, useDB } from '../data/store';
 import './NotificationsMenu.css';
 
@@ -17,7 +17,8 @@ export function NotificationsMenu() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const all = alerts(d);
+  const { data } = useDashboard('Mes');
+  const all = alertsFrom(data);
   const unread = all.filter(a => !d.alertsRead.includes(a.key));
 
   useEffect(() => {

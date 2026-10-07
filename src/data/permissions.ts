@@ -1,5 +1,4 @@
-import { useDB } from './store';
-import { currentUser } from './store';
+import { getSession, useSession } from './session';
 import type { DB, PermMatrix } from './types';
 
 export const ACTIONS = ['Ver', 'Crear', 'Editar', 'Eliminar', 'Aprobar'] as const;
@@ -36,16 +35,32 @@ export function defaultPermissions(): PermMatrix {
   return all;
 }
 
-/** Whether the signed-in user's role may perform `action` on `module`. Unknown modules are allowed. */
-export function can(d: DB, module: string, action: PermAction = 'Ver'): boolean {
-  const role = currentUser(d).role;
-  if (role === 'Administrador') return true;
-  const row = d.permisos[role]?.[module];
-  if (!row) return !d.permisos[role]; // roles without a matrix (custom, never configured) see everything
-  return row[ACTIONS.indexOf(action)];
+/** Screen label → module key used by the backend (app/security/catalog.py). */
+export const MODULE_KEYS: Record<string, string> = {
+  Dashboard: 'dashboard',
+  Cotizaciones: 'quotations', 'Órdenes de venta': 'sales-orders', Comprobantes: 'receipts',
+  Solicitudes: 'purchase-requests', 'Órdenes de compra': 'purchase-orders', Recepción: 'goods-receipts',
+  'Stock por almacén': 'stock', Kardex: 'kardex', Transferencias: 'transfers', Ajustes: 'adjustments',
+  'Cuentas por cobrar': 'receivables', 'Cuentas por pagar': 'payables', Caja: 'cash', Bancos: 'banks',
+  Documentos: 'documents', Reportes: 'reports',
+  Clientes: 'customers', Proveedores: 'suppliers', Productos: 'products', Categorías: 'categories',
+  Almacenes: 'warehouses', Conductores: 'drivers', Vehículos: 'vehicles',
+  Usuarios: 'users', Roles: 'roles', Permisos: 'permissions', Auditoría: 'audit', Configuración: 'settings',
+};
+
+const ACTION_KEYS: Record<PermAction, string> = { Ver: 'view', Crear: 'create', Editar: 'edit', Eliminar: 'delete', Aprobar: 'approve' };
+
+/** Whether the signed-in user's role may perform `action` on `module`, according to the permissions the backend sent at login. */
+export function can(_d: DB | undefined, module: string, action: PermAction = 'Ver'): boolean {
+  const session = getSession();
+  if (!session) return false;
+  if (session.user.role.code === 'ADMIN') return true;
+  const key = MODULE_KEYS[module];
+  if (!key) return true; // modules without a backend key are not restricted
+  return session.permissions[key]?.includes(ACTION_KEYS[action]) ?? false;
 }
 
 export function useCan(module: string) {
-  const d = useDB();
-  return (action: PermAction = 'Ver') => can(d, module, action);
+  useSession(); // re-render when permissions are refreshed
+  return (action: PermAction = 'Ver') => can(undefined, module, action);
 }

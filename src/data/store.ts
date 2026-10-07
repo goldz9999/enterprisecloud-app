@@ -26,9 +26,22 @@ function normalize(parsed: DB): DB {
   };
 }
 
+/** Texts that only exist in the old demo dataset (the design mocks). */
+const DEMO_MARKERS = ['maria.rojas@empresa.pe', 'Distribuidora Andina', 'Minera Los Andes', 'Aceros del Sur', 'OV-2026-1284', 'SKU-CEM-0042'];
+const PURGE_FLAG = 'ec-demo-purged';
+
 function load(): DB {
   try {
     const raw = localStorage.getItem(KEY);
+    // One time only: a browser that still holds the old demo data starts clean instead of showing fake records.
+    if (!localStorage.getItem(PURGE_FLAG)) {
+      localStorage.setItem(PURGE_FLAG, '1');
+      if (raw && DEMO_MARKERS.some(m => raw.includes(m))) {
+        localStorage.removeItem(KEY);
+        clearFiles().catch(() => { });
+        return buildEmptyDB();
+      }
+    }
     if (raw) {
       const parsed = JSON.parse(raw) as DB;
       if (parsed && parsed.version === 1) return normalize(parsed);
@@ -144,16 +157,23 @@ export interface CurrentUser {
   email: string;
   role: string;
   area: string;
+  /** ISO time of the last sign-in (from the backend). */
+  lastLogin?: string;
   password?: string;
+  /** Matching row of the local Usuarios list, if any. */
   row?: Row;
 }
 
-/** The signed-in user, resolved against the Usuarios collection. */
+/** The signed-in user (from the backend session), plus the matching local Usuarios row while that list is still local. */
 export function currentUser(d: DB = db): CurrentUser {
-  const email = getSession()?.email ?? '';
+  const session = getSession();
+  const email = session?.user.email ?? session?.email ?? '';
   const row = d.records.usuarios.find(u => String(u.correo).toLowerCase() === email.toLowerCase());
-  if (row) return { name: String(row.nombre), email: String(row.correo), role: String(row.rol), area: String(row.area ?? ''), password: row.password as string | undefined, row };
-  return { name: email ? email.split('@')[0] : 'Invitado', email, role: 'Administrador', area: '' };
+  if (session) {
+    const u = session.user;
+    return { name: u.fullName, email: u.email, role: u.role.name, area: u.area ?? '', lastLogin: u.lastLoginAt ?? undefined, password: row?.password as string | undefined, row };
+  }
+  return { name: 'Invitado', email: '', role: '', area: '' };
 }
 
 /** Next free _id in a list of rows. */

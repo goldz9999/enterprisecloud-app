@@ -1,10 +1,10 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
-import { logout, sessionExpired } from './data/domain/auth';
+import { logout, refreshSession, sessionExpired } from './data/domain/auth';
 import { can } from './data/permissions';
 import { useSession, wasSignedOut } from './data/session';
-import { currentUser, useDB } from './data/store';
+import { useDB } from './data/store';
 import { FlowListPage } from './features/flowlist/FlowListPage';
 import { NewOrderPage } from './features/order/NewOrderPage';
 import { OrderPage } from './features/order/OrderPage';
@@ -56,10 +56,8 @@ function Guard({ module, children }: { module: string; children: ReactNode }) {
   const loc = useLocation();
   const login = <Navigate to={wasSignedOut() ? '/login' : `/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   if (!session) return login;
-  // Expired session, or the user was deleted/deactivated meanwhile.
-  const me = currentUser(d);
-  const gone = d.records.usuarios.length > 0 && (!me.row || me.row.estado === 'Inactivo' || me.row.estado === 'Bloqueado');
-  if (sessionExpired() || gone)
+  // The token expired: revoke it and go back to the login.
+  if (sessionExpired())
     return (
       <>
         <SignOut />
@@ -71,7 +69,7 @@ function Guard({ module, children }: { module: string; children: ReactNode }) {
       <AppShell active={module} breadcrumb={[{ label: 'Inicio', to: '/' }, { label: module }]}>
         <h1 className="page__title">Sin acceso</h1>
         <div className="page__subtitle">
-          Tu rol ({me.role}) no tiene permiso para ver {module}. Pide acceso al Administrador o <Link to="/">vuelve al inicio</Link>.
+          Tu rol ({session.user.role.name}) no tiene permiso para ver {module}. Pide acceso al Administrador o <Link to="/">vuelve al inicio</Link>.
         </div>
       </AppShell>
     );
@@ -80,7 +78,14 @@ function Guard({ module, children }: { module: string; children: ReactNode }) {
 
 export function App() {
   const d = useDB();
+  const session = useSession();
   const { hash, pathname } = useLocation();
+
+  // On load (and after each sign-in) confirm the token with the backend and pick up role/permission changes.
+  const token = session?.token;
+  useEffect(() => {
+    if (token) void refreshSession();
+  }, [token]);
 
   // Table density preference from Configuración › Apariencia.
   useEffect(() => {

@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { login } from '../data/domain/auth';
 import { useSession } from '../data/session';
-import { useDB } from '../data/store';
 import { useTheme } from '../lib/theme';
 import './LoginPage.css';
 
@@ -17,10 +16,8 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const session = useSession();
-  const d = useDB();
   const { theme, toggle } = useTheme();
-  const firstRun = d.records.usuarios.length === 0;
-  const [email, setEmail] = useState(firstRun ? '' : 'maria.rojas@empresa.pe');
+  const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
@@ -41,14 +38,12 @@ export function LoginPage() {
     setInfo('');
     if (errors.email || errors.pass) return;
     setLoading(true);
-    // Small delay so the verifying state is visible, as in the design.
-    await new Promise(r => setTimeout(r, 500));
     const res = await login(email, pass, remember);
     if (res.ok) return navigate(next, { replace: true });
     setLoading(false);
     setAuthError({
       title: res.locked ? 'Cuenta bloqueada' : 'No pudimos iniciar sesión',
-      msg: res.error + (res.left != null && res.left > 0 ? ` Te quedan ${res.left} intento${res.left === 1 ? '' : 's'} antes del bloqueo temporal.` : ''),
+      msg: res.error,
     });
   };
 
@@ -74,11 +69,6 @@ export function LoginPage() {
           </div>
 
           <form className="login__card" onSubmit={submit} noValidate>
-            {firstRun && (
-              <div className="login__info">
-                Primer ingreso: no hay usuarios registrados. Escribe tu correo y una contraseña (mínimo 8 caracteres); se creará tu usuario Administrador.
-              </div>
-            )}
             {authError && !loading && (
               <div role="alert" className="login__alert">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 3l10 18H2z" /><path d="M12 10v4M12 17.5v.01" /></svg>
@@ -133,11 +123,11 @@ export function LoginPage() {
 
             <button type="submit" className="btn btn--primary login__submit" disabled={loading} style={{ opacity: loading ? 0.7 : 1 }}>
               {loading && <span className="spinner" />}
-              {loading ? 'Verificando…' : firstRun ? 'Crear usuario e ingresar' : 'Ingresar'}
+              {loading ? 'Verificando…' : 'Ingresar'}
             </button>
 
             <div className="login__or"><span />o<span /></div>
-            <button type="button" className="btn login__sso" onClick={() => setInfo('El ingreso con SSO (Microsoft o Google de la empresa) requiere un servidor de identidad; no está disponible en la versión local.')}>
+            <button type="button" className="btn login__sso" onClick={() => setInfo('El ingreso con SSO (Microsoft o Google de la empresa) requiere un servidor de identidad y aún no está configurado.')}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /></svg>
               Ingresar con SSO de la empresa
             </button>
