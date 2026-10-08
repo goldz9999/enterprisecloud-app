@@ -8,20 +8,16 @@ npm run dev        # http://localhost:5173
 npm run build      # typecheck + production build
 ```
 
-## Datos locales
+## Backend
 
-Todo funciona en el navegador, sin backend:
+La app necesita el backend FastAPI (`El-Real-Backend`) en ejecución. La URL se configura con `VITE_API_URL` (por defecto `http://localhost:8000/api/v1`). Inicia sesión con una cuenta del backend: el acceso, los roles y los permisos los gestiona él.
 
-- Registros, órdenes, permisos, auditoría y configuración se guardan en `localStorage` (`ec-db-v1`); los archivos subidos en IndexedDB.
-- Arranca con **datos de ejemplo** (los mocks del diseño). Inicia sesión con cualquier usuario de ejemplo y la contraseña `demo1234` (p. ej. `maria.rojas@empresa.pe`, Gerente).
-- El chip **"Datos de ejemplo"** de la barra superior (o Configuración › Datos) abre el diálogo de datos:
-  - **Quitar datos de ejemplo**: borra todos los mocks y deja la app vacía para uso real. Conserva configuración, roles y permisos, y tu usuario (como Administrador, misma contraseña).
-  - **Exportar / importar copia** (JSON) y **restaurar ejemplo**.
-- Si no hay usuarios, el primer inicio de sesión crea el Administrador.
+- Al iniciar sesión se descargan del backend los maestros, la administración, las órdenes de venta y compra, cotizaciones, solicitudes, comprobantes, inventario y finanzas (la lista exacta está en `src/data/loadAll.ts`).
+- Las lecturas se reintentan ante fallos transitorios; si siguen fallando se muestra un aviso con **Reintentar** en lugar de dejar la pantalla vacía.
+- El navegador conserva una copia local en `localStorage` (`ec-db-v1`) y los archivos subidos en IndexedDB; es solo un espejo para pintar las pantallas.
+- Abre la app desde `localhost` (no `127.0.0.1`), salvo que el backend permita ese origen en su configuración CORS.
 
-Los flujos tienen efectos reales: venta (cotización → orden → stock → despacho → comprobante → cobro) y compra (solicitud → OC → recepción → factura → pago) actualizan stock, kardex, costo promedio, CxC/CxP, bancos/caja y documentos. Dashboard y reportes se calculan con los datos.
-
-Sin integración real con correo, SUNAT ni SSO; la programación de reportes solo se registra.
+Los flujos de venta (cotización → orden → despacho → comprobante → cobro) y de compra (solicitud → OC → recepción → factura → pago) se ejecutan en el backend. Sin integración real con correo, SUNAT ni SSO.
 
 ## Structure
 

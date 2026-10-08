@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
 import { StatusChip } from '../../components/StatusChip';
@@ -213,7 +213,8 @@ export function OrderPage({ kind }: { kind: 'venta' | 'compra' }) {
     }
   };
 
-  const handleFiles = useCallback(async (files: FileList | null) => {
+  // Funciones normales (no useCallback): van después del `return` de "Orden no encontrada" y un hook ahí cambia su número entre renders.
+  const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const arr = Array.from(files);
     for (const file of arr) {
@@ -232,11 +233,11 @@ export function OrderPage({ kind }: { kind: 'venta' | 'compra' }) {
       });
     }
     toast.flash(`${arr.length === 1 ? arr[0].name : arr.length + ' archivos'} adjuntado${arr.length === 1 ? '' : 's'}`);
-  }, [o.code, o.party.name]);
+  };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files);
-  }, [handleFiles]);
+  };
 
   const openPreview = async (doc: typeof docs[0]) => {
     if (doc.html) {

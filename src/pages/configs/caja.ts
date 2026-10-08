@@ -1,7 +1,7 @@
 import type { RecordsConfig } from '../../features/records/types';
 import { createCashRemote } from '../../data/domain/finance';
 import { formatMoney } from '../../lib/format';
-import { displayDate, isoDate } from '../../lib/dates';
+import { isoDate } from '../../lib/dates';
 import type { DB, Row } from '../../data/types';
 
 export const caja: RecordsConfig = {

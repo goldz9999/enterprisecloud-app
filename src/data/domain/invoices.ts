@@ -1,6 +1,6 @@
 import { api, ApiError } from '../../lib/api';
 import { update } from '../store';
-import type { DB, Row } from '../types';
+import type { Row } from '../types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Raw = Record<string, any>;

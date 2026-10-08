@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
+import { loadAll } from '../data/loadAll';
+import { clearLoadFailures, useLoadFailures } from '../lib/loadStatus';
 import { useTheme } from '../lib/theme';
 import { useNow } from '../lib/useNow';
 import { GlobalSearch } from './GlobalSearch';
@@ -35,6 +37,7 @@ const Chevron = () => (
 export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Buscar en EnterpriseCloud…', narrow, children }: AppShellProps) {
   const { theme, toggle } = useTheme();
   const toast = useToast();
+  const loadFailures = useLoadFailures();
   const now = useNow();
   const dateStr = now.toLocaleDateString('es-PE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '');
   const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -84,7 +87,15 @@ export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Bus
           </div>
         </header>
 
-        <main className="page" style={narrow ? { maxWidth: 1100 } : undefined}>{children}</main>
+        <main className="page" style={narrow ? { maxWidth: 1100 } : undefined}>
+          {loadFailures > 0 && (
+            <div className="note" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span>No se pudieron cargar algunos datos del servidor, así que esta pantalla puede estar incompleta.</span>
+              <button type="button" className="btn" onClick={() => { clearLoadFailures(); loadAll(); }}>Reintentar</button>
+            </div>
+          )}
+          {children}
+        </main>
         <Toast message={toast.message} />
       </div>
     </div>

@@ -1,17 +1,8 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
-import { logout, refreshSession, sessionExpired } from './data/domain/auth';
-import { loadAdmin } from './data/domain/admin';
-import { loadMasters } from './data/domain/masters';
-import { loadSaleOrders } from './data/domain/salesOrders';
-import { loadQuotations } from './data/domain/quotations';
-import { loadInvoices } from './data/domain/invoices';
-import { loadPurchaseRequests } from './data/domain/purchaseRequests';
-import { loadPurchaseOrders } from './data/domain/purchaseOrders';
-import { loadGoodsReceipts } from './data/domain/goodsReceipts';
-import { loadInventory } from './data/domain/inventory';
-import { loadFinance } from './data/domain/finance';
+import { logout, sessionExpired } from './data/domain/auth';
+import { loadAll } from './data/loadAll';
 import { can } from './data/permissions';
 import { useSession, wasSignedOut } from './data/session';
 import { useDB } from './data/store';
@@ -94,20 +85,7 @@ export function App() {
   // On load (and after each sign-in) confirm the token with the backend and pick up role/permission changes.
   const token = session?.token;
   useEffect(() => {
-    if (token) {
-      void refreshSession();
-      // Mantenimiento, Administración y órdenes de venta se leen del backend (Supabase).
-      void loadMasters();
-      void loadAdmin();
-      void loadSaleOrders();
-      void loadQuotations();
-      void loadInvoices();
-      void loadPurchaseRequests();
-      void loadPurchaseOrders();
-      void loadGoodsReceipts();
-      void loadInventory();
-      void loadFinance();
-    }
+    if (token) loadAll();
   }, [token]);
 
   // Table density preference from Configuración › Apariencia.

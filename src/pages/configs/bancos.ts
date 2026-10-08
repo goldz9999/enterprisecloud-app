@@ -1,6 +1,5 @@
 import type { RecordsConfig } from '../../features/records/types';
 import { createBankRemote, reconcileRemote } from '../../data/domain/finance';
-import { formatMoney } from '../../lib/format';
 import { isoDate } from '../../lib/dates';
 import type { DB, Row } from '../../data/types';
 

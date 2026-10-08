@@ -180,6 +180,6 @@ export async function convertQuotationRemote(code: string): Promise<QResult> {
 }
 
 /** Duplicar: crea una nueva cotización en borrador con los mismos datos. */
-export async function duplicateQuotationRemote(code: string, data: Record<string, string>, items: FlowItem[]): Promise<QResult> {
+export async function duplicateQuotationRemote(_code: string, data: Record<string, string>, items: FlowItem[]): Promise<QResult> {
     return saveQuotationRemote(data, items);
 }

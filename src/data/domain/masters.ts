@@ -95,7 +95,7 @@ export const warehouseNameById = (id: unknown): string => String(byId('almacenes
 export const masterUserNames = (): string[] => [NONE, ...users.filter(u => u.active).map(u => u.name)];
 
 /** UUID del maestro a partir del _id local del store. */
-export function masterUuid(c: MasterCollection, localRowId: number): string | null {
+export function masterUuid(_c: MasterCollection, localRowId: number): string | null {
     return uuids.get(localRowId) ?? null;
 }
 

@@ -4,7 +4,7 @@ import { AppShell } from '../../components/AppShell';
 import { StatusChip, toneColor } from '../../components/StatusChip';
 import { Toast, useToast } from '../../components/Toast';
 import { renderDocHtml } from '../../data/domain/documents';
-import { convertToOrder, dataOf, deleteFlowDoc, duplicateFlowDoc, flowTotal, saveFlowDoc, setFlowStatus } from '../../data/domain/flows';
+import { dataOf, flowTotal, setFlowStatus } from '../../data/domain/flows';
 import {
   convertQuotationRemote,
   deleteQuotationRemote,
@@ -15,7 +15,6 @@ import {
 import {
   convertPurchaseRequestRemote,
   deletePurchaseRequestRemote,
-  duplicatePurchaseRequestRemote,
   savePurchaseRequestRemote,
   setPurchaseRequestStatusRemote,
 } from '../../data/domain/purchaseRequests';
@@ -362,16 +361,6 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
               toast.flash(editor.row ? 'Cambios guardados' : `${res.code} creada`);
             })();
             return undefined;
-            let id = '';
-            const err = mutate(dr => {
-              id = saveFlowDoc(dr, cfg.kind, data, items, editor.row?.id);
-            });
-            if (err) return err;
-            setEditor(null);
-            if (params.has('nuevo')) setParams({}, { replace: true });
-            setFilter('Todos');
-            setSelId(id);
-            toast.flash(editor.row ? 'Cambios guardados' : `${id} creada`);
           }}
         />
       )}

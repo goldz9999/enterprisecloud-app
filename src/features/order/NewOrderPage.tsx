@@ -3,11 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
 import { LinesEditor } from '../../components/LinesEditor';
 import { linesError } from '../../lib/lines';
-import { createOrder, igvRate, partyFromClient, partyFromSupplier, warehouses } from '../../data/domain/orders';
+import { igvRate, partyFromClient, partyFromSupplier, warehouses } from '../../data/domain/orders';
 import { createSaleOrderRemote } from '../../data/domain/salesOrders';
 import { createPurchaseOrderRemote } from '../../data/domain/purchaseOrders';
 import { can } from '../../data/permissions';
-import { currentUser, mutate, useDB } from '../../data/store';
+import { currentUser, useDB } from '../../data/store';
 import type { Order, OrderLine } from '../../data/types';
 
 /** Creates a sales order (direct sale) or a purchase order without a prior quotation/request. */
@@ -17,9 +17,14 @@ export function NewOrderPage({ kind }: { kind: Order['kind'] }) {
   const sale = kind === 'venta';
   const parties = (sale ? d.records.clientes : d.records.proveedores).filter(p => p.estado !== 'Inactivo');
   const whs = warehouses(d);
-  const [partyId, setPartyId] = useState<number | ''>(parties[0]?._id ?? '');
-  const [warehouse, setWarehouse] = useState(String(d.settings.almdef && whs.includes(String(d.settings.almdef)) ? d.settings.almdef : whs[0]));
-  const [seller, setSeller] = useState(currentUser(d).name);
+  // Lo elegido por el usuario; si aún no eligió (o los datos llegaron después del primer render), se usa la primera opción real.
+  const [pickedParty, setPickedParty] = useState<number | ''>('');
+  const [pickedWarehouse, setPickedWarehouse] = useState('');
+  const [pickedSeller, setPickedSeller] = useState('');
+  const partyId = parties.some(p => p._id === pickedParty) ? pickedParty : (parties[0]?._id ?? '');
+  const defaultWarehouse = d.settings.almdef && whs.includes(String(d.settings.almdef)) ? String(d.settings.almdef) : whs[0];
+  const warehouse = whs.includes(pickedWarehouse) ? pickedWarehouse : defaultWarehouse;
+  const seller = pickedSeller || currentUser(d).name;
   const [lines, setLines] = useState<OrderLine[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -83,19 +88,19 @@ export function NewOrderPage({ kind }: { kind: Order['kind'] }) {
           <div className="grid3">
             <label className="field">
               <span className="field__label">{sale ? 'Cliente' : 'Proveedor'} *</span>
-              <select className="field__control" value={partyId} onChange={e => setPartyId(Number(e.target.value))}>
+              <select className="field__control" value={partyId} onChange={e => setPickedParty(Number(e.target.value))}>
                 {parties.map(p => <option key={p._id} value={p._id}>{String(p.razon)}</option>)}
               </select>
             </label>
             <label className="field">
               <span className="field__label">{sale ? 'Almacén de despacho' : 'Almacén destino'}</span>
-              <select className="field__control" value={warehouse} onChange={e => setWarehouse(e.target.value)}>
+              <select className="field__control" value={warehouse} onChange={e => setPickedWarehouse(e.target.value)}>
                 {whs.map(w => <option key={w}>{w}</option>)}
               </select>
             </label>
             <label className="field">
               <span className="field__label">{sale ? 'Vendedor' : 'Comprador'}</span>
-              <select className="field__control" value={seller} onChange={e => setSeller(e.target.value)}>
+              <select className="field__control" value={seller} onChange={e => setPickedSeller(e.target.value)}>
                 {users.map(u => <option key={u}>{u}</option>)}
               </select>
             </label>

@@ -1,6 +1,6 @@
 import { api, ApiError } from '../../lib/api';
 import { update } from '../store';
-import type { DB, Row } from '../types';
+import type { Row } from '../types';
 import { productByNameRaw, productUuidBySku, warehouseIdByName } from './masters';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -247,7 +247,12 @@ export async function createAdjustmentRemote(values: {
     }
 }
 
-/** Carga todo el inventario remoto. */
+let pendingInventory: Promise<void> | null = null;
+
+/** Carga todo el inventario remoto. Si ya hay una carga en curso, la reutiliza (evita pedirlo dos veces). */
 export function loadInventory(): Promise<void> {
-    return Promise.all([loadStock(), loadKardex(), loadTransfers(), loadAdjustments()]).then(() => undefined);
+    pendingInventory ??= Promise.all([loadStock(), loadKardex(), loadTransfers(), loadAdjustments()])
+        .then(() => undefined)
+        .finally(() => { pendingInventory = null; });
+    return pendingInventory;
 }

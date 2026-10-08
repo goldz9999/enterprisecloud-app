@@ -277,10 +277,14 @@ export async function reconcileRemote(id: string, reference?: string): Promise<F
   }
 }
 
+let pendingFinance: Promise<void> | null = null;
+
+/** Si ya hay una carga en curso, la reutiliza (evita pedir lo mismo dos veces). */
 export function loadFinance(): Promise<void> {
-  return Promise.all([loadReceivables(), loadPayables(), loadCash(), loadBankMovements()]).then(
-    () => undefined,
-  );
+  pendingFinance ??= Promise.all([loadReceivables(), loadPayables(), loadCash(), loadBankMovements()])
+    .then(() => undefined)
+    .finally(() => { pendingFinance = null; });
+  return pendingFinance;
 }
 
 // ---- Helpers puros de plazos de pago (usados por orders.ts) ----
