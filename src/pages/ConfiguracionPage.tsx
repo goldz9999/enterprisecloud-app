@@ -1,17 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppShell } from '../components/AppShell';
-import { DataDialog } from '../components/DataDialog';
-import { canManageData, downloadBackup } from '../lib/dataManagement';
 import { Toast, useToast } from '../components/Toast';
-import { loadAdmin, saveSettings } from '../data/domain/admin';
+import { fetchAuditTotal, loadAdmin, saveSettings } from '../data/domain/admin';
 import { can } from '../data/permissions';
 import { SETTING_SECTIONS } from '../data/settings';
-import { getDB, importBackup, useDB } from '../data/store';
+import { useDB } from '../data/store';
 import type { Settings } from '../data/types';
+import { api } from '../lib/api';
 import { useTheme } from '../lib/theme';
 import './ConfiguracionPage.css';
-
-type Confirm = 'clear' | null;
 
 // Map section titles to anchor ids
 const sectionId = (title: string) => title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -32,10 +29,9 @@ export function ConfiguracionPage() {
   const { theme, setTheme } = useTheme();
   const saved = d.settings;
   const [form, setForm] = useState<Settings>(() => ({ ...saved }));
-  const [confirm, setConfirm] = useState<Confirm>(null);
-  const [importError, setImportError] = useState('');
+  const [conn, setConn] = useState<'checking' | 'ok' | 'down'>('checking');
+  const [auditTotal, setAuditTotal] = useState<number | null>(null);
   const [activeSection, setActiveSection] = useState('datos');
-  const fileInput = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -58,28 +54,20 @@ export function ConfiguracionPage() {
     toast.flash('Configuración guardada · registrado en auditoría');
   };
 
+  // Estado real de la conexión con la base de datos y total de eventos de auditoría registrados en el servidor.
+  useEffect(() => {
+    let on = true;
+    api('/health', { auth: false }).then(() => on && setConn('ok')).catch(() => on && setConn('down'));
+    fetchAuditTotal().then(n => on && setAuditTotal(n)).catch(() => undefined);
+    return () => { on = false; };
+  }, []);
+
   const counts = {
     clientes: d.records.clientes.length,
+    proveedores: d.records.proveedores.length,
     productos: d.records.productos.length,
-    ventas: d.orders.filter(o => o.kind === 'venta').length,
-    compras: d.orders.filter(o => o.kind === 'compra').length,
-    documentos: d.documentos.length,
-    eventos: d.audit.length,
-  };
-  const sizeKb = Math.round(new Blob([JSON.stringify(d)]).size / 1024);
-
-  const doBackup = () => { downloadBackup(); toast.flash('Respaldo descargado'); };
-
-  const doImport = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      importBackup(await file.text());
-      setForm({ ...getDB().settings });
-      setImportError('');
-      toast.flash('Respaldo importado');
-    } catch (e) {
-      setImportError(e instanceof Error ? e.message : 'No se pudo leer el archivo.');
-    }
+    usuarios: d.records.usuarios.length,
+    roles: d.records.roles.length,
   };
 
   const renderSection = (id: string, title: string, desc: string, children: React.ReactNode) => (
@@ -121,31 +109,23 @@ export function ConfiguracionPage() {
         <div className="cfg-content">
 
           {/* Only the active section is rendered */}
-          {activeSection === 'datos' && renderSection('datos', 'Datos', 'Todo lo que haces se guarda en este navegador. Descarga respaldos con frecuencia.', (
+          {activeSection === 'datos' && renderSection('datos', 'Datos', 'Mantenimiento y Administración se guardan en la base de datos (Supabase), no en este navegador.', (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="data-mode">
-                <span className="data-mode__dot" />
+                <span className="data-mode__dot" style={conn === 'down' ? { background: 'var(--red)' } : undefined} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500 }}>Usando tus datos locales</div>
+                  <div style={{ fontWeight: 500 }}>
+                    {conn === 'ok' ? 'Conectado a la base de datos' : conn === 'down' ? 'Sin conexión con el servidor' : 'Comprobando conexión…'}
+                  </div>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {counts.clientes} clientes · {counts.productos} productos · {counts.ventas} ventas · {counts.compras} compras · {counts.documentos} documentos · {counts.eventos} eventos de auditoría · {sizeKb} KB
+                    {counts.clientes} clientes · {counts.proveedores} proveedores · {counts.productos} productos · {counts.usuarios} usuarios · {counts.roles} roles
+                    {auditTotal !== null && ` · ${auditTotal} eventos de auditoría`}
                   </div>
                 </div>
               </div>
-              {canManageData(d) ? (
-                <div className="data-actions">
-                  <button type="button" className="btn btn--danger-text" onClick={() => setConfirm('clear')}>
-                    Borrar todos los datos
-                  </button>
-                  <span style={{ flex: 1 }} />
-                  <button type="button" className="btn" onClick={doBackup}>Exportar respaldo</button>
-                  <button type="button" className="btn" onClick={() => fileInput.current?.click()}>Importar respaldo</button>
-                  <input ref={fileInput} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { doImport(e.target.files?.[0]); e.target.value = ''; }} />
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: 'var(--faint)' }}>Solo un Administrador o Gerente puede borrar o importar datos.</div>
-              )}
-              {importError && <div className="drawer-error">{importError}</div>}
+              <div style={{ fontSize: 12, color: 'var(--faint)' }}>
+                Todo lo que crees o edites en Mantenimiento y Administración se guarda en el servidor y se ve igual desde cualquier navegador. Cotizaciones, órdenes de venta y compra, inventario, finanzas y documentos aún no están conectados a la base.
+              </div>
             </div>
           ))}
 
@@ -199,7 +179,6 @@ export function ConfiguracionPage() {
         </div>
       </div>
 
-      {confirm && <DataDialog initial={confirm} onClose={() => setConfirm(null)} onDone={msg => { setForm({ ...getDB().settings }); toast.flash(msg); }} />}
       <Toast message={toast.message} />
     </AppShell>
   );

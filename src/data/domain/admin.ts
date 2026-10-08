@@ -543,6 +543,11 @@ export async function fetchAuditEvents(max = 600): Promise<AuditEvent[]> {
     }));
 }
 
+/** Total de eventos de auditoría guardados en el servidor. */
+export async function fetchAuditTotal(): Promise<number> {
+    return (await api<{ total: number }>('/audit?limit=1')).total;
+}
+
 export function auditError(e: unknown): string {
     if (e instanceof ApiError && e.status === 403) return 'No tienes permiso para ver los eventos registrados en el servidor.';
     if (e instanceof ApiError) return e.message;

@@ -71,6 +71,22 @@ const userId = (name: Value | undefined): string | null => {
     return n && n !== NONE ? (users.find(u => u.name === n)?.id ?? null) : null;
 };
 
+/** Clientes y proveedores del backend para vincular un documento: `value` es `c:<id>` o `s:<id>`. */
+export function relationOptions(): { customers: { value: string; label: string }[]; suppliers: { value: string; label: string }[] } {
+    return {
+        customers: raw.clientes.map(r => ({ value: `c:${r.id}`, label: `${r.code} · ${r.legal_name}` })),
+        suppliers: raw.proveedores.map(r => ({ value: `s:${r.id}`, label: `${r.code} · ${r.legal_name}` })),
+    };
+}
+
+/** Resuelve un código (CLI-00001 / PRV-00001) a su valor de relación, o '' si no corresponde a ningún maestro. */
+export function relationByCode(code: string): string {
+    const c = raw.clientes.find(r => r.code === code);
+    if (c) return `c:${c.id}`;
+    const s = raw.proveedores.find(r => r.code === code);
+    return s ? `s:${s.id}` : '';
+}
+
 /** Almacenes del backend, para el almacén por defecto de Configuración. */
 export const warehouseIdByName = (name: string): string | null => idByName('almacenes', 'name', name);
 export const warehouseNameById = (id: unknown): string => String(byId('almacenes', id)?.name ?? '');

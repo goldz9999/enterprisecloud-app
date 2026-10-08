@@ -26,12 +26,14 @@ interface Options {
 export async function api<T = void>(path: string, { method = 'GET', body, auth = true, token }: Options = {}): Promise<T> {
     const sent = token ?? (auth ? getSession()?.token : undefined);
     const headers: Record<string, string> = {};
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+    // With FormData the browser sets the multipart Content-Type (and its boundary) itself.
+    if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
     if (sent) headers.Authorization = `Bearer ${sent}`;
 
     let res: Response;
     try {
-        res = await fetch(API_URL + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+        res = await fetch(API_URL + path, { method, headers, body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body) });
     } catch {
         throw new ApiError(0, 'No se pudo conectar con el servidor. Verifica que el backend esté en ejecución.');
     }
