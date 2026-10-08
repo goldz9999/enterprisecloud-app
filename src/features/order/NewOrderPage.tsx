@@ -4,6 +4,8 @@ import { AppShell } from '../../components/AppShell';
 import { LinesEditor } from '../../components/LinesEditor';
 import { linesError } from '../../lib/lines';
 import { createOrder, igvRate, partyFromClient, partyFromSupplier, warehouses } from '../../data/domain/orders';
+import { createSaleOrderRemote } from '../../data/domain/salesOrders';
+import { createPurchaseOrderRemote } from '../../data/domain/purchaseOrders';
 import { can } from '../../data/permissions';
 import { currentUser, mutate, useDB } from '../../data/store';
 import type { Order, OrderLine } from '../../data/types';
@@ -20,21 +22,43 @@ export function NewOrderPage({ kind }: { kind: Order['kind'] }) {
   const [seller, setSeller] = useState(currentUser(d).name);
   const [lines, setLines] = useState<OrderLine[]>([]);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const module = sale ? 'Órdenes de venta' : 'Órdenes de compra';
   const list = sale ? { label: 'Órdenes de venta', to: '/ventas/ordenes' } : { label: 'Órdenes de compra', to: '/compras/ordenes' };
   const users = [...new Set([currentUser(d).name, ...d.records.usuarios.filter(u => u.estado === 'Activo').map(u => String(u.nombre))])];
 
-  const save = () => {
+  const save = async () => {
     const party = parties.find(p => p._id === partyId);
     if (!party) return setError(sale ? 'Elige un cliente.' : 'Elige un proveedor.');
     const le = linesError(lines);
     if (le) return setError(le);
-    let code = '';
-    const err = mutate(draft => {
-      code = createOrder(draft, { kind, party: sale ? partyFromClient(party) : partyFromSupplier(party), lines, warehouse, seller }).code;
-    });
-    if (err) return setError(err);
-    navigate(`/${sale ? 'ventas' : 'compras'}/orden/${code}`);
+    setSaving(true);
+    setError('');
+    try {
+      if (sale) {
+        const res = await createSaleOrderRemote({
+          party: partyFromClient(party),
+          lines,
+          warehouse,
+          seller,
+          customerLocalId: Number(party._id),
+        });
+        if (!res.ok) return setError(res.error);
+        navigate(`/ventas/orden/${res.order.code}`);
+        return;
+      }
+      const res = await createPurchaseOrderRemote({
+        party: partyFromSupplier(party),
+        lines,
+        warehouse,
+        seller,
+        supplierLocalId: Number(party._id),
+      });
+      if (!res.ok) return setError(res.error);
+      navigate(`/compras/orden/${res.order.code}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -43,7 +67,7 @@ export function NewOrderPage({ kind }: { kind: Order['kind'] }) {
         <h1 className="page__title">{sale ? 'Nueva venta' : 'Nueva orden de compra'}</h1>
         <div className="page__subtitle">
           {sale
-            ? 'Venta directa, sin cotización previa. Al guardarla se crea la orden de venta y sigue el flujo: confirmar, despachar, facturar y cobrar.'
+            ? 'Venta directa, sin cotización previa. Al guardarla se crea la orden de venta en la base de datos y sigue el flujo: confirmar, despachar, facturar y cobrar.'
             : 'Compra directa, sin solicitud previa. Al guardarla queda por aprobar y sigue el flujo: aprobar, recibir, registrar factura y pagar.'}
         </div>
       </div>
@@ -80,9 +104,9 @@ export function NewOrderPage({ kind }: { kind: Order['kind'] }) {
           {error && <div className="drawer-error" role="alert">{error}</div>}
           <div className="drawer-actions">
             <span className="drawer-actions__spacer" />
-            <button type="button" className="btn" onClick={() => navigate(list.to)}>Cancelar</button>
-            <button type="button" className="btn btn--primary" style={{ padding: '0 16px' }} onClick={save}>
-              {sale ? 'Crear orden de venta' : 'Crear orden de compra'}
+            <button type="button" className="btn" onClick={() => navigate(list.to)} disabled={saving}>Cancelar</button>
+            <button type="button" className="btn btn--primary" onClick={() => void save()} disabled={saving}>
+              {saving ? 'Guardando…' : sale ? 'Crear venta' : 'Crear orden de compra'}
             </button>
           </div>
         </section>

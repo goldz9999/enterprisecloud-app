@@ -4,6 +4,12 @@ import { AppShell } from './components/AppShell';
 import { logout, refreshSession, sessionExpired } from './data/domain/auth';
 import { loadAdmin } from './data/domain/admin';
 import { loadMasters } from './data/domain/masters';
+import { loadSaleOrders } from './data/domain/salesOrders';
+import { loadQuotations } from './data/domain/quotations';
+import { loadInvoices } from './data/domain/invoices';
+import { loadPurchaseRequests } from './data/domain/purchaseRequests';
+import { loadPurchaseOrders } from './data/domain/purchaseOrders';
+import { loadGoodsReceipts } from './data/domain/goodsReceipts';
 import { can } from './data/permissions';
 import { useSession, wasSignedOut } from './data/session';
 import { useDB } from './data/store';
@@ -88,9 +94,15 @@ export function App() {
   useEffect(() => {
     if (token) {
       void refreshSession();
-      // Mantenimiento y Administración se leen del backend (Supabase).
+      // Mantenimiento, Administración y órdenes de venta se leen del backend (Supabase).
       void loadMasters();
       void loadAdmin();
+      void loadSaleOrders();
+      void loadQuotations();
+      void loadInvoices();
+      void loadPurchaseRequests();
+      void loadPurchaseOrders();
+      void loadGoodsReceipts();
     }
   }, [token]);
 

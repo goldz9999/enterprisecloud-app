@@ -1,7 +1,6 @@
 import type { RecordsConfig } from '../../features/records/types';
-import { audit } from '../../data/domain/audit';
-import { nextCode, nextId } from '../../data/store';
-import { parseDate, fmtDate } from '../../lib/dates';
+import { setInvoiceTaxStatusRemote, voidInvoiceRemote } from '../../data/domain/invoices';
+import { parseDate } from '../../lib/dates';
 import { formatMoney } from '../../lib/format';
 
 export const comprobantes: RecordsConfig = {
@@ -29,22 +28,34 @@ export const comprobantes: RecordsConfig = {
   fields: [{ k: 'tipo', label: 'Tipo' }, { k: 'num', label: 'Serie y número', mono: true }, { k: 'cliente', label: 'Cliente', wide: true }, { k: 'ruc', label: 'RUC / DNI', mono: true }, { k: 'orden', label: 'Orden de origen', mono: true }, { k: 'emision', label: 'Emisión' }, { k: 'vence', label: 'Vencimiento' }, { k: 'total', label: 'Total (inc. IGV)', fmt: 'money' }, { k: 'sunat', label: 'Estado SUNAT' }],
   notes: { 'Pendiente': 'SUNAT aún no confirma la recepción. Reenvíalo para registrar la aceptación.', 'Rechazado': 'SUNAT rechazó el comprobante: el RUC del receptor no coincide con la razón social. Corrige los datos del cliente en Mantenimiento.', 'Anulado': 'Comprobante anulado mediante nota de crédito. Su cuenta por cobrar quedó cancelada.' },
   actions: {
-    'Pendiente': [{ label: 'Reenviar a SUNAT', to: 'Aceptado', primary: true, toast: 'Comprobante aceptado por SUNAT' }],
+    'Pendiente': [{
+      label: 'Reenviar a SUNAT', to: 'Aceptado', primary: true, toast: 'Comprobante aceptado por SUNAT',
+      run: (_d, r) => {
+        void setInvoiceTaxStatusRemote(Number(r._id), 'Aceptado').then(res => {
+          if (!res.ok) console.error(res.error);
+        });
+      },
+    }],
     'Aceptado': [
       { label: 'Descargar PDF y XML', href: r => `/documentos?q=${encodeURIComponent(String(r.num))}` },
       {
         label: 'Anular con nota de crédito', to: 'Anulado', danger: true, toast: 'Nota de crédito emitida · cuenta por cobrar cancelada',
         fields: [{ k: 'motivo', label: 'Motivo de la anulación', required: true, wide: true, placeholder: 'Ej. Error en la razón social' }],
-        run: (d, r, v) => {
+        run: (_d, r, v) => {
           if (r.tipo === 'Nota de crédito') return 'Una nota de crédito no se anula con otra nota de crédito.';
-          const nc = nextCode(d, `${d.settings.snc || 'FC01'}-`, 5, d.records.comprobantes);
-          d.records.comprobantes.unshift({ _id: nextId(d.records.comprobantes), num: nc, tipo: 'Nota de crédito', cliente: r.cliente, ruc: r.ruc, emision: fmtDate(new Date()), vence: '—', total: -Number(r.total), sunat: 'Aceptado', orden: r.num });
-          const cxc = d.records.cxc.find(c => c.doc === r.num);
-          if (cxc) Object.assign(cxc, { saldo: 0, estado: 'Cobrada', dias: 'anulada con ' + nc });
-          audit(d, { action: 'Crear', module: 'Ventas', ref: nc, desc: `Nota de crédito por ${r.num}`, note: v.motivo });
+          void voidInvoiceRemote(Number(r._id), String(v.motivo || '')).then(res => {
+            if (!res.ok) console.error(res.error);
+          });
         },
       },
     ],
-    'Rechazado': [{ label: 'Corregir y reenviar', to: 'Pendiente', primary: true, toast: 'Comprobante reenviado a SUNAT' }],
+    'Rechazado': [{
+      label: 'Corregir y reenviar', to: 'Pendiente', primary: true, toast: 'Comprobante reenviado a SUNAT',
+      run: (_d, r) => {
+        void setInvoiceTaxStatusRemote(Number(r._id), 'Pendiente').then(res => {
+          if (!res.ok) console.error(res.error);
+        });
+      },
+    }],
   },
 };

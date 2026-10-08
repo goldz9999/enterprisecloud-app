@@ -4,7 +4,21 @@ import { AppShell } from '../../components/AppShell';
 import { StatusChip, toneColor } from '../../components/StatusChip';
 import { Toast, useToast } from '../../components/Toast';
 import { renderDocHtml } from '../../data/domain/documents';
-import { convertToOrder, deleteFlowDoc, duplicateFlowDoc, flowTotal, saveFlowDoc, setFlowStatus } from '../../data/domain/flows';
+import { convertToOrder, dataOf, deleteFlowDoc, duplicateFlowDoc, flowTotal, saveFlowDoc, setFlowStatus } from '../../data/domain/flows';
+import {
+  convertQuotationRemote,
+  deleteQuotationRemote,
+  duplicateQuotationRemote,
+  saveQuotationRemote,
+  setQuotationStatusRemote,
+} from '../../data/domain/quotations';
+import {
+  convertPurchaseRequestRemote,
+  deletePurchaseRequestRemote,
+  duplicatePurchaseRequestRemote,
+  savePurchaseRequestRemote,
+  setPurchaseRequestStatusRemote,
+} from '../../data/domain/purchaseRequests';
 import { stockRow } from '../../data/domain/stock';
 import { can, type PermAction } from '../../data/permissions';
 import { getDB, mutate, useDB } from '../../data/store';
@@ -68,16 +82,41 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
     setError('');
     toast.flash(msg);
   };
-  const status = (to: string) => () => act(dr => setFlowStatus(dr, cfg.kind, sel!.id, to), `${sel!.id} · ${to}`);
-  const convert = () => {
-    let code = '';
-    const err = mutate(dr => {
-      const r = convertToOrder(dr, cfg.kind, sel!.id);
-      code = r.code ?? '';
-      return r.error;
-    });
-    if (err) return setError(err);
-    navigate(`/${quote ? 'ventas' : 'compras'}/orden/${code}`);
+  const status = (to: string) => async () => {
+    if (quote) {
+      const res = await setQuotationStatusRemote(sel!.id, to);
+      if (!res.ok) return setError(res.error);
+      setError('');
+      toast.flash(`${sel!.id} · ${to}`);
+      return;
+    }
+    if (!quote) {
+      const res = await setPurchaseRequestStatusRemote(sel!.id, to);
+      if (!res.ok) return setError(res.error);
+      setError('');
+      toast.flash(`${sel!.id} · ${to}`);
+      return;
+    }
+    act(dr => setFlowStatus(dr, cfg.kind, sel!.id, to), `${sel!.id} · ${to}`);
+  };
+  const convert = async () => {
+    if (quote) {
+      const res = await convertQuotationRemote(sel!.id);
+      if (!res.ok) return setError(res.error);
+      setError('');
+      if (res.code) navigate(`/ventas/orden/${res.code}`);
+      return;
+    }
+    // solicitud → orden de compra: usa proveedor sugerido del data
+    const data = dataOf(d, 'solicitud', sel!);
+    const prov = data.prov;
+    if (!prov || prov === '—') {
+      return setError('Indica un proveedor sugerido en la solicitud (o edítala) antes de generar la orden.');
+    }
+    const res = await convertPurchaseRequestRemote(sel!.id, prov, data.alm || undefined);
+    if (!res.ok) return setError(res.error);
+    setError('');
+    if (res.code) navigate(`/compras/orden/${res.code}`);
   };
 
   const actionsFor = (r: FlowRow): FlowAction[] => {
@@ -85,17 +124,28 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
     const openOrder: FlowAction = { label: `Ver ${quote ? 'orden de venta' : 'orden de compra'} ${r.order ?? ''}`, perm: [orderModule, 'Ver'], run: () => r.order && navigate(`/${quote ? 'ventas' : 'compras'}/orden/${r.order}`) };
     if (quote) {
       switch (r.status) {
-        case 'Borrador': return [{ label: 'Enviar al cliente', primary: true, perm: [cfg.active, 'Editar'], run: status('Enviada') }, edit, { label: 'Eliminar borrador', danger: true, perm: [cfg.active, 'Eliminar'], run: () => setConfirmDelete(true) }];
-        case 'Enviada': return [{ label: 'Marcar como aprobada', primary: true, perm: [cfg.active, 'Editar'], run: status('Aprobada') }, { label: 'Marcar como rechazada', danger: true, perm: [cfg.active, 'Editar'], run: status('Rechazada') }, edit];
-        case 'Aprobada': return [{ label: 'Convertir en orden de venta →', primary: true, perm: [orderModule, 'Crear'], run: convert }];
+        case 'Borrador': return [{ label: 'Enviar al cliente', primary: true, perm: [cfg.active, 'Editar'], run: () => void status('Enviada')() }, edit, { label: 'Eliminar borrador', danger: true, perm: [cfg.active, 'Eliminar'], run: () => setConfirmDelete(true) }];
+        case 'Enviada': return [{ label: 'Marcar como aprobada', primary: true, perm: [cfg.active, 'Editar'], run: () => void status('Aprobada')() }, { label: 'Marcar como rechazada', danger: true, perm: [cfg.active, 'Editar'], run: () => void status('Rechazada')() }, edit];
+        case 'Aprobada': return [{ label: 'Convertir en orden de venta →', primary: true, perm: [orderModule, 'Crear'], run: () => void convert() }];
         case 'Convertida': return r.order ? [openOrder] : [];
-        case 'Rechazada': return [{ label: 'Duplicar como nueva cotización', perm: [cfg.active, 'Crear'], run: () => { let id = ''; act(dr => { id = duplicateFlowDoc(dr, cfg.kind, r.id) ?? ''; }, 'Cotización duplicada como borrador'); if (id) setSelId(id); } }];
+        case 'Rechazada': return [{
+          label: 'Duplicar como nueva cotización', perm: [cfg.active, 'Crear'], run: () => {
+            void (async () => {
+              const data = dataOf(d, 'cotizacion', r);
+              const res = await duplicateQuotationRemote(r.id, data, r.items);
+              if (!res.ok) return setError(res.error);
+              setError('');
+              toast.flash('Cotización duplicada como borrador');
+              if (res.code) setSelId(res.code);
+            })();
+          }
+        }];
       }
       return [];
     }
     switch (r.status) {
-      case 'Pendiente': return [{ label: 'Aprobar solicitud', primary: true, perm: [cfg.active, 'Aprobar'], run: status('Aprobada') }, { label: 'Rechazar', danger: true, perm: [cfg.active, 'Aprobar'], run: status('Rechazada') }, edit];
-      case 'Aprobada': return [{ label: 'Generar orden de compra →', primary: true, perm: [orderModule, 'Crear'], run: convert }];
+      case 'Pendiente': return [{ label: 'Aprobar solicitud', primary: true, perm: [cfg.active, 'Aprobar'], run: () => void status('Aprobada')() }, { label: 'Rechazar', danger: true, perm: [cfg.active, 'Aprobar'], run: () => void status('Rechazada')() }, edit];
+      case 'Aprobada': return [{ label: 'Generar orden de compra →', primary: true, perm: [orderModule, 'Crear'], run: () => void convert() }];
       case 'Atendida': return r.order ? [openOrder] : [];
     }
     return [];
@@ -234,7 +284,24 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
                   <div className="confirm-del">
                     <span className="confirm-del__text">¿Eliminar {sel.id}?</span>
                     <button type="button" className="confirm-del__no" onClick={() => setConfirmDelete(false)}>No</button>
-                    <button type="button" className="confirm-del__yes" onClick={() => { setConfirmDelete(false); act(dr => deleteFlowDoc(dr, cfg.kind, sel.id), `${sel.id} eliminada`); }}>Sí, eliminar</button>
+                    <button type="button" className="confirm-del__yes" onClick={() => {
+                      setConfirmDelete(false); void (async () => {
+                        if (quote) {
+                          const res = await deleteQuotationRemote(sel.id);
+                          if (!res.ok) return setError(res.error);
+                          setError('');
+                          toast.flash(`${sel.id} eliminada`);
+                          return;
+                        }
+                        {
+                          const res = await deletePurchaseRequestRemote(sel.id);
+                          if (!res.ok) return setError(res.error);
+                          setError('');
+                          toast.flash(`${sel.id} eliminada`);
+                          return;
+                        }
+                      })();
+                    }}>Sí, eliminar</button>
                   </div>
                 ) : (
                   <div className="flowdetail__actions">
@@ -263,6 +330,38 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
             if (params.has('nuevo')) setParams({}, { replace: true });
           }}
           onSave={(data, items) => {
+            if (quote) {
+              void (async () => {
+                const cliente = d.records.clientes.find(c => c.razon === data.cliente);
+                const res = await saveQuotationRemote(data, items, editor.row?.id, cliente?._id);
+                if (!res.ok) {
+                  setError(res.error);
+                  return;
+                }
+                setError('');
+                setEditor(null);
+                if (params.has('nuevo')) setParams({}, { replace: true });
+                setFilter('Todos');
+                if (res.code) setSelId(res.code);
+                toast.flash(editor.row ? 'Cambios guardados' : `${res.code} creada`);
+              })();
+              return undefined;
+            }
+            // solicitud de compra
+            void (async () => {
+              const res = await savePurchaseRequestRemote(data, items, editor.row?.id);
+              if (!res.ok) {
+                setError(res.error);
+                return;
+              }
+              setError('');
+              setEditor(null);
+              if (params.has('nuevo')) setParams({}, { replace: true });
+              setFilter('Todos');
+              if (res.code) setSelId(res.code);
+              toast.flash(editor.row ? 'Cambios guardados' : `${res.code} creada`);
+            })();
+            return undefined;
             let id = '';
             const err = mutate(dr => {
               id = saveFlowDoc(dr, cfg.kind, data, items, editor.row?.id);

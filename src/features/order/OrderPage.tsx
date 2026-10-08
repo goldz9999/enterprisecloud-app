@@ -4,6 +4,8 @@ import { AppShell } from '../../components/AppShell';
 import { StatusChip } from '../../components/StatusChip';
 import { Toast, useToast } from '../../components/Toast';
 import { canCancel, cancelOrder, completeStep, orderStatus, orderSubtotal, partyCredit, STEPS, type StepField } from '../../data/domain/orders';
+import { cancelSaleOrderRemote, completeSaleStepRemote } from '../../data/domain/salesOrders';
+import { cancelPurchaseOrderRemote, completePurchaseStepRemote } from '../../data/domain/purchaseOrders';
 import { stockRow } from '../../data/domain/stock';
 import { can } from '../../data/permissions';
 import { mutate, useDB } from '../../data/store';
@@ -83,22 +85,97 @@ export function OrderPage({ kind }: { kind: 'venta' | 'compra' }) {
   const goTo = (i: number) => { setView(i); setShowErrors(false); setError(''); };
   const goCurrent = () => goTo(Math.min(o.done, n - 1));
 
-  const submit = () => {
+  const submit = async () => {
     if (fields.some(f => f.required && !String(f.value).trim())) return setShowErrors(true);
     const values = Object.fromEntries(fields.map(f => [f.k, String(f.value)]));
-    let result: { error?: string; stay?: string } = {};
-    const err = mutate(draft => { result = completeStep(draft, o.code, values); return result.error; });
-    if (err) return setError(err);
-    setError(''); setShowErrors(false);
-    setForms(s => ({ ...s, [vi]: {} }));
-    if (result.stay) return toast.flash(result.stay);
-    setView(vi); setJustDone(vi);
+    if (sale) {
+      // Persistir el paso en el backend y, si OK, aplicar efectos locales (stock, CxC, docs).
+      const remote = await completeSaleStepRemote(o.code, values);
+      if (!remote.ok) return setError(remote.error);
+      let result: { error?: string; stay?: string } = {};
+      mutate(draft => {
+        const local = draft.orders.find(x => x.code === o.code && x.kind === 'venta');
+        if (local && !local.cancelled && local.done < 5 && local.done === o.done) {
+          result = completeStep(draft, o.code, values);
+        }
+        const i = draft.orders.findIndex(x => x.code === o.code && x.kind === 'venta');
+        if (i >= 0) {
+          draft.orders[i] = {
+            ...draft.orders[i],
+            done: remote.order.done,
+            forms: { ...draft.orders[i].forms, ...remote.order.forms },
+            docs: { ...draft.orders[i].docs, ...remote.order.docs },
+            log: { ...draft.orders[i].log, ...remote.order.log },
+            cancelled: remote.order.cancelled,
+            warehouse: remote.order.warehouse || draft.orders[i].warehouse,
+            party: { ...draft.orders[i].party, ...remote.order.party },
+          };
+        }
+        return result.error;
+      });
+      if (result.error) toast.flash(`Paso guardado en servidor · aviso local: ${result.error}`);
+      setError(''); setShowErrors(false);
+      setForms(s => ({ ...s, [vi]: {} }));
+      if (result.stay) return toast.flash(result.stay);
+      setView(vi); setJustDone(vi);
+      return;
+    }
+    // compra: backend + efectos locales
+    {
+      const remote = await completePurchaseStepRemote(o.code, values);
+      if (!remote.ok) return setError(remote.error);
+      let result: { error?: string; stay?: string } = {};
+      mutate(draft => {
+        const local = draft.orders.find(x => x.code === o.code && x.kind === 'compra');
+        if (local && !local.cancelled && local.done < 5 && local.done === o.done) {
+          result = completeStep(draft, o.code, values);
+        }
+        const i = draft.orders.findIndex(x => x.code === o.code && x.kind === 'compra');
+        if (i >= 0) {
+          draft.orders[i] = {
+            ...draft.orders[i],
+            done: remote.order.done,
+            forms: { ...draft.orders[i].forms, ...remote.order.forms },
+            docs: { ...draft.orders[i].docs, ...remote.order.docs },
+            log: { ...draft.orders[i].log, ...remote.order.log },
+            cancelled: remote.order.cancelled,
+            warehouse: remote.order.warehouse || draft.orders[i].warehouse,
+            party: { ...draft.orders[i].party, ...remote.order.party },
+          };
+        }
+        return result.error;
+      });
+      if (result.error) toast.flash(`Paso guardado en servidor · aviso local: ${result.error}`);
+      setError(''); setShowErrors(false);
+      setForms(s => ({ ...s, [vi]: {} }));
+      if (result.stay) return toast.flash(result.stay);
+      setView(vi); setJustDone(vi);
+      return;
+    }
   };
 
-  const cancel = () => {
-    mutate(draft => cancelOrder(draft, o.code));
-    setConfirmCancel(false);
-    toast.flash(`${o.code} anulada`);
+  const cancel = async () => {
+    if (sale) {
+      const remote = await cancelSaleOrderRemote(o.code);
+      if (!remote.ok) {
+        setConfirmCancel(false);
+        return setError(remote.error);
+      }
+      mutate(draft => cancelOrder(draft, o.code));
+      setConfirmCancel(false);
+      toast.flash(`${o.code} anulada`);
+      return;
+    }
+    {
+      const remote = await cancelPurchaseOrderRemote(o.code);
+      if (!remote.ok) {
+        setConfirmCancel(false);
+        return setError(remote.error);
+      }
+      mutate(draft => cancelOrder(draft, o.code));
+      setConfirmCancel(false);
+      toast.flash(`${o.code} anulada`);
+    }
   };
 
   const handleFiles = useCallback(async (files: FileList | null) => {

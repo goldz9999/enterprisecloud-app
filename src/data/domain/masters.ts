@@ -94,6 +94,30 @@ export const warehouseNameById = (id: unknown): string => String(byId('almacenes
 /** Nombres de usuarios del backend (para vendedor / responsable). */
 export const masterUserNames = (): string[] => [NONE, ...users.filter(u => u.active).map(u => u.name)];
 
+/** UUID del maestro a partir del _id local del store. */
+export function masterUuid(c: MasterCollection, localRowId: number): string | null {
+    return uuids.get(localRowId) ?? null;
+}
+
+/** UUID de producto por SKU. */
+export function productUuidBySku(sku: string): string | null {
+    return raw.productos.find(r => r.sku === sku)?.id ?? null;
+}
+
+/** UUID de usuario por nombre completo. */
+export function userUuidByName(name: string): string | null {
+    return userId(name);
+}
+
+/** UUID de cliente por razón social. */
+export function customerUuidByName(name: string): string | null {
+    return idByName('clientes', 'legal_name', name);
+}
+
+export function supplierUuidByName(name: string): string | null {
+    return idByName('proveedores', 'legal_name', name);
+}
+
 function carrier(v: Value | undefined): { own: boolean; id: string | null } {
     const n = text(v);
     if (!n || n === OWN) return { own: true, id: null };
