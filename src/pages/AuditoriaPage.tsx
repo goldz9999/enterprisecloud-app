@@ -3,7 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { Pagination } from '../components/Pagination';
 import { StatusChip, type Tone } from '../components/StatusChip';
+import { auditError, fetchAuditEvents } from '../data/domain/admin';
 import { audit } from '../data/domain/audit';
+import type { AuditEvent } from '../data/types';
 import { mutate, useDB } from '../data/store';
 import { downloadCsv } from '../lib/csv';
 import './AuditoriaPage.css';
@@ -25,9 +27,21 @@ const p2 = (n: number) => String(n).padStart(2, '0');
 /** Audit events with display fields (relative age, day/time, exact timestamp). */
 function useEvents() {
   const d = useDB();
-  return useMemo(() => {
+  // Eventos registrados por el backend (Supabase) + los de pantallas que aún trabajan en local.
+  const [remote, setRemote] = useState<AuditEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  useEffect(() => {
+    let on = true;
+    fetchAuditEvents()
+      .then(r => on && setRemote(r))
+      .catch(e => on && setLoadError(auditError(e)))
+      .finally(() => on && setLoading(false));
+    return () => { on = false; };
+  }, []);
+  const events = useMemo(() => {
     const now = Date.now();
-    return d.audit.map(e => {
+    return [...remote, ...d.audit].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).map(e => {
       const t = new Date(e.at);
       return {
         ...e,
@@ -37,11 +51,12 @@ function useEvents() {
         full: `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())} ${p2(t.getHours())}:${p2(t.getMinutes())}:${p2(t.getSeconds())} (UTC−5)`,
       };
     });
-  }, [d]);
+  }, [d.audit, remote]);
+  return { events, loading, loadError };
 }
 
 export function AuditoriaPage() {
-  const events = useEvents();
+  const { events, loading, loadError } = useEvents();
   const modules = ['Todos', ...new Set([...MODULES.slice(1), ...events.map(e => e.module)])];
   const [range, setRange] = useState<Range>('7 días');
   const [result, setResult] = useState<'Todos' | Result>('Todos');
@@ -102,6 +117,9 @@ export function AuditoriaPage() {
           <span><span className="mono" style={{ color: 'var(--amber)' }}>{list.filter(e => e.result === 'Denegado').length}</span> denegados</span>
         </div>
       </div>
+
+      {loading && <div className="info-banner">Cargando eventos del servidor…</div>}
+      {loadError && <div className="drawer-error">{loadError}</div>}
 
       <section className="filters">
         <div className="filters__group">

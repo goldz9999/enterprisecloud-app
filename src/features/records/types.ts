@@ -25,10 +25,12 @@ export interface Column {
 export interface Field {
   k: string;
   label: string;
-  type?: 'text' | 'number' | 'select' | 'date';
+  type?: 'text' | 'number' | 'select' | 'date' | 'password';
   /** Static options, or computed from the data (e.g. active clients). */
   options?: string[] | ((d: DB) => string[]);
   required?: boolean;
+  /** Show the field only when creating ('new') or only when editing ('edit'). */
+  only?: 'new' | 'edit';
   wide?: boolean;
   placeholder?: string;
   fmt?: Fmt;

@@ -1,10 +1,10 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { Toast, useToast } from '../components/Toast';
-import { audit } from '../data/domain/audit';
+import { loadAdmin, saveRolePermissions } from '../data/domain/admin';
 import { ACTIONS, can, MODULES } from '../data/permissions';
-import { mutate, useDB } from '../data/store';
+import { useDB } from '../data/store';
 import type { PermMatrix } from '../data/types';
 import './PermisosPage.css';
 
@@ -19,15 +19,25 @@ export function PermisosPage() {
   const [role, setRole] = useState(() => roles.find(([r]) => r === 'Ventas')?.[0] ?? roles[0]?.[0] ?? 'Administrador');
   const [perms, setPerms] = useState(() => clone(saved));
   const toast = useToast();
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  // La matriz vive en el backend: se carga al entrar y se vuelve a sincronizar si cambia lo guardado.
+  const savedKey = JSON.stringify(saved);
+  const roleKey = roles.map(([r]) => r).join('|');
+  useEffect(() => { void loadAdmin(); }, []);
+  useEffect(() => { setPerms(clone(saved)); }, [savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (roles.length && !roles.some(([r]) => r === role)) setRole(roles[0][0]); }, [roleKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const canEdit = can(d, 'Permisos', 'Editar');
   const locked = role === 'Administrador' || !canEdit;
   // Roles created after this screen opened get an empty row set.
   const rowOf = (m: string) => perms[role]?.[m] ?? saved[role]?.[m] ?? [false, false, false, false, false];
 
   const changed: [string, string, string][] = [];
+  const changedRoles = new Set<string>();
   for (const r of Object.keys(perms))
     for (const m of Object.keys(perms[r]))
       perms[r][m].forEach((v, i) => {
+        if (v !== (saved[r]?.[m]?.[i] ?? false)) changedRoles.add(r);
         if (v !== (saved[r]?.[m]?.[i] ?? false)) changed.push([`${r} · ${m} · ${ACTIONS[i]}`, v ? 'No' : 'Sí', v ? 'Sí' : 'No']);
       });
   const changes = changed.length;
@@ -51,11 +61,13 @@ export function PermisosPage() {
       if (i === 0 && !row[0]) row.fill(false);
     }, mod);
 
-  const save = () => {
-    mutate(dr => {
-      dr.permisos = clone(perms);
-      audit(dr, { action: 'Editar', module: 'Administración', ref: 'Permisos', desc: `Permisos de rol actualizados · ${changes} cambio${changes === 1 ? '' : 's'}`, changes: changed.slice(0, 20) });
-    });
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    const res = await saveRolePermissions(perms, [...changedRoles]);
+    setSaving(false);
+    if (!res.ok) return setError(res.error);
     toast.flash('Permisos guardados · registrado en auditoría');
   };
 
@@ -77,6 +89,7 @@ export function PermisosPage() {
         <Link to="/admin/roles" style={{ marginLeft: 'auto', fontSize: 12 }}>Gestionar roles →</Link>
       </div>
 
+      {error && <div className="drawer-error">{error}</div>}
       {!canEdit && <div className="info-banner">Tu rol puede ver los permisos pero no modificarlos.</div>}
       {role === 'Administrador' && (
         <div className="info-banner">
@@ -135,9 +148,9 @@ export function PermisosPage() {
           <span style={{ flex: 1 }}>
             {changes} cambio{changes === 1 ? '' : 's'} sin guardar · se aplicará al siguiente inicio de sesión de los usuarios
           </span>
-          <button type="button" className="btn" onClick={() => setPerms(clone(saved))}>Descartar</button>
-          <button type="button" className="btn btn--primary" style={{ padding: '0 16px' }} onClick={save}>
-            Guardar cambios
+          <button type="button" className="btn" disabled={saving} onClick={() => { setPerms(clone(saved)); setError(''); }}>Descartar</button>
+          <button type="button" className="btn btn--primary" style={{ padding: '0 16px' }} disabled={saving} onClick={() => void save()}>
+            {saving ? 'Guardando…' : 'Guardar cambios'}
           </button>
         </div>
       )}

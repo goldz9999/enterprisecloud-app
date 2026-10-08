@@ -1,3 +1,4 @@
+import { masterUserNames } from '../../data/domain/masters';
 import { warehouses } from '../../data/domain/orders';
 import type { DB } from '../../data/types';
 import { fmtDate } from '../../lib/dates';
@@ -9,6 +10,8 @@ export const opts = {
     const u = d.records.usuarios.filter(x => x.estado === 'Activo').map(x => String(x.nombre));
     return u.length ? u : ['—'];
   },
+  /** Usuarios reales del backend (para vendedor / responsable), con '—' para dejarlo sin asignar. */
+  masterUsers: () => masterUserNames(),
   usersWithRole: (role: string) => (d: DB) => {
     const u = d.records.usuarios.filter(x => x.rol === role && x.estado !== 'Inactivo').map(x => String(x.nombre));
     return u.length ? u : opts.activeUsers(d);

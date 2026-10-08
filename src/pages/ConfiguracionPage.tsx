@@ -1,12 +1,12 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppShell } from '../components/AppShell';
 import { DataDialog } from '../components/DataDialog';
 import { canManageData, downloadBackup } from '../lib/dataManagement';
 import { Toast, useToast } from '../components/Toast';
-import { audit } from '../data/domain/audit';
+import { loadAdmin, saveSettings } from '../data/domain/admin';
 import { can } from '../data/permissions';
 import { SETTING_SECTIONS } from '../data/settings';
-import { getDB, importBackup, mutate, useDB } from '../data/store';
+import { getDB, importBackup, useDB } from '../data/store';
 import type { Settings } from '../data/types';
 import { useTheme } from '../lib/theme';
 import './ConfiguracionPage.css';
@@ -37,17 +37,24 @@ export function ConfiguracionPage() {
   const [activeSection, setActiveSection] = useState('datos');
   const fileInput = useRef<HTMLInputElement>(null);
   const toast = useToast();
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+  // La configuración vive en el backend: se carga al entrar y el formulario se sincroniza cuando cambia lo guardado.
+  const savedKey = JSON.stringify(saved);
+  useEffect(() => { void loadAdmin(); }, []);
+  useEffect(() => { setForm({ ...saved }); }, [savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const canEdit = can(d, 'Configuración', 'Editar');
   const keys = SETTING_SECTIONS.flatMap(s => s.fields.map(f => f.k)).filter(k => k !== 'theme');
   const changes = keys.filter(k => form[k] !== saved[k]);
   const set = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
-  const save = () => {
-    mutate(dr => {
-      const labels = Object.fromEntries(SETTING_SECTIONS.flatMap(s => s.fields.map(f => [f.k, f.label])));
-      audit(dr, { action: 'Editar', module: 'Administración', ref: 'Configuración', desc: `Configuración actualizada · ${changes.length} cambio${changes.length === 1 ? '' : 's'}`, changes: changes.map(k => [labels[k] ?? k, String(saved[k] ?? ''), String(form[k] ?? '')]) });
-      dr.settings = { ...dr.settings, ...form };
-    });
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+    const res = await saveSettings(form);
+    setSaving(false);
+    if (!res.ok) return setSaveError(res.error);
     toast.flash('Configuración guardada · registrado en auditoría');
   };
 
@@ -184,9 +191,9 @@ export function ConfiguracionPage() {
           {changes.length > 0 && (
             <div className="savebar">
               <span className="savebar__dot" />
-              <span style={{ flex: 1 }}>{changes.length} cambio{changes.length === 1 ? '' : 's'} sin guardar</span>
-              <button type="button" className="btn" onClick={() => setForm({ ...saved })}>Descartar</button>
-              <button type="button" className="btn btn--primary" style={{ padding: '0 16px' }} onClick={save}>Guardar cambios</button>
+              <span style={{ flex: 1 }}>{changes.length} cambio{changes.length === 1 ? '' : 's'} sin guardar{saveError && <span style={{ color: 'var(--red)' }}> · {saveError}</span>}</span>
+              <button type="button" className="btn" disabled={saving} onClick={() => { setForm({ ...saved }); setSaveError(''); }}>Descartar</button>
+              <button type="button" className="btn btn--primary" style={{ padding: '0 16px' }} disabled={saving} onClick={() => void save()}>{saving ? 'Guardando…' : 'Guardar cambios'}</button>
             </div>
           )}
         </div>

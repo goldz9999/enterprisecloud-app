@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Drawer } from '../../components/Drawer';
 import { StatusChip } from '../../components/StatusChip';
+import { isRemote } from '../../data/domain/remote';
 import { useDB } from '../../data/store';
 import type { DB } from '../../data/types';
 import { formatValue } from '../../lib/format';
@@ -68,7 +69,8 @@ function FieldGrid({ fields, form, setForm, showErrors, d }: { fields: Field[]; 
             ) : (
               <input
                 className={cls}
-                type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+                type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'password' ? 'password' : 'text'}
+                autoComplete={f.type === 'password' ? 'new-password' : undefined}
                 step={f.type === 'number' ? 'any' : undefined}
                 value={value}
                 placeholder={f.placeholder}
@@ -87,24 +89,28 @@ function FieldGrid({ fields, form, setForm, showErrors, d }: { fields: Field[]; 
 export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClose, onSave, onDelete, onAction }: RecordDrawerProps) {
   const navigate = useNavigate();
   const d = useDB();
-  const [form, setForm] = useState(() => initialForm(cfg.fields, d, row));
+  const isNew = mode === 'new';
+  const isEdit = mode !== 'view';
+  // Fields marked `only: 'new'` / `only: 'edit'` appear in just that mode.
+  const fields = cfg.fields.filter(f => !f.only || (isNew ? f.only === 'new' : isEdit && f.only === 'edit'));
+  // Remote records (backend) are never deleted: "Eliminar" deactivates them.
+  const remote = isRemote(cfg.collection);
+  const [form, setForm] = useState(() => initialForm(fields, d, row));
   const [showErrors, setShowErrors] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // An action that needs input before running.
   const [pending, setPending] = useState<{ action: Action; fields: Field[]; form: Record<string, string> } | null>(null);
 
-  const isNew = mode === 'new';
-  const isEdit = mode !== 'view';
   const status = row ? String(row[cfg.statusKey]) : '';
   const note = (row && cfg.notes?.[status]) || cfg.note;
 
   const save = () => {
-    if (cfg.fields.some(f => f.required && !String(form[f.k] ?? '').trim())) {
+    if (fields.some(f => f.required && !String(form[f.k] ?? '').trim())) {
       setShowErrors(true);
       return;
     }
     const values: Record<string, Value> = { ...form };
-    for (const f of cfg.fields) if (f.type === 'number') values[f.k] = Number(form[f.k]) || 0;
+    for (const f of fields) if (f.type === 'number') values[f.k] = Number(form[f.k]) || 0;
     onSave(values);
   };
 
@@ -132,7 +138,7 @@ export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClos
   const editFooter = (
     <div className="drawer-actions">
       {mode === 'edit' && canDelete && (
-        <button type="button" className="btn btn--danger-text" onClick={() => setConfirmDelete(true)}>Eliminar</button>
+        <button type="button" className="btn btn--danger-text" onClick={() => setConfirmDelete(true)}>{remote ? 'Dar de baja' : 'Eliminar'}</button>
       )}
       <span className="drawer-actions__spacer" />
       <button type="button" className="btn" onClick={onClose}>Cancelar</button>
@@ -177,9 +183,9 @@ export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClos
           {errorBox}
           {confirmDelete && (
             <div className="confirm-del">
-              <span className="confirm-del__text">¿Eliminar este registro? La acción queda registrada en auditoría.</span>
+              <span className="confirm-del__text">{remote ? '¿Dar de baja este registro? Quedará Inactivo y conservará su historial.' : '¿Eliminar este registro? La acción queda registrada en auditoría.'}</span>
               <button type="button" className="confirm-del__no" onClick={() => setConfirmDelete(false)}>No</button>
-              <button type="button" className="confirm-del__yes" onClick={onDelete}>Sí, eliminar</button>
+              <button type="button" className="confirm-del__yes" onClick={onDelete}>{remote ? 'Sí, dar de baja' : 'Sí, eliminar'}</button>
             </div>
           )}
           {isEdit ? editFooter : viewFooter}
@@ -187,11 +193,11 @@ export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClos
       }
     >
       {isEdit ? (
-        <FieldGrid fields={cfg.fields} form={form} setForm={setForm} showErrors={showErrors} d={d} />
+        <FieldGrid fields={fields} form={form} setForm={setForm} showErrors={showErrors} d={d} />
       ) : (
         row && (
           <div className="form-grid">
-            {cfg.fields.map(f => (
+            {fields.map(f => (
               <div key={f.k} className={'readfield' + (f.wide ? ' field--wide' : '')}>
                 <span className="field__label">{f.label}</span>
                 <span className={'readfield__value' + (f.mono || f.fmt ? ' mono' : '')}>{formatValue(row[f.k], f.fmt)}</span>

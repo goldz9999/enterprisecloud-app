@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
 import { StatusChip, toneColor } from '../../components/StatusChip';
 import { Toast, useToast } from '../../components/Toast';
 import { audit, diff } from '../../data/domain/audit';
 import { can } from '../../data/permissions';
-import { mutate, nextCode, nextId, useDB } from '../../data/store';
+import { createRemote, deactivateRemote, isRemote, loadRemote, updateRemote, type RemoteCollection } from '../../data/domain/remote';
+import { getDB, mutate, nextCode, nextId, useDB } from '../../data/store';
 import type { DB } from '../../data/types';
 import { downloadCsv } from '../../lib/csv';
 import { formatValue } from '../../lib/format';
@@ -93,6 +94,12 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; id: number | null } | null>(null);
   const [error, setError] = useState('');
   const toast = useToast();
+  // Mantenimiento y Administración (usuarios y roles) viven en el backend (Supabase); el resto de pantallas siguen locales.
+  const remote = isRemote(cfg.collection);
+  const busy = useRef(false);
+  useEffect(() => {
+    if (remote) void loadRemote(cfg.collection as RemoteCollection);
+  }, [remote, cfg.collection]);
   const sk = cfg.statusKey;
   const mod = cfg.active;
   const canCreate = can(d, mod, 'Crear') && !!cfg.collection;
@@ -122,9 +129,59 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
   const close = () => setDrawer(null);
   const labels = Object.fromEntries(cfg.fields.map(f => [f.k, f.label]));
 
+  /** Guarda un registro en el backend y refleja el resultado en el store local. */
+  const saveRemote = async (rec: Record<string, Value>, isNew: boolean) => {
+    if (busy.current) return;
+    const coll = cfg.collection as RemoteCollection;
+
+    // Validaciones locales (duplicados, etc.) sobre una copia, antes de llamar al servidor.
+    const probe = structuredClone(getDB());
+    if (isNew) {
+      const row = { ...(cfg.defaults?.(probe) ?? {}), ...rec, _id: 0 } as Row;
+      const e = cfg.onCreate?.(probe, row);
+      if (e) return setError(e);
+    } else {
+      const before = probe.records[coll as 'clientes'].find(r => r._id === drawer?.id);
+      if (!before) return setError('El registro ya no existe.');
+      const e = cfg.onUpdate?.(probe, before, { ...before, ...rec } as Row);
+      if (e) return setError(e);
+    }
+
+    // La auditoría de estos registros la escribe el backend; aquí solo van los efectos locales (p. ej. stock inicial).
+    const effects = (draft: DB, saved: Row) => {
+      if (isNew) cfg.onCreate?.(draft, saved);
+      else {
+        const before = draft.records[coll as 'clientes'].find(r => r._id === saved._id);
+        if (before) cfg.onUpdate?.(draft, before, { ...before, ...rec } as Row);
+      }
+    };
+
+    busy.current = true;
+    setError('');
+    const res = isNew ? await createRemote(coll, rec, effects) : await updateRemote(coll, drawer!.id!, rec, effects);
+    busy.current = false;
+    if (!res.ok) return setError(res.error);
+    if (isNew) setFilter('Todos');
+    toast.flash(res.warning ?? (isNew ? cfg.msgNew ?? 'Registro creado' : 'Cambios guardados'));
+    close();
+  };
+
+  /** Baja lógica en el backend: el registro queda Inactivo y conserva su historial. */
+  const removeRemote = async () => {
+    if (busy.current || !current || drawer?.id == null) return;
+    busy.current = true;
+    setError('');
+    const res = await deactivateRemote(cfg.collection as RemoteCollection, drawer.id);
+    busy.current = false;
+    if (!res.ok) return setError(res.error);
+    close();
+    toast.flash(`${cfg.entity} dado de baja (Inactivo)`);
+  };
+
   const save = (values: Record<string, Value>) => {
     const rec = cfg.onSave ? cfg.onSave(values) : values;
     const isNew = drawer?.mode === 'new';
+    if (remote) return void saveRemote(rec, isNew);
     const err = mutate(draft => {
       const list = draft.records[cfg.collection!];
       if (isNew) {
@@ -153,6 +210,7 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
   };
 
   const remove = () => {
+    if (remote) return void removeRemote();
     const err = mutate(draft => {
       const list = draft.records[cfg.collection!];
       const row = list.find(r => r._id === drawer?.id);

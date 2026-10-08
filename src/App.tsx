@@ -2,6 +2,8 @@ import { useEffect, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { logout, refreshSession, sessionExpired } from './data/domain/auth';
+import { loadAdmin } from './data/domain/admin';
+import { loadMasters } from './data/domain/masters';
 import { can } from './data/permissions';
 import { useSession, wasSignedOut } from './data/session';
 import { useDB } from './data/store';
@@ -84,7 +86,12 @@ export function App() {
   // On load (and after each sign-in) confirm the token with the backend and pick up role/permission changes.
   const token = session?.token;
   useEffect(() => {
-    if (token) void refreshSession();
+    if (token) {
+      void refreshSession();
+      // Mantenimiento y Administración se leen del backend (Supabase).
+      void loadMasters();
+      void loadAdmin();
+    }
   }, [token]);
 
   // Table density preference from Configuración › Apariencia.
