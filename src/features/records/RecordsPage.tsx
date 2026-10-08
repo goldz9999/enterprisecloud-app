@@ -182,6 +182,18 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
     const rec = cfg.onSave ? cfg.onSave(values) : values;
     const isNew = drawer?.mode === 'new';
     if (remote) return void saveRemote(rec, isNew);
+    // Inventario: creación asíncrona vía API
+    if (isNew && cfg.asyncCreate) {
+      void (async () => {
+        const probe = { ...(cfg.defaults?.(getDB()) ?? {}), ...rec, _id: 0 } as Row;
+        const e = await cfg.asyncCreate!(getDB(), probe);
+        if (e) { setError(e); return; }
+        setDrawer(null);
+        setError('');
+        toast.flash(cfg.msgNew || 'Guardado');
+      })();
+      return;
+    }
     const err = mutate(draft => {
       const list = draft.records[cfg.collection!];
       if (isNew) {

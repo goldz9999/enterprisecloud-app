@@ -10,6 +10,8 @@ import { loadInvoices } from './data/domain/invoices';
 import { loadPurchaseRequests } from './data/domain/purchaseRequests';
 import { loadPurchaseOrders } from './data/domain/purchaseOrders';
 import { loadGoodsReceipts } from './data/domain/goodsReceipts';
+import { loadInventory } from './data/domain/inventory';
+import { loadFinance } from './data/domain/finance';
 import { can } from './data/permissions';
 import { useSession, wasSignedOut } from './data/session';
 import { useDB } from './data/store';
@@ -103,6 +105,8 @@ export function App() {
       void loadPurchaseRequests();
       void loadPurchaseOrders();
       void loadGoodsReceipts();
+      void loadInventory();
+      void loadFinance();
     }
   }, [token]);
 

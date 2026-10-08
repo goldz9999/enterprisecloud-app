@@ -1,7 +1,8 @@
 import type { RecordsConfig } from '../../features/records/types';
-import { bankAccounts, bankBalance } from '../../data/domain/finance';
-import { isoDate, displayDate } from '../../lib/dates';
+import { createBankRemote, reconcileRemote } from '../../data/domain/finance';
 import { formatMoney } from '../../lib/format';
+import { isoDate } from '../../lib/dates';
+import type { DB, Row } from '../../data/types';
 
 export const bancos: RecordsConfig = {
   active: 'Bancos',
@@ -12,27 +13,42 @@ export const bancos: RecordsConfig = {
   collection: 'bancos',
   entity: 'Movimiento bancario', titleKey: 'desc', subKey: 'cuenta', statusKey: 'estado', newTitle: 'Registrar movimiento bancario', newKicker: 'Finanzas · Bancos', msgNew: 'Movimiento registrado',
   statuses: { 'Conciliado': 'green', 'Pendiente': 'amber' },
-  keys: ['fecha', 'desc', 'cuenta', 'ref', 'monto', 'estado'],
+  keys: ['fecha', 'desc', 'cuenta', 'ref', 'monto', 'estado', 'uuid'],
   defaults: () => ({ estado: 'Pendiente' }),
-  onSave: r => ({ ...r, fecha: displayDate(String(r.fecha)), monto: (r.tipo === 'Cargo' ? -1 : 1) * Math.abs(Number(r.monto) || 0) }),
-  onCreate: (_d, row) => {
+  asyncCreate: async (_d: DB, row: Row) => {
     if (!Number(row.monto)) return 'El monto debe ser mayor que cero.';
-    delete row.tipo;
+    const res = await createBankRemote({
+      tipo: String(row.tipo || 'Abono'),
+      monto: Number(row.monto),
+      desc: String(row.desc || ''),
+      cuenta: String(row.cuenta || ''),
+      ref: row.ref ? String(row.ref) : undefined,
+    });
+    return res.ok ? undefined : res.error;
   },
-  kpis: (_rows, d) => {
-    const accounts = bankAccounts(d);
-    if (!accounts.length) return [{ label: 'Sin cuentas bancarias', value: '—', note: 'agrégalas en Configuración › Tesorería' }];
-    return accounts.map(a => ({ label: a, value: formatMoney(bankBalance(d, a)), note: `${d.records.bancos.filter(b => b.cuenta === a && b.estado === 'Pendiente').length} movimientos por conciliar` }));
-  },
-  columns: [{ k: 'fecha', label: 'Fecha', w: '96px', mono: true, muted: true }, { k: 'desc', label: 'Descripción', w: 'minmax(0, 1fr)', sub: 'cuenta' }, { k: 'ref', label: 'Referencia', w: '120px', mono: true, muted: true }, { k: 'monto', label: 'Monto', w: '124px', fmt: 'signed', align: 'right' }, { k: 'estado', label: 'Estado', w: '112px', chip: true }],
+  columns: [
+    { k: 'fecha', label: 'Fecha', w: '96px', mono: true, muted: true },
+    { k: 'desc', label: 'Descripción', w: 'minmax(0, 1fr)', sub: 'cuenta' },
+    { k: 'ref', label: 'Referencia', w: '120px', mono: true, muted: true },
+    { k: 'monto', label: 'Monto', w: '124px', fmt: 'signed', align: 'right' },
+    { k: 'estado', label: 'Estado', w: '112px', chip: true },
+  ],
   fields: [
     { k: 'fecha', label: 'Fecha', type: 'date', value: () => isoDate(new Date()), required: true },
-    { k: 'cuenta', label: 'Cuenta', type: 'select', options: bankAccounts, required: true },
+    { k: 'cuenta', label: 'Cuenta', type: 'text', required: true, placeholder: 'Etiqueta de la cuenta (debe existir en BD)' },
     { k: 'tipo', label: 'Tipo', type: 'select', options: ['Abono', 'Cargo'] },
-    { k: 'monto', label: 'Monto (S/)', type: 'number', required: true, fmt: 'signed' },
+    { k: 'monto', label: 'Monto (S/)', type: 'number', required: true },
     { k: 'desc', label: 'Descripción', wide: true, required: true },
     { k: 'ref', label: 'Referencia', mono: true },
   ],
   notes: { 'Pendiente': 'Este movimiento aún no está vinculado a un cobro, pago o comprobante del ERP.' },
-  actions: { 'Pendiente': [{ label: 'Conciliar con documento', to: 'Conciliado', primary: true, toast: 'Movimiento conciliado', fields: [{ k: 'doc', label: 'Documento relacionado', placeholder: 'Ej. F001-00248, OP 00481920' }], run: (_d, r, v) => { if (v.doc) r.ref = v.doc; } }] },
+  actions: {
+    'Pendiente': [{
+      label: 'Conciliar con documento', to: 'Conciliado', primary: true, toast: 'Movimiento conciliado',
+      fields: [{ k: 'doc', label: 'Documento relacionado', placeholder: 'Ej. F001-00248, OP 00481920' }],
+      run: (_d, r, v) => {
+        void reconcileRemote(String(r.uuid), v.doc ? String(v.doc) : undefined);
+      },
+    }],
+  },
 };

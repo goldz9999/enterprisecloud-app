@@ -106,6 +106,7 @@ export interface RecordsConfig {
   /** Normalise a record before it's stored (e.g. sign of an amount). */
   onSave?: (r: Record<string, Value>) => Record<string, Value>;
   /** Effects after creating (inside the update). Return a message to abort. */
+  asyncCreate?: (d: import("../../data/types").DB, row: import("../../data/types").Row) => Promise<string | void>;
   onCreate?: (d: DB, row: Row) => string | void;
   onUpdate?: (d: DB, before: Row, after: Row) => string | void;
   /** Return a reason to block deletion. */

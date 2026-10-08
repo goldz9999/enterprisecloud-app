@@ -1,150 +1,283 @@
-import { addDays, daysBetween, fmtDate, fmtDayMonth, fmtTime, parseDate } from '../../lib/dates';
-import { formatMoney } from '../../lib/format';
-import { currentUser, nextCode, nextId } from '../store';
+import { api, ApiError } from '../../lib/api';
+import { update } from '../store';
 import type { DB, Row } from '../types';
-import { audit } from './audit';
 
-const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Raw = Record<string, any>;
 
-/** Bank accounts configured in Configuración (one per line or comma-separated). */
+function explain(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 0) return e.message;
+    if (e.status === 403) return 'No tienes permiso para realizar esta acción.';
+    if (e.status === 404) return 'El registro ya no existe.';
+    return e.message.replace(/Value error, /g, '');
+  }
+  return 'Ocurrió un error inesperado.';
+}
+
+const maps = {
+  cxc: new Map<string, number>(),
+  cxp: new Map<string, number>(),
+  caja: new Map<string, number>(),
+  bancos: new Map<string, number>(),
+};
+let seq = 0;
+function lid(map: Map<string, number>, key: string): number {
+  let n = map.get(key);
+  if (!n) {
+    n = ++seq;
+    map.set(key, n);
+  }
+  return n;
+}
+
+export type FinResult = { ok: true } | { ok: false; error: string };
+
+/** Cuentas bancarias conocidas (desde movimientos cargados). */
 export function bankAccounts(d: DB): string[] {
-  const fromSettings = String(d.settings.cuentas ?? '')
-    .split(/[\n,]/)
-    .map(s => s.trim())
-    .filter(Boolean);
-  const fromMovements = d.records.bancos.map(b => String(b.cuenta));
-  return [...new Set([...fromSettings, ...fromMovements])];
+  return [...new Set(d.records.bancos.map(b => String(b.cuenta)).filter(Boolean))];
 }
 
 export function bankBalance(d: DB, account: string): number {
   return d.records.bancos.filter(b => b.cuenta === account).reduce((a, b) => a + Number(b.monto), 0);
 }
 
-export interface Payment {
-  amount: number;
-  /** "Efectivo" goes to Caja; anything else to the bank account. */
-  medio: string;
+// ---- CxC ----
+function cxcRow(r: Raw): Row {
+  return {
+    _id: lid(maps.cxc, String(r.id)),
+    doc: String(r.doc || ''),
+    emision: String(r.emision || ''),
+    cliente: String(r.cliente || ''),
+    ruc: String(r.ruc || ''),
+    vence: String(r.vence || ''),
+    total: Number(r.total) || 0,
+    saldo: Number(r.saldo) || 0,
+    estado: String(r.estado || 'Por vencer'),
+    dias: String(r.dias || ''),
+    orden: String(r.orden || ''),
+    uuid: String(r.id || ''),
+  };
+}
+
+export async function loadReceivables(): Promise<void> {
+  try {
+    const res = await api<{ items: Raw[] }>('/receivables?limit=200');
+    update(d => {
+      d.records.cxc = (res.items || []).map(cxcRow);
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) {
+      update(d => {
+        d.records.cxc = [];
+      });
+    }
+  }
+}
+
+export async function collectRemote(
+  id: string,
+  amount: number,
+  channel: string,
+  reference?: string,
+): Promise<FinResult> {
+  try {
+    await api(`/receivables/${encodeURIComponent(id)}/collect`, {
+      method: 'POST',
+      body: {
+        amount,
+        channel: channel === 'Bancos' || channel === 'BANK' ? 'BANK' : 'CASH',
+        reference,
+      },
+    });
+    await loadReceivables();
+    await loadCash();
+    await loadBankMovements();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: explain(e) };
+  }
+}
+
+// ---- CxP ----
+function cxpRow(r: Raw): Row {
+  return {
+    _id: lid(maps.cxp, String(r.id)),
+    doc: String(r.doc || ''),
+    emision: String(r.emision || ''),
+    prov: String(r.prov || ''),
+    ruc: String(r.ruc || ''),
+    vence: String(r.vence || ''),
+    total: Number(r.total) || 0,
+    saldo: Number(r.saldo) || 0,
+    estado: String(r.estado || 'Por vencer'),
+    dias: String(r.dias || ''),
+    orden: String(r.orden || ''),
+    uuid: String(r.id || ''),
+  };
+}
+
+export async function loadPayables(): Promise<void> {
+  try {
+    const res = await api<{ items: Raw[] }>('/payables?limit=200');
+    update(d => {
+      d.records.cxp = (res.items || []).map(cxpRow);
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) {
+      update(d => {
+        d.records.cxp = [];
+      });
+    }
+  }
+}
+
+export async function payRemote(
+  id: string,
+  amount: number,
+  channel: string,
+  reference?: string,
+): Promise<FinResult> {
+  try {
+    await api(`/payables/${encodeURIComponent(id)}/pay`, {
+      method: 'POST',
+      body: {
+        amount,
+        channel: channel === 'Caja' || channel === 'CASH' ? 'CASH' : 'BANK',
+        reference,
+      },
+    });
+    await loadPayables();
+    await loadCash();
+    await loadBankMovements();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: explain(e) };
+  }
+}
+
+// ---- Caja ----
+function cajaRow(r: Raw): Row {
+  return {
+    _id: lid(maps.caja, String(r.id || r.code)),
+    fecha: String(r.fecha || ''),
+    tipo: String(r.tipo || ''),
+    desc: String(r.desc || ''),
+    ref: String(r.ref || ''),
+    monto: Number(r.monto) || 0,
+    estado: String(r.estado || 'Conciliado'),
+    uuid: String(r.id || ''),
+  };
+}
+
+export async function loadCash(): Promise<void> {
+  try {
+    const res = await api<{ items: Raw[] }>('/cash?limit=200');
+    update(d => {
+      d.records.caja = (res.items || []).map(cajaRow);
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) {
+      update(d => {
+        d.records.caja = [];
+      });
+    }
+  }
+}
+
+export async function createCashRemote(values: {
+  tipo: string;
+  monto: number;
+  desc: string;
+  ref?: string;
+}): Promise<FinResult> {
+  try {
+    await api('/cash', {
+      method: 'POST',
+      body: {
+        amount: Math.abs(Number(values.monto)),
+        tipo: values.tipo,
+        description: values.desc,
+        reference: values.ref || null,
+      },
+    });
+    await loadCash();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: explain(e) };
+  }
+}
+
+// ---- Bancos ----
+function bancoRow(r: Raw): Row {
+  return {
+    _id: lid(maps.bancos, String(r.id || r.code)),
+    fecha: String(r.fecha || ''),
+    desc: String(r.desc || ''),
+    cuenta: String(r.cuenta || ''),
+    ref: String(r.ref || ''),
+    monto: Number(r.monto) || 0,
+    estado: String(r.estado || 'Pendiente'),
+    uuid: String(r.id || ''),
+  };
+}
+
+export async function loadBankMovements(): Promise<void> {
+  try {
+    const res = await api<{ items: Raw[] }>('/bank-movements?limit=200');
+    update(d => {
+      d.records.bancos = (res.items || []).map(bancoRow);
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) {
+      update(d => {
+        d.records.bancos = [];
+      });
+    }
+  }
+}
+
+export async function createBankRemote(values: {
+  tipo: string;
+  monto: number;
+  desc: string;
   cuenta: string;
-  op: string;
-  date?: Date;
-}
-
-/** Records cash or bank movement for a payment. Positive = money in. */
-function moveMoney(d: DB, signedAmount: number, p: Payment, desc: string) {
-  const when = p.date ?? new Date();
-  if (p.medio === 'Efectivo' || !p.cuenta) {
-    d.records.caja.unshift({
-      _id: nextId(d.records.caja),
-      cod: nextCode(d, 'MOV-CAJA-', 5),
-      hora: fmtTime(new Date()),
-      concepto: desc,
-      tipo: signedAmount >= 0 ? 'Ingreso' : 'Egreso',
-      monto: round2(signedAmount),
-      medio: p.medio === 'Efectivo' ? 'Efectivo' : p.medio || 'Efectivo',
-      resp: currentUser(d).name,
+  ref?: string;
+}): Promise<FinResult> {
+  try {
+    await api('/bank-movements', {
+      method: 'POST',
+      body: {
+        amount: Math.abs(Number(values.monto)),
+        tipo: values.tipo,
+        description: values.desc,
+        cuenta: values.cuenta,
+        reference: values.ref || null,
+      },
     });
-  } else {
-    d.records.bancos.unshift({
-      _id: nextId(d.records.bancos),
-      fecha: fmtDate(when),
-      desc,
-      cuenta: p.cuenta,
-      ref: p.op || '—',
-      monto: round2(signedAmount),
-      estado: 'Conciliado',
-    });
+    await loadBankMovements();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: explain(e) };
   }
 }
 
-function dueText(n: number): string {
-  if (n > 0) return `vence en ${n} día${n === 1 ? '' : 's'}`;
-  if (n === 0) return 'vence hoy';
-  return `${-n} día${n === -1 ? '' : 's'} vencida`;
-}
-
-/** Receivable with "días" text and overdue status computed against today. */
-export function receivableView(row: Row): Row {
-  if (row.estado === 'Cobrada') return row;
-  const due = parseDate(String(row.vence));
-  if (!due) return row;
-  const n = daysBetween(new Date(), due);
-  return { ...row, dias: dueText(n), estado: row.estado === 'Cobro parcial' ? 'Cobro parcial' : n < 0 ? 'Vencida' : 'Por vencer' };
-}
-
-/** Payable with "días" text and status computed against today. */
-export function payableView(row: Row): Row {
-  if (row.estado === 'Pagada') return row;
-  const due = parseDate(String(row.vence));
-  if (!due) return row;
-  const n = daysBetween(new Date(), due);
-  return { ...row, dias: dueText(n), estado: n < 0 ? 'Vencida' : n <= 7 ? 'Vence esta semana' : 'Por vencer' };
-}
-
-export function createReceivable(d: DB, r: { doc: string; cliente: string; ruc: string; total: number; vence: Date; orden?: string }): Row {
-  const row: Row = {
-    _id: nextId(d.records.cxc),
-    doc: r.doc,
-    emision: fmtDate(new Date()),
-    cliente: r.cliente,
-    ruc: r.ruc,
-    vence: fmtDate(r.vence),
-    total: round2(r.total),
-    saldo: round2(r.total),
-    estado: daysBetween(new Date(), r.vence) < 0 ? 'Vencida' : 'Por vencer',
-    dias: '',
-    orden: r.orden ?? '',
-  };
-  d.records.cxc.unshift(row);
-  return row;
-}
-
-export function createPayable(d: DB, r: { doc: string; prov: string; ruc: string; total: number; vence: Date; orden?: string }): Row {
-  const n = daysBetween(new Date(), r.vence);
-  const row: Row = {
-    _id: nextId(d.records.cxp),
-    doc: r.doc,
-    emision: fmtDate(new Date()),
-    prov: r.prov,
-    ruc: r.ruc,
-    vence: fmtDate(r.vence),
-    total: round2(r.total),
-    saldo: round2(r.total),
-    estado: n < 0 ? 'Vencida' : n <= 7 ? 'Vence esta semana' : 'Por vencer',
-    dias: '',
-    orden: r.orden ?? '',
-  };
-  d.records.cxp.unshift(row);
-  return row;
-}
-
-/** Applies a customer payment to a receivable. Returns the remaining balance. */
-export function collect(d: DB, row: Row, p: Payment): number {
-  const amount = Math.min(round2(p.amount), Number(row.saldo));
-  row.saldo = round2(Number(row.saldo) - amount);
-  row.estado = row.saldo <= 0 ? 'Cobrada' : 'Cobro parcial';
-  if (row.saldo <= 0) row.dias = 'cobrada ' + fmtDayMonth(new Date());
-  moveMoney(d, amount, p, `Cobro ${row.doc} · ${row.cliente}`);
-  audit(d, { action: 'Editar', module: 'Finanzas', ref: String(row.doc), desc: `Cobro registrado · ${formatMoney(amount)}`, changes: [['Saldo', formatMoney(Number(row.saldo) + amount), formatMoney(Number(row.saldo))], ['Estado', '', String(row.estado)]] });
-  return Number(row.saldo);
-}
-
-/** Applies a payment to a supplier payable. Returns the remaining balance. */
-export function pay(d: DB, row: Row, p: Payment): number {
-  const amount = Math.min(round2(p.amount), Number(row.saldo));
-  row.saldo = round2(Number(row.saldo) - amount);
-  if (row.saldo <= 0) {
-    row.estado = 'Pagada';
-    row.dias = 'pagada ' + fmtDayMonth(new Date());
+export async function reconcileRemote(id: string, reference?: string): Promise<FinResult> {
+  try {
+    await api(`/treasury-movements/${encodeURIComponent(id)}/reconcile`, {
+      method: 'POST',
+      body: { reference: reference || null },
+    });
+    await loadBankMovements();
+    await loadCash();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: explain(e) };
   }
-  moveMoney(d, -amount, p, `Pago ${row.doc} · ${row.prov}`);
-  audit(d, { action: 'Editar', module: 'Finanzas', ref: String(row.doc), desc: `Pago registrado · ${formatMoney(amount)}`, changes: [['Saldo', formatMoney(Number(row.saldo) + amount), formatMoney(Number(row.saldo))]] });
-  return Number(row.saldo);
 }
 
-/** Days until due for a payment term like "Crédito 30 días" (0 for Contado). */
-export function termDays(term: string): number {
-  const m = /(\d+)/.exec(term);
-  return m ? Number(m[1]) : 0;
+export function loadFinance(): Promise<void> {
+  return Promise.all([loadReceivables(), loadPayables(), loadCash(), loadBankMovements()]).then(
+    () => undefined,
+  );
 }
-
-export const dueFromTerm = (term: string, from = new Date()) => addDays(from, termDays(term));

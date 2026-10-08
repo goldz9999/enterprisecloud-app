@@ -1,46 +1,48 @@
 import type { RecordsConfig } from '../../features/records/types';
-import { currentUser } from '../../data/store';
-import { fmtTime } from '../../lib/dates';
-import { formatMoney as fmtM } from '../../lib/format';
-import { opts, todayLabel } from './shared';
+import { createCashRemote } from '../../data/domain/finance';
+import { formatMoney } from '../../lib/format';
+import { displayDate, isoDate } from '../../lib/dates';
+import type { DB, Row } from '../../data/types';
 
 export const caja: RecordsConfig = {
   active: 'Caja',
   title: 'Caja',
-  subtitle: 'Movimientos de efectivo del día: ventas de mostrador, cobros y gastos menores. Se cuadra al cierre.',
+  subtitle: 'Movimientos de efectivo: cobros, pagos y ajustes manuales.',
   breadcrumb: [{ label: 'Inicio', to: '/' }, { label: 'Finanzas' }, { label: 'Caja' }],
-  newLabel: 'Nuevo movimiento',
+  newLabel: 'Registrar movimiento',
   collection: 'caja',
-  entity: 'Movimiento de caja', titleKey: 'concepto', subKey: 'cod', statusKey: 'tipo', newTitle: 'Nuevo movimiento de caja', newKicker: 'Caja', msgNew: 'Movimiento registrado',
-  statuses: { 'Ingreso': 'green', 'Egreso': 'red' },
-  keys: ['cod', 'hora', 'concepto', 'tipo', 'monto', 'medio', 'resp'],
-  code: { key: 'cod', prefix: 'MOV-CAJA-', width: 5 },
-  defaults: () => ({ hora: fmtTime(new Date()), fecha: todayLabel() }),
-  onSave: r => ({ ...r, monto: (r.tipo === 'Egreso' ? -1 : 1) * Math.abs(Number(r.monto) || 0) }),
-  onCreate: (_d, row) => {
+  entity: 'Movimiento de caja', titleKey: 'desc', subKey: 'fecha', statusKey: 'estado', newTitle: 'Registrar movimiento de caja', newKicker: 'Finanzas · Caja', msgNew: 'Movimiento registrado',
+  statuses: { 'Conciliado': 'green', 'Pendiente': 'amber' },
+  keys: ['fecha', 'tipo', 'desc', 'ref', 'monto', 'estado'],
+  defaults: () => ({ estado: 'Conciliado' }),
+  asyncCreate: async (_d: DB, row: Row) => {
     if (!Number(row.monto)) return 'El monto debe ser mayor que cero.';
+    const res = await createCashRemote({
+      tipo: String(row.tipo || 'Ingreso'),
+      monto: Number(row.monto),
+      desc: String(row.desc || ''),
+      ref: row.ref ? String(row.ref) : undefined,
+    });
+    return res.ok ? undefined : res.error;
   },
   kpis: rows => {
-    const opening = rows.filter(r => r.concepto === 'Apertura de caja');
-    const open = opening.reduce((a, r) => a + Number(r.monto), 0);
-    const amounts = rows.filter(r => r.concepto !== 'Apertura de caja').map(r => Number(r.monto));
-    const ingresos = amounts.filter(m => m > 0);
-    const egresos = amounts.filter(m => m < 0);
-    const totalIn = ingresos.reduce((a, m) => a + m, 0);
-    const totalOut = -egresos.reduce((a, m) => a + m, 0);
+    const bal = rows.reduce((a, r) => a + Number(r.monto), 0);
     return [
-      { label: 'Apertura', value: fmtM(open), note: opening[0] ? `${opening[0].hora} · ${opening[0].resp}` : 'registra un movimiento "Apertura de caja"' },
-      { label: 'Ingresos', value: fmtM(totalIn), note: ingresos.length + ' movimientos', tone: 'green' },
-      { label: 'Egresos', value: fmtM(totalOut), note: egresos.length + ' movimientos', tone: 'red' },
-      { label: 'Saldo en caja', value: fmtM(open + totalIn - totalOut), note: 'apertura + ingresos − egresos' },
+      { label: 'Saldo de caja', value: formatMoney(bal), note: `${rows.length} movimientos` },
     ];
   },
-  columns: [{ k: 'cod', label: 'Movimiento', w: '130px', mono: true, sub: 'hora' }, { k: 'concepto', label: 'Concepto', w: 'minmax(0, 1fr)', sub: 'medio' }, { k: 'tipo', label: 'Tipo', w: '96px', chip: true }, { k: 'monto', label: 'Monto', w: '116px', fmt: 'signed', align: 'right' }, { k: 'resp', label: 'Responsable', w: '120px', muted: true }],
+  columns: [
+    { k: 'fecha', label: 'Fecha', w: '140px', mono: true, muted: true },
+    { k: 'desc', label: 'Descripción', w: 'minmax(0, 1fr)', sub: 'tipo' },
+    { k: 'ref', label: 'Referencia', w: '120px', mono: true, muted: true },
+    { k: 'monto', label: 'Monto', w: '124px', fmt: 'signed', align: 'right' },
+    { k: 'estado', label: 'Estado', w: '112px', chip: true },
+  ],
   fields: [
+    { k: 'fecha', label: 'Fecha', type: 'date', value: () => isoDate(new Date()), required: true },
     { k: 'tipo', label: 'Tipo', type: 'select', options: ['Ingreso', 'Egreso'] },
-    { k: 'monto', label: 'Monto (S/)', type: 'number', required: true, fmt: 'signed' },
-    { k: 'concepto', label: 'Concepto', required: true, wide: true, placeholder: 'Ej. Pago de movilidad · o "Apertura de caja"' },
-    { k: 'medio', label: 'Medio', type: 'select', options: ['Efectivo', 'Yape', 'Plin', 'POS'] },
-    { k: 'resp', label: 'Responsable', type: 'select', options: opts.activeUsers, value: d => currentUser(d).name },
+    { k: 'monto', label: 'Monto (S/)', type: 'number', required: true },
+    { k: 'desc', label: 'Descripción', wide: true, required: true },
+    { k: 'ref', label: 'Referencia', mono: true },
   ],
 };

@@ -104,6 +104,15 @@ export function productUuidBySku(sku: string): string | null {
     return raw.productos.find(r => r.sku === sku)?.id ?? null;
 }
 
+export function productUuidByName(name: string): string | null {
+    return raw.productos.find(r => r.name === name)?.id ?? null;
+}
+
+export function productByNameRaw(name: string): { id: string; sku: string; name: string; unit: string } | null {
+    const r = raw.productos.find(x => x.name === name || x.sku === name);
+    return r ? { id: r.id, sku: r.sku, name: r.name, unit: r.unit } : null;
+}
+
 /** UUID de usuario por nombre completo. */
 export function userUuidByName(name: string): string | null {
     return userId(name);

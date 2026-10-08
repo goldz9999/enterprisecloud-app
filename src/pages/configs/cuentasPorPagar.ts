@@ -1,25 +1,6 @@
 import type { RecordsConfig } from '../../features/records/types';
-import { audit } from '../../data/domain/audit';
-import { bankAccounts, pay, payableView } from '../../data/domain/finance';
-import { syncOrderSettlement } from '../../data/domain/orders';
-import type { DB, Row } from '../../data/types';
+import { payRemote } from '../../data/domain/finance';
 import { formatMoney as fmtM } from '../../lib/format';
-import type { Field } from '../../features/records/types';
-
-const payFields = (r: Row, d: DB): Field[] => [
-  { k: 'mon', label: 'Monto pagado (S/)', type: 'number', required: true, value: Number(r.saldo).toFixed(2) },
-  { k: 'med', label: 'Medio de pago', type: 'select', options: ['Transferencia', 'Cheque', 'Efectivo'] },
-  { k: 'cta', label: 'Cuenta origen', type: 'select', options: () => [...bankAccounts(d), 'Caja'] },
-  { k: 'op', label: 'N.º de operación' },
-];
-const registerPayment = (d: DB, r: Row, v: Record<string, string>) => {
-  const amount = Number(v.mon);
-  if (!(amount > 0)) return 'Ingresa un monto mayor que cero.';
-  const p = { amount, medio: v.med, cuenta: v.cta === 'Caja' || v.med === 'Efectivo' ? '' : v.cta, op: v.op };
-  pay(d, r, p);
-  syncOrderSettlement(d, r, p);
-};
-const schedule = { label: 'Programar pago al vencimiento', toast: 'Pago programado', run: (d: DB, r: Row) => { r.programado = 'Sí'; audit(d, { action: 'Editar', module: 'Finanzas', ref: String(r.doc), desc: `Pago programado para el ${r.vence}` }); } };
 
 export const cuentasPorPagar: RecordsConfig = {
   active: 'Cuentas por pagar',
@@ -29,8 +10,7 @@ export const cuentasPorPagar: RecordsConfig = {
   collection: 'cxp',
   entity: 'Cuenta por pagar', titleKey: 'doc', subKey: 'prov', statusKey: 'estado',
   statuses: { 'Por vencer': 'blue', 'Vence esta semana': 'amber', 'Vencida': 'red', 'Pagada': 'green' },
-  keys: ['doc', 'emision', 'prov', 'ruc', 'vence', 'total', 'saldo', 'estado', 'dias'],
-  view: payableView,
+  keys: ['doc', 'emision', 'prov', 'ruc', 'vence', 'total', 'saldo', 'estado', 'dias', 'orden', 'uuid'],
   kpis: rows => {
     const open = rows.filter(r => r.estado !== 'Pagada');
     const sum = (list: typeof rows) => list.reduce((a, r) => a + Number(r.saldo), 0);
@@ -40,8 +20,38 @@ export const cuentasPorPagar: RecordsConfig = {
       { label: 'Vencido', value: fmtM(sum(open.filter(r => r.estado === 'Vencida'))), note: 'pagar a la brevedad', tone: 'red' },
     ];
   },
-  columns: [{ k: 'doc', label: 'Factura', w: '120px', mono: true, sub: 'emision' }, { k: 'prov', label: 'Proveedor', w: 'minmax(0, 1fr)', sub: 'ruc' }, { k: 'vence', label: 'Vence', w: '120px', sub: 'dias' }, { k: 'saldo', label: 'Saldo', w: '116px', fmt: 'money', align: 'right' }, { k: 'estado', label: 'Estado', w: '136px', chip: true }],
-  fields: [{ k: 'doc', label: 'Factura del proveedor', mono: true }, { k: 'emision', label: 'Emisión' }, { k: 'prov', label: 'Proveedor', wide: true }, { k: 'vence', label: 'Vencimiento' }, { k: 'dias', label: 'Situación' }, { k: 'orden', label: 'Orden de compra', mono: true }, { k: 'total', label: 'Importe original', fmt: 'money' }, { k: 'saldo', label: 'Saldo pendiente', fmt: 'money' }],
+  columns: [
+    { k: 'doc', label: 'Factura', w: '120px', mono: true, sub: 'emision' },
+    { k: 'prov', label: 'Proveedor', w: 'minmax(0, 1fr)', sub: 'ruc' },
+    { k: 'vence', label: 'Vence', w: '120px', sub: 'dias' },
+    { k: 'saldo', label: 'Saldo', w: '116px', fmt: 'money', align: 'right' },
+    { k: 'estado', label: 'Estado', w: '136px', chip: true },
+  ],
+  fields: [
+    { k: 'doc', label: 'Factura del proveedor', mono: true },
+    { k: 'emision', label: 'Emisión' },
+    { k: 'prov', label: 'Proveedor', wide: true },
+    { k: 'vence', label: 'Vencimiento' },
+    { k: 'dias', label: 'Situación' },
+    { k: 'orden', label: 'Orden de compra', mono: true },
+    { k: 'total', label: 'Importe original', fmt: 'money' },
+    { k: 'saldo', label: 'Saldo pendiente', fmt: 'money' },
+  ],
   note: 'Al pagar se registra el egreso en Bancos (o en Caja si es en efectivo).',
-  actions: { '*': [{ label: 'Registrar pago', primary: true, toast: 'Pago registrado', fields: payFields, run: registerPayment }, schedule], 'Pagada': [] },
+  actions: {
+    '*': [{
+      label: 'Registrar pago', primary: true, toast: 'Pago registrado',
+      fields: [
+        { k: 'monto', label: 'Monto a pagar (S/)', type: 'number', required: true },
+        { k: 'canal', label: 'Canal', type: 'select', options: ['Bancos', 'Caja'] },
+        { k: 'ref', label: 'Referencia', placeholder: 'Nº operación / voucher' },
+      ],
+      run: (_d, r, v) => {
+        const amount = Number(v.monto) || Number(r.saldo);
+        if (!(amount > 0)) return 'Indica el monto a pagar.';
+        void payRemote(String(r.uuid || r.doc), amount, String(v.canal || 'Bancos'), v.ref ? String(v.ref) : undefined);
+      },
+    }],
+    'Pagada': [],
+  },
 };
