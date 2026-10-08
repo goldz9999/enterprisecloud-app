@@ -6,9 +6,10 @@ import { Toast, useToast } from '../../components/Toast';
 import { canCancel, cancelOrder, completeStep, orderStatus, orderSubtotal, partyCredit, STEPS, type StepField } from '../../data/domain/orders';
 import { cancelSaleOrderRemote, completeSaleStepRemote } from '../../data/domain/salesOrders';
 import { cancelPurchaseOrderRemote, completePurchaseStepRemote } from '../../data/domain/purchaseOrders';
+import { collectRemote, loadPayables, loadReceivables, payRemote } from '../../data/domain/finance';
 import { stockRow } from '../../data/domain/stock';
 import { can } from '../../data/permissions';
-import { mutate, useDB } from '../../data/store';
+import { getDB, mutate, useDB } from '../../data/store';
 import { putFile, getFile } from '../../data/files';
 import { displayDate, fmtDayMonth } from '../../lib/dates';
 import { formatMoney } from '../../lib/format';
@@ -85,13 +86,46 @@ export function OrderPage({ kind }: { kind: 'venta' | 'compra' }) {
   const goTo = (i: number) => { setView(i); setShowErrors(false); setError(''); };
   const goCurrent = () => goTo(Math.min(o.done, n - 1));
 
+  /**
+   * Paso final (cobro / pago): registra el movimiento en el servidor contra la cuenta por
+   * cobrar/pagar de la orden. Devuelve `stay` si quedó saldo (el paso no se completa aún).
+   */
+  const settleInServer = async (values: Record<string, string>): Promise<{ error?: string; stay?: string }> => {
+    if (sale) await loadReceivables(); else await loadPayables();
+    const rows = sale ? getDB().records.cxc : getDB().records.cxp;
+    const row = rows.find(r => r.orden === o.code);
+    if (!row || !row.uuid) return { error: `No se encontró la cuenta por ${sale ? 'cobrar' : 'pagar'} de esta orden en el servidor.` };
+    if (Number(row.saldo) <= 0) return {};
+    const amount = Number(values.mon) || 0;
+    if (amount <= 0) return { error: 'El monto debe ser mayor a 0.' };
+    const channel = values.cta === 'Caja' ? 'CASH' : 'BANK';
+    const res = sale
+      ? await collectRemote(String(row.uuid), amount, channel, values.op || undefined)
+      : await payRemote(String(row.uuid), amount, channel, values.op || undefined);
+    if (!res.ok) return { error: res.error };
+    const left = Number(getDB().records[sale ? 'cxc' : 'cxp'].find(r => r.orden === o.code)?.saldo ?? 0);
+    if (left > 0) return { stay: `${sale ? 'Cobro' : 'Pago'} parcial registrado. Saldo pendiente: ${formatMoney(left)}.` };
+    return {};
+  };
+
   const submit = async () => {
     if (fields.some(f => f.required && !String(f.value).trim())) return setShowErrors(true);
     const values = Object.fromEntries(fields.map(f => [f.k, String(f.value)]));
+    const finalStep = o.done === 4;
+    if (finalStep) {
+      const s = await settleInServer(values);
+      if (s.error) return setError(s.error);
+      if (s.stay) {
+        setError(''); setShowErrors(false);
+        setForms(st => ({ ...st, [vi]: {} }));
+        return toast.flash(s.stay);
+      }
+    }
     if (sale) {
       // Persistir el paso en el backend y, si OK, aplicar efectos locales (stock, CxC, docs).
       const remote = await completeSaleStepRemote(o.code, values);
       if (!remote.ok) return setError(remote.error);
+      if (o.done === 3 || finalStep) await loadReceivables();
       let result: { error?: string; stay?: string } = {};
       mutate(draft => {
         const local = draft.orders.find(x => x.code === o.code && x.kind === 'venta');
@@ -124,6 +158,7 @@ export function OrderPage({ kind }: { kind: 'venta' | 'compra' }) {
     {
       const remote = await completePurchaseStepRemote(o.code, values);
       if (!remote.ok) return setError(remote.error);
+      if (o.done === 3 || finalStep) await loadPayables();
       let result: { error?: string; stay?: string } = {};
       mutate(draft => {
         const local = draft.orders.find(x => x.code === o.code && x.kind === 'compra');

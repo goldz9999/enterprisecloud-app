@@ -10,6 +10,7 @@ import type { DB } from '../data/types';
 import { daysBetween, fmtDayMonth, fmtTime, MES, parseDate } from '../lib/dates';
 import { downloadCsv } from '../lib/csv';
 import './ReportesPage.css';
+import '../components/KpiCard.css';
 
 const S = (n: number) => 'S/ ' + Math.round(n).toLocaleString('en-US');
 const pct1 = (n: number) => (isFinite(n) ? n.toFixed(1) : '0.0') + '%';

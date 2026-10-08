@@ -1,4 +1,5 @@
 import { api, ApiError } from '../../lib/api';
+import { addDays } from '../../lib/dates';
 import { update } from '../store';
 import type { DB, Row } from '../types';
 
@@ -281,3 +282,22 @@ export function loadFinance(): Promise<void> {
     () => undefined,
   );
 }
+
+// ---- Helpers puros de plazos de pago (usados por orders.ts) ----
+
+/** "Contado" -> 0, "Crédito 30 días" -> 30. */
+export function termDays(terms: string | undefined): number {
+  const m = /(\d+)/.exec(terms || '');
+  return m ? Number(m[1]) : 0;
+}
+
+export function dueFromTerm(terms: string | undefined): Date {
+  return addDays(new Date(), termDays(terms));
+}
+
+// ---- Vistas para métricas/alertas (el backend ya calcula estado y días) ----
+
+export const receivableView = (r: Row): Row => r;
+
+/** El backend devuelve "Cobrada" al saldar; en cuentas por pagar se muestra "Pagada". */
+export const payableView = (r: Row): Row => (r.estado === 'Cobrada' ? { ...r, estado: 'Pagada' } : r);

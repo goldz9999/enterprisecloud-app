@@ -5,7 +5,7 @@ import { currentUser, nextCode } from '../store';
 import type { DB, Order, OrderLine, OrderParty, Row } from '../types';
 import { audit } from './audit';
 import { addGeneratedDoc, renderDocHtml } from './documents';
-import { bankAccounts, collect, createPayable, createReceivable, dueFromTerm, pay, termDays } from './finance';
+import { bankAccounts, dueFromTerm, termDays } from './finance';
 import { available, moveStock, productBySku, stockRow, updateAverageCost } from './stock';
 
 export const PAY_TERMS = ['Contado', 'Crédito 15 días', 'Crédito 30 días', 'Crédito 45 días'];
@@ -206,7 +206,6 @@ const SALE_STEPS: StepDef[] = [
         num, tipo: boleta ? 'Boleta' : 'Factura', cliente: o.party.name, ruc: o.party.ruc.length === 8 ? 'DNI ' + o.party.ruc : o.party.ruc,
         emision: fmtDate(parseDate(v.fe) ?? new Date()), vence: fmtDate(parseDate(v.fv) ?? new Date()), total: Math.round(total * 100) / 100, sunat, orden: o.code,
       });
-      createReceivable(d, { doc: num, cliente: o.party.name, ruc: o.party.ruc, total, vence: parseDate(v.fv) ?? new Date(), orden: o.code });
       const html = renderDocHtml(d, { title: boleta ? 'Boleta de venta electrónica' : 'Factura electrónica', number: num, party: o.party, lines: o.lines, igvRate: o.igvRate, facts: [['Vencimiento', fmtDate(parseDate(v.fv) ?? new Date())], ['Forma de pago', v.fp], ['Orden', o.code]] });
       addGeneratedDoc(d, { name: `${num}.pdf`, cat: 'Facturas', ref: o.code, entity: o.party.name, html });
       addGeneratedDoc(d, { name: `${num}.xml`, cat: 'Facturas', ref: o.code, entity: o.party.name, html });
@@ -235,12 +234,11 @@ const SALE_STEPS: StepDef[] = [
     },
     meta: o => `${o.forms[4]?.med ?? ''} · ${o.forms[4]?.cta ?? ''}`,
     doneMsg: o => `${o.docs[4]} registrado. La cuenta por cobrar quedó cancelada.`,
-    apply: (d, o, v) => {
+    apply: (d, o) => {
       const r = findReceivable(d, o);
-      if (r && Number(r.saldo) > 0) {
-        const left = collect(d, r, { amount: Number(v.mon) || 0, medio: v.med, cuenta: v.cta === 'Caja' ? '' : v.cta, op: v.op, date: parseDate(v.fc) ?? undefined });
-        if (left > 0) return { stay: `Cobro parcial registrado. Saldo pendiente: ${formatMoney(left)}.` };
-      }
+      // El cobro ya se registró en el servidor (OrderPage -> collectRemote); aquí solo se lee el saldo resultante.
+      const left = Number(r?.saldo ?? 0);
+      if (left > 0) return { stay: `Cobro parcial registrado. Saldo pendiente: ${formatMoney(left)}.` };
       return { doc: 'Cobro ' + nextCode(d, `CB-${year()}-`, 4) };
     },
   },
@@ -327,8 +325,7 @@ const PURCHASE_STEPS: StepDef[] = [
     note: o => `Validación de 3 vías: orden de compra (${formatMoney(orderTotal(o))}) = recepción = factura.`,
     meta: () => 'Validada contra OC y recepción',
     doneMsg: o => `${o.docs[3]} registrada. Cuenta por pagar creada.`,
-    apply: (d, o, v) => {
-      createPayable(d, { doc: v.num, prov: o.party.name, ruc: o.party.ruc, total: Number(v.mon) || orderTotal(o), vence: parseDate(v.fv) ?? new Date(), orden: o.code });
+    apply: (_d, _o, v) => {
       return { doc: 'Factura ' + v.num };
     },
   },
@@ -354,12 +351,11 @@ const PURCHASE_STEPS: StepDef[] = [
     },
     meta: o => `${o.forms[4]?.med ?? ''} · ${o.forms[4]?.cta ?? ''}`,
     doneMsg: o => `${o.docs[4]} registrado. La cuenta por pagar quedó cancelada.`,
-    apply: (d, o, v) => {
+    apply: (d, o) => {
       const r = findPayable(d, o);
-      if (r && Number(r.saldo) > 0) {
-        const left = pay(d, r, { amount: Number(v.mon) || 0, medio: v.med, cuenta: v.cta === 'Caja' ? '' : v.cta, op: v.op, date: parseDate(v.fp) ?? undefined });
-        if (left > 0) return { stay: `Pago parcial registrado. Saldo pendiente: ${formatMoney(left)}.` };
-      }
+      // El pago ya se registró en el servidor (OrderPage -> payRemote); aquí solo se lee el saldo resultante.
+      const left = Number(r?.saldo ?? 0);
+      if (left > 0) return { stay: `Pago parcial registrado. Saldo pendiente: ${formatMoney(left)}.` };
       return { doc: 'Pago ' + nextCode(d, `PG-${year()}-`, 4) };
     },
   },
