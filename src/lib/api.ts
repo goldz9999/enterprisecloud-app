@@ -1,4 +1,5 @@
 import { getSession, setSession } from '../data/session';
+import { CLIENT_ID } from './clientId';
 import { noteLoad } from './loadStatus';
 
 /** Base URL of the FastAPI backend (see .env.example). */
@@ -19,6 +20,8 @@ interface Options {
     body?: unknown;
     /** Send the session token (default). Login is the only call that doesn't. */
     auth?: boolean;
+    /** No avisar "no se pudieron cargar algunos datos" si esta lectura falla (datos opcionales, p. ej. una tabla aún no creada). */
+    quiet?: boolean;
     /** Use this token instead of the current session's (e.g. to revoke it right after clearing the session). */
     token?: string;
 }
@@ -44,7 +47,7 @@ export async function api<T = void>(path: string, opts: Options = {}): Promise<T
             return out;
         } catch (e) {
             if (!isTransient(e) || attempt >= RETRY_DELAYS_MS.length) {
-                if (isLoadFailure(e)) noteLoad(key, false);
+                if (isLoadFailure(e) && !opts.quiet) noteLoad(key, false);
                 throw e;
             }
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
@@ -54,7 +57,7 @@ export async function api<T = void>(path: string, opts: Options = {}): Promise<T
 
 async function request<T>(path: string, { method = 'GET', body, auth = true, token }: Options): Promise<T> {
     const sent = token ?? (auth ? getSession()?.token : undefined);
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { 'X-Client-Id': CLIENT_ID };
     const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
     // With FormData the browser sets the multipart Content-Type (and its boundary) itself.
     if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';

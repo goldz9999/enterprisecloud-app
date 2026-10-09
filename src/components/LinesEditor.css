@@ -34,3 +34,4 @@
 .le-foot { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 10px 12px; }
 .le-totals { display: grid; grid-template-columns: auto auto; gap: 4px 16px; font-size: 12px; text-align: right; }
 .le-totals > span:nth-child(odd) { color: var(--muted); }
+.le-price { line-height: 32px; font-size: 13px; color: var(--text-2); padding-right: 8px; }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
+import { useRealtimeTick } from '../../lib/realtime';
 import { can } from '../permissions';
 import { getSession, useSession } from '../session';
 import type { Alert, Period } from './metrics';
@@ -78,6 +79,12 @@ export function useDashboard(period: Period) {
         const id = setInterval(() => void load(true), REFRESH);
         return () => clearInterval(id);
     }, [load, token]);
+
+    // Otra persona guardó algo: se actualiza sin esperar el minuto.
+    const changes = useRealtimeTick();
+    useEffect(() => {
+        if (changes > 0) void load(true);
+    }, [changes, load]);
 
     return { data, loading, error, reload: () => load(true) };
 }

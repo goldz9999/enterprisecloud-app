@@ -74,7 +74,7 @@ Un `grep` posterior no encuentra más `.eq("code", …)` ni `.eq("id", <código>
 | 2.6 | "Elige un cliente." con un cliente visible | ✅ Corregido (ronda 2) | Los valores efectivos se derivan en cada render. Verificado: recarga en frío y crear la venta sin tocar los desplegables |
 | 2.7 | Un fallo de carga se muestra como "no hay datos" | ✅ Corregido (ronda 2) | Las lecturas se reintentan y, si siguen fallando, aparece un aviso con **Reintentar**. Las pantallas vacías debajo del aviso siguen diciendo "Aún no hay registros" |
 | 2.8 | Carga inicial pesada e intermitente | ✅ Causa corregida · ⚠️ parcial | Inventario y finanzas ya no se piden dos veces. Siguen duplicadas `users` y `auth/me`, y son unas 40 peticiones por carga |
-| 2.9 | Pagar con la caja en negativo | ⏳ **Pendiente de tu decisión** | Es una regla de negocio; ver sección 9 |
+| 2.9 | Pagar con la caja en negativo | ✅ Corregido en la ronda 4 | Pagos de compras en efectivo se rechazan sin saldo; ver sección 11 |
 | 2.10 | `npm run build` falla (14 errores TS) | ✅ Corregido (ronda 2) | `npm run build` termina sin errores |
 | 2.11 | Texto "Almacén principal" incorrecto | ✅ Corregido (ronda 2) | El aviso nombra el almacén realmente elegido |
 
@@ -135,7 +135,7 @@ Además de lo listado en el informe anterior. El stock de "Verduras" quedó en 1
 
 ## 7. Siguiente paso sugerido
 
-1. **Decidir** si se aplica el recálculo del costo a "Lechuga" (sección 10) y si se rechazan pagos en efectivo sin fondos (2.9).
+1. **Decidir** si se aplica el recálculo del costo a "Lechuga" (sección 10).
 2. Ejecutar la suite de integración del backend con un PostgREST local.
 3. Quitar los registros de prueba de la base.
 
@@ -238,7 +238,7 @@ Con esto, **los datos de prueba y el costo 0 de "Lechuga" mencionados en las sec
 | Anular una orden ya despachada | Rechazado ✅ |
 
 ### Notas de la prueba
-- **Caja negativa (2.9):** la prueba cobró 118 y pagó 236 en efectivo; la caja quedó en −118 y el sistema lo permitió. Sigue pendiente de decisión de negocio (¿rechazar pagos en efectivo sin fondos?).
+- **Caja negativa (2.9) — ✅ corregido:** la prueba había cobrado 118 y pagado 236 en efectivo, y la caja quedó en −118. Ahora `pay_payable` (`app/services/finance.py`) rechaza con 400 un pago por el canal efectivo si supera el saldo de caja: `"Saldo de caja insuficiente para pagar 11.80 (disponible -118.00)"`. Aplica solo a pagos de compras (a proveedor) en efectivo; los pagos por banco y los movimientos manuales de caja no se validan. Verificado por API: rechazado y la caja no cambia.
 - **`payment_method` en cobros/pagos:** si llega un texto libre (por ejemplo `"Efectivo"`), el backend responde 400 `"Invalid value in request"` sin indicar el campo. La interfaz no envía ese campo, así que no la afecta; es solo un mensaje de error poco claro para quien use la API directamente.
 
 ### Para quien administra la base de Supabase: `dashboard_summary`
@@ -246,12 +246,111 @@ La función `dashboard_summary` (`El-Real-Backend/database/004_dashboard.sql`) c
 1. **Ventas y utilidad bruta cuentan toda orden de venta no anulada**, aunque no se haya despachado ni facturado (filtro `not o.is_cancelled`). Una orden confirmada que nunca se despacha infla ventas y utilidad. Con la prueba: una orden de 999 u imposible de despachar sumó 23 576 a ventas y 9 990 a la utilidad bruta.
 2. **El costo de la utilidad es el costo promedio *actual*** del producto (`products.average_cost`), no el costo al momento de la venta; si el costo cambia después, la utilidad histórica cambia.
 
-Opciones: filtrar por órdenes con `current_step >= 3` (despachadas) o por las que tienen factura emitida, y/o tomar el costo desde `inventory_movements.unit_cost` de la salida. Es un cambio de definición de negocio; no se modificó nada.
+Opciones: filtrar por órdenes con `current_step >= 3` (despachadas) o por las que tienen factura emitida, y/o tomar el costo desde `inventory_movements.unit_cost` de la salida. **Decisión tomada: contar solo lo facturado.** El SQL está en `El-Real-Backend/database/005_dashboard_ventas_facturadas.sql` (reemplaza la función de `004`; es idempotente, se ejecuta en el editor SQL de Supabase). Cambios: Ventas, Utilidad bruta y Rotación usan facturas/boletas no anuladas por fecha de emisión; Compras no cambia. Límites: las notas de crédito no se descuentan de Ventas ni de la utilidad, y el costo sigue siendo el promedio actual. **No se pudo probar contra la base** (no hay acceso); verificar tras aplicarlo: con una orden despachada sin factura, Ventas no debe sumarla, y al emitir el comprobante sí.
 
 ### Estado final
 - Verificado: flujos de venta y compra, costo promedio ponderado, stock, reservas, cobros y pagos.
-- Pendiente de decisión: caja sin fondos (2.9) y la definición de "ventas" del dashboard.
+- Corregido: caja sin fondos (2.9), solo en pagos de compras en efectivo.
+- Dashboard: contar solo ventas facturadas — ✅ aplicado en Supabase y verificado.
 - Datos que quedan de la última prueba (se pueden borrar): cliente `Cliente Prueba Final` (CLI-00004), `OC-2026-0001/0002`, `OV-2026-0001` (cobrada) y `OV-2026-0002` (999 u, confirmada, sin despachar), más los movimientos de tesorería y de inventario asociados.
+
+### Verificación final con el SQL del dashboard aplicado (005)
+Tras aplicar `005_dashboard_ventas_facturadas.sql` en Supabase se borraron de nuevo los datos de prueba y se repitió el flujo completo (compras 10 u @8 y 10 u @12, venta de 5 u, cobro, pagos):
+
+| Comprobación | Resultado |
+|---|---|
+| Orden despachada **sin** factura | Ventas = 0, utilidad = 0 ✅ |
+| Tras emitir el comprobante | Ventas = **118**, 1 venta, utilidad = **50** ✅ |
+| Orden de 999 u confirmada y no despachable | Ventas sigue en 118 ✅ |
+| Pago en efectivo de 94.40 con 118 en caja | Aceptado ✅ |
+| Pago en efectivo de 141.60 con 23.60 en caja | Rechazado: "Saldo de caja insuficiente…" ✅ |
+| Ingreso manual de caja de 200 y luego el mismo pago | Aceptado; caja final 82 ✅ |
+| Por cobrar / por pagar al final | 0 / 0 ✅ |
+| Costo promedio, stock, despacho sin stock, anular orden despachada | Correctos ✅ |
+
+Detalle a tener en cuenta: el script de limpieza borra movimientos pero **no reinicia `products.average_cost`**; "Lechuga" quedó con costo 10 y stock 0. No causa errores (con stock 0 la siguiente compra fija el costo), pero conviene saberlo si se vuelve a limpiar.
+
+Datos que quedan de esta última prueba: cliente `Cliente Prueba Final`, `OC-2026-0001/0002`, `OV-2026-0001` (facturada y cobrada) y `OV-2026-0002` (999 u sin despachar), más sus movimientos.
+
+---
+
+## 12. Ronda 5 — campos que repetían datos de Mantenimiento (2026-10-08)
+
+Se revisaron todos los formularios y modales del frontend buscando campos editables cuyo valor ya está definido en otro lugar.
+
+| Dónde | Antes | Ahora |
+|---|---|---|
+| Cotización (nueva/editar) y Nueva venta | El **precio unitario** de cada línea se podía cambiar | Se muestra fijo: es el *Precio de venta* del producto en Mantenimiento › Productos. Para cambiarlo, se edita ahí, no en el documento |
+| Producto (editar) | `Costo promedio` era un campo editable, aunque el backend lo ignora y lo calcula con las recepciones | Solo lectura, y solo se muestra al editar (no al crear) |
+| Solicitud de compra y Nueva compra | Costo estimado/unitario editable | **Sin cambios a propósito**: el costo de una compra es el precio real que cobra el proveedor, no está en Mantenimiento (solo existe el costo promedio, que se calcula) y alimenta ese cálculo |
+| Registrar cobro / pago y factura de proveedor | Monto editable | **Sin cambios a propósito**: permiten cobros y pagos parciales y facturas con diferencias respecto a la OC |
+| Ajustes, transferencias, recepciones, clientes, proveedores | — | Revisados; no repiten datos de Mantenimiento |
+
+Archivos: `src/components/LinesEditor.tsx` y `.css` (prop `lockPrice`, activa por defecto para precios de venta), `src/features/flowlist/FlowEditor.tsx` (subtítulo), `src/features/records/types.ts` y `RecordDrawer.tsx` (soporte `readOnly`), `src/pages/configs/productos.ts`.
+
+Límite: es una restricción de la interfaz. El backend (`unit_price` en la API) sigue aceptando cualquier precio si se lo llama directamente; para forzarlo habría que validarlo allí.
+
+---
+
+## 13. Ronda 6 — actualización automática con WebSocket (2026-10-08)
+
+Cuando una persona guarda algo, los demás navegadores conectados se actualizan solos, sin recargar.
+
+**Cómo funciona**
+- Backend: `GET ws://…/api/v1/ws`. El cliente se identifica con su primer mensaje `{"type":"auth","token":"…"}` (el token no va en la URL). Un middleware (`app/core/realtime.py`, `ChangeNotifier`) avisa tras cada escritura exitosa (POST/PUT/PATCH/DELETE bajo `/api/v1`, salvo `/auth`). El aviso **no lleva datos**, solo `{"type":"changed","resource":"quotations","by":"<id de pestaña>"}`; cada navegador vuelve a pedir por HTTP lo que necesita, con sus permisos de siempre.
+- Frontend: `src/lib/realtime.ts` abre el canal al iniciar sesión y lo cierra al salir; reconecta solo (1 s → 30 s) y, si se perdió la conexión, relee todo una vez al volver. Ignora los avisos de su propia pestaña (cabecera `X-Client-Id`). Agrupa avisos seguidos (700 ms, máximo 5 s) y relee **solo lo que cambió** según el recurso (cotizaciones → cotizaciones; una orden de venta → órdenes, comprobantes, stock, kardex y cuentas por cobrar; etc.). Dashboard y Auditoría también se refrescan.
+
+**Archivos:** backend `app/core/realtime.py` (nuevo), `app/api/realtime.py` (nuevo), `app/main.py`, `app/security/deps.py` (`user_from_token`), `tests/test_unit.py`; frontend `src/lib/realtime.ts` y `src/lib/clientId.ts` (nuevos), `src/lib/api.ts`, `src/App.tsx`, `src/data/domain/dashboard.ts`, `src/pages/AuditoriaPage.tsx`.
+
+**Verificado:** token falso → cierre 4401; dos clientes reciben el aviso de un POST exitoso; un POST con error, un GET y el login no avisan; el ping responde; en el navegador, una cotización creada por API desde fuera apareció en la lista abierta sin recargar. Test automático: `test_change_notifier_publishes_only_successful_writes`.
+
+**Límites a tener en cuenta**
+- Las conexiones viven en la memoria del proceso: con **varios workers** de uvicorn un aviso solo llega a los clientes del mismo worker (habría que pasar los avisos por Redis o Supabase Realtime). Un solo proceso funciona bien.
+- Solo avisa de cambios hechos **a través de esta API**; si alguien edita directo en Supabase, no hay aviso.
+- Cada aviso hace que los demás relean datos, y con el límite anterior (120 peticiones por minuto por IP) muchas personas en una misma red podían toparse con errores 429. **Corregido:** el límite global ahora es configurable con la variable `GLOBAL_RATE_LIMIT_PER_MINUTE` (por defecto **600**; `0` = sin límite; no acepta negativos). Está en `app/core/config.py` y `app/main.py`, y documentado en el README del backend. Verificado: 150 peticiones seguidas, todas 200. Los límites del login (10/min) y del cambio de contraseña (5/min) no cambian. Para que figure en `.env.example` hay que añadir la línea `GLOBAL_RATE_LIMIT_PER_MINUTE=600` a mano (no pude editar ese archivo).
+- La conexión no se cierra sola si el token vence; los avisos no contienen datos, y al volver a pedir datos el servidor sí valida el token.
+
+---
+
+## 14. Ronda 7 — estado SUNAT de los comprobantes (2026-10-08)
+
+**Pregunta:** "en Comprobantes aparecen todos Pendientes". **Causa:** son dos estados distintos. En la lista de órdenes, "Pagado/Pendiente" es el **cobro**; en Comprobantes, "Pendiente/Aceptado" es la **respuesta de SUNAT**. Hoy el ajuste *Configuración › Comprobantes › Envío a SUNAT* está **apagado** en la base (`company_settings.auto_tax_submission = false`, que es el valor por defecto del esquema), así que todo comprobante queda Pendiente hasta usar "Reenviar a SUNAT" en su ficha.
+
+**Fallo encontrado y corregido:** aunque ese ajuste estuviera encendido, el backend creaba siempre el comprobante como `PENDING` (la versión local de la interfaz sí lo respetaba). Ahora `_create_sales_invoice` (`app/services/orders.py`) lo crea `ACCEPTED` si el ajuste está activo y `PENDING` si no. Test: `test_sales_invoice_tax_status_follows_auto_submission_setting`. No hay conexión real con SUNAT: "Aceptado" es el mismo estado simulado de siempre.
+
+Los comprobantes ya emitidos no cambian; para pasarlos a Aceptado se usa "Reenviar a SUNAT" en cada uno.
+
+---
+
+## 15. Ronda 8 — precios por proveedor, listas configurables, transportistas y reportes (2026-10-08)
+
+### SQL para el administrador de la base
+Ejecutar **`El-Real-Backend/database/006_precios_proveedor_y_compras_facturadas.sql`** completo en el SQL Editor de Supabase (idempotente). Hace dos cosas: (1) crea la tabla `supplier_products` (proveedor + producto + precio de compra, única por pareja, con RLS como el resto) y (2) reemplaza `dashboard_summary` para que **Compras** también cuente solo lo **facturado por el proveedor** (como Ventas cuenta solo lo facturado). Hasta que se ejecute, la pestaña *Precios por proveedor* aparece vacía y el backend responde 500 en `/supplier-products`; la app no muestra ningún aviso por eso.
+
+### Precios por proveedor
+- Backend: modelo `SupplierProductIn`, ruta `/supplier-products` (CRUD genérico de maestros; usa los permisos de **Proveedores**).
+- Frontend: nueva pestaña **Precios por proveedor** dentro de **Mantenimiento › Proveedores** (ruta `/mantenimiento/proveedores/precios`; mismo menú y mismos permisos que Proveedores; no tiene entrada propia en el menú) (proveedor, producto, precio de compra sin IGV, código del proveedor, notas, estado; no permite repetir la pareja proveedor+producto).
+- En **Nueva orden de compra** y en la **Solicitud de compra**, el costo de cada línea se rellena con el precio del proveedor elegido (si tiene), y se reajusta al cambiar de proveedor; si no tiene precio registrado se propone el costo promedio y se indica en la línea. Si el proveedor **tiene** precio registrado, el costo queda **fijo** (solo lectura; se cambia en la pestaña Precios por proveedor, y las líneas ya cargadas se ajustan a ese precio); si **no** lo tiene, el costo es editable (precio real del día).
+- Cuenta bancaria del proveedor: ahora se muestra al registrar un pago (nota de la orden de compra y modal de *Cuentas por pagar*) y en el detalle de la cuenta por pagar. La nota del formulario de proveedores aclara que es la cuenta **del proveedor**; las cuentas de la empresa se definen en Configuración › Tesorería.
+
+### Listas fijas pasadas a texto libre con sugerencias
+Ahora se escribe lo que se quiera (el campo propone lo ya usado más unos ejemplos): **rubro** del proveedor, **tipo de vehículo**, **categoría de licencia**, **unidad de medida** del producto, **área** del usuario y de la solicitud de compra, y **condición de pago** de clientes y proveedores (ej. "Crédito 60 días"; las condiciones usadas también aparecen en los selects de las órdenes). En el backend todos estos campos ya eran texto libre, no hizo falta cambiar la base.
+Siguen siendo listas fijas porque el sistema decide con ellas: estados, tipo de ajuste (Merma/Sobrante/…), tipo de documento (RUC/DNI/CE), tipo de comprobante, medio de pago, canal (Caja/Bancos), tipo de movimiento de caja y banco, motivo de traslado, estado de la mercadería, tipo de almacén, tema/densidad, y la categoría padre (que se elige entre las categorías ya creadas).
+
+### Transportistas (conductores y vehículos)
+La columna "Empresa" ofrece *Movilidad propia* más los **proveedores activos con rubro "Transporte"** (ahora sin importar mayúsculas ni tildes: "Transportes Rápido", "transporte de carga"). Para agregar una empresa transportista se crea en Proveedores con ese rubro. Los textos de ayuda de Conductores y Vehículos lo indican.
+
+### Reportes y métricas (revisión completa)
+- **Ventas** (Reportes › Ventas por mes y por cliente, margen bruto) pasan a contar solo órdenes **facturadas** (comprobante emitido y no anulado), en el mes de **emisión del comprobante**; antes contaban toda orden no anulada, incluso pendientes. Misma regla que el Dashboard.
+- **Compras** (Reportes › Compras por proveedor) cuentan solo órdenes con la **factura del proveedor registrada**.
+- Textos y encabezados ajustados ("Ventas facturadas", "Ventas"/"Compras" en vez de "Órdenes", mensajes de vacío).
+- No cambian: antigüedad de cuentas por cobrar (ya sale de comprobantes y cobros reales) y rotación de inventario (ya sale de salidas reales del kardex). El listado de órdenes de venta sigue mostrando todas las órdenes porque es una lista de pedidos, no un total de ventas.
+- Archivos: `src/data/domain/metrics.ts` (`liveSales`, `livePurchases`, `recognizedAt`), `src/pages/ReportesPage.tsx`.
+
+### Archivos
+Backend: `database/006_…sql` (nuevo), `app/schemas/masters.py`, `app/api/v1/masters.py`. Frontend: `src/pages/configs/preciosProveedor.ts`, `src/data/domain/carriers.ts` (nuevos); `masters.ts`, `orders.ts`, `metrics.ts`, `types.ts`, `api.ts` (opción `quiet`), `RecordDrawer.tsx`/`types.ts` (campos con sugerencias), `LinesEditor.tsx`, `NewOrderPage.tsx`, `FlowEditor.tsx`, configs de clientes, proveedores, productos, usuarios, conductores, vehículos, cuentas por pagar, nav y rutas.
+
+**Pendiente de verificar tras ejecutar el SQL:** crear un precio de proveedor desde la pantalla, crear una compra con ese proveedor y comprobar que el costo se rellena; no se pudo probar antes porque la tabla aún no existe en la base.
 
 ---
 

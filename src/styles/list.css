@@ -422,3 +422,8 @@
   border-top: 1px solid var(--border-soft);
   line-height: 1.5;
 }
+/* Pestañas entre pantallas relacionadas (p. ej. Proveedores / Precios por proveedor). */
+.page-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: -4px; }
+.page-tabs__tab { padding: 8px 14px; margin-bottom: -1px; font-size: 13px; color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent; }
+.page-tabs__tab:hover { color: var(--text); }
+.page-tabs__tab.is-on { color: var(--text); border-bottom-color: var(--accent); font-weight: 500; }

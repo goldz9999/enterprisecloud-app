@@ -30,6 +30,10 @@ function optionsOf(f: Field, d: DB): string[] {
   return typeof f.options === 'function' ? f.options(d) : f.options ?? [];
 }
 
+function suggestionsOf(f: Field, d: DB): string[] {
+  return typeof f.suggestions === 'function' ? f.suggestions(d) : f.suggestions ?? [];
+}
+
 function defaultOf(f: Field, d: DB, row?: Row): string {
   if (typeof f.value === 'function') return f.value(d, row);
   if (f.value != null) return f.value;
@@ -55,6 +59,8 @@ function FieldGrid({ fields, form, setForm, showErrors, d }: { fields: Field[]; 
         const set = (value: string) => setForm(s => ({ ...s, [f.k]: value }));
         const cls = 'field__control' + (invalid ? ' is-invalid' : '');
         const opts = optionsOf(f, d);
+        const hints = suggestionsOf(f, d);
+        const listId = hints.length ? `hints-${f.k}` : undefined;
         const value = form[f.k] ?? '';
         return (
           <label key={f.k} className={'field' + (f.wide ? ' field--wide' : '')}>
@@ -74,10 +80,14 @@ function FieldGrid({ fields, form, setForm, showErrors, d }: { fields: Field[]; 
                 step={f.type === 'number' ? 'any' : undefined}
                 value={value}
                 placeholder={f.placeholder}
+                readOnly={f.readOnly}
+                title={f.readOnly ? 'Lo calcula el sistema' : undefined}
+                list={listId}
                 onChange={e => set(e.target.value)}
                 aria-invalid={invalid || undefined}
               />
             )}
+            {listId && <datalist id={listId}>{hints.map(h => <option key={h} value={h} />)}</datalist>}
             {invalid && <span className="field__error">Campo obligatorio</span>}
           </label>
         );

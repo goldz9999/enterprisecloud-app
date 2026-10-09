@@ -21,6 +21,7 @@ import { VentasPage } from './pages/VentasPage';
 import { RECORD_PAGES } from './pages/configs';
 import { cotizaciones } from './pages/configs/cotizaciones';
 import { solicitudes } from './pages/configs/solicitudes';
+import { startRealtime, stopRealtime } from './lib/realtime';
 
 /** Remounts the order screen per order (and ?paso=) so its local form state starts fresh. */
 function OrderRoute({ kind }: { kind: 'venta' | 'compra' }) {
@@ -88,6 +89,12 @@ export function App() {
     if (token) loadAll();
   }, [token]);
 
+  // Actualización automática: el backend avisa por WebSocket cuando otra persona guarda algo.
+  useEffect(() => {
+    startRealtime(token);
+    return stopRealtime;
+  }, [token]);
+
   // Table density preference from Configuración › Apariencia.
   useEffect(() => {
     document.documentElement.dataset.density = String(d.settings.dens ?? 'Cómoda');
@@ -105,7 +112,7 @@ export function App() {
       {CUSTOM.map(r => <Route key={r.path} path={r.path} element={<Guard module={r.module}>{r.el}</Guard>} />)}
       {Object.entries(RECORD_PAGES).map(([path, cfg]) => (
         // key per path so state resets when moving between list screens
-        <Route key={path} path={path} element={<Guard module={cfg.active}><RecordsPage key={path} cfg={cfg} /></Guard>} />
+        <Route key={path} path={path} element={<Guard module={cfg.module ?? cfg.active}><RecordsPage key={path} cfg={cfg} /></Guard>} />
       ))}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

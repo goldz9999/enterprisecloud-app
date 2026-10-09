@@ -4,11 +4,19 @@ import { formatMoney } from '../../lib/format';
 import { currentUser, nextCode } from '../store';
 import type { DB, Order, OrderLine, OrderParty, Row } from '../types';
 import { audit } from './audit';
+import { carrierOptions } from './carriers';
 import { addGeneratedDoc, renderDocHtml } from './documents';
 import { bankAccounts, dueFromTerm, termDays } from './finance';
 import { available, moveStock, productBySku, stockRow, updateAverageCost } from './stock';
 
 export const PAY_TERMS = ['Contado', 'Crédito 15 días', 'Crédito 30 días', 'Crédito 45 días'];
+
+/** Condiciones de pago a ofrecer: las de siempre más las que ya usan clientes y proveedores (p. ej. "Crédito 60 días"). */
+export const payTermOptions = (d: DB): string[] => {
+  const used = [...d.records.clientes, ...d.records.proveedores].map(r => String(r.cond ?? '').trim()).filter(Boolean);
+  const days = (s: string) => Number(/(\d+)/.exec(s)?.[1] ?? 0);
+  return [...new Set([...PAY_TERMS, ...used])].sort((a, b) => days(a) - days(b));
+};
 
 export interface StepField {
   k: string;
@@ -108,7 +116,7 @@ const SALE_STEPS: StepDef[] = [
     fields: (o, d) => [
       { k: 'ent', label: 'Fecha de entrega', type: 'date', value: isoDate(addDays(new Date(), 3)), required: true },
       { k: 'alm', label: 'Almacén de despacho', type: 'select', options: warehouses(d), value: o.warehouse },
-      { k: 'cond', label: 'Condición de pago', type: 'select', options: PAY_TERMS, value: o.party.terms || 'Contado' },
+      { k: 'cond', label: 'Condición de pago', type: 'select', options: payTermOptions(d), value: o.party.terms || 'Contado' },
       { k: 'dir', label: 'Dirección de entrega', value: o.party.address, wide: true, required: true },
     ],
     note: o => `Reserva ${units(o).toLocaleString('en-US')} unidades en el almacén seleccionado.`,
@@ -152,7 +160,7 @@ const SALE_STEPS: StepDef[] = [
       return [
         { k: 'ft', label: 'Fecha de traslado', type: 'date', value: today(), required: true },
         { k: 'mot', label: 'Motivo de traslado', type: 'select', options: ['Venta', 'Venta sujeta a confirmación'], value: 'Venta' },
-        { k: 'tra', label: 'Transportista', type: 'select', options: ['Movilidad propia', ...d.records.proveedores.filter(p => p.rubro === 'Transporte' && p.estado !== 'Inactivo').map(p => String(p.razon))], value: 'Movilidad propia' },
+        { k: 'tra', label: 'Transportista', type: 'select', options: carrierOptions(d), value: 'Movilidad propia' },
         useRegistered
           ? { k: 'pla', label: 'Placa del vehículo', type: 'select' as const, options: placas, value: autoPlaca || placas[0], required: true }
           : { k: 'pla', label: 'Placa del vehículo', value: values.pla ?? '', placeholder: 'Ej. F4Q-728', required: true },
@@ -267,7 +275,7 @@ const PURCHASE_STEPS: StepDef[] = [
       { k: 'prv', label: 'Proveedor', type: 'select', options: [...new Set([o.party.name, ...d.records.proveedores.filter(p => p.estado !== 'Inactivo').map(p => String(p.razon))])], value: o.party.name },
       { k: 'ent', label: 'Entrega pactada', type: 'date', value: isoDate(addDays(new Date(), 5)), required: true },
       { k: 'alm', label: 'Almacén destino', type: 'select', options: warehouses(d), value: o.warehouse },
-      { k: 'cond', label: 'Condición de pago', type: 'select', options: PAY_TERMS, value: o.party.terms || 'Contado' },
+      { k: 'cond', label: 'Condición de pago', type: 'select', options: payTermOptions(d), value: o.party.terms || 'Contado' },
     ],
     note: () => 'Requiere permiso de aprobación. El proveedor recibe la orden por correo.',
     meta: o => `Aprobada ${fmtDayMonth(new Date(o.log[1]?.at ?? Date.now()))} · ${o.log[1]?.who ?? ''}`,
@@ -347,7 +355,10 @@ const PURCHASE_STEPS: StepDef[] = [
     },
     note: (o, d) => {
       const r = findPayable(d, o);
-      return r ? `Saldo pendiente ${formatMoney(Number(r.saldo))} de ${formatMoney(Number(r.total))}.` : '';
+      const saldo = r ? `Saldo pendiente ${formatMoney(Number(r.saldo))} de ${formatMoney(Number(r.total))}.` : '';
+      // Cuenta del proveedor (Mantenimiento › Proveedores): a dónde se transfiere el pago.
+      const cuenta = String(d.records.proveedores.find(p => p.razon === o.party.name)?.cuenta ?? '').trim();
+      return [saldo, cuenta ? `Cuenta del proveedor: ${cuenta}.` : 'El proveedor no tiene cuenta bancaria registrada.'].filter(Boolean).join(' ');
     },
     meta: o => `${o.forms[4]?.med ?? ''} · ${o.forms[4]?.cta ?? ''}`,
     doneMsg: o => `${o.docs[4]} registrado. La cuenta por pagar quedó cancelada.`,

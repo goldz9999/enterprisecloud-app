@@ -1,4 +1,4 @@
-import { addDays } from '../../lib/dates';
+import { addDays, parseDate } from '../../lib/dates';
 import { formatMoney } from '../../lib/format';
 import type { DB, Order } from '../types';
 import { payableView, receivableView } from './finance';
@@ -29,23 +29,38 @@ export function periodRange(p: Period, now = new Date()): { cur: [Date, Date]; p
   }
 }
 
-const inRange = (iso: string, [a, b]: [Date, Date]) => {
-  const t = new Date(iso).getTime();
-  return t >= a.getTime() && t < b.getTime();
-};
+const inRange = (when: Date, [a, b]: [Date, Date]) => when.getTime() >= a.getTime() && when.getTime() < b.getTime();
 
-export const liveSales = (d: DB) => d.orders.filter(o => o.kind === 'venta' && !o.cancelled);
-export const livePurchases = (d: DB) => d.orders.filter(o => o.kind === 'compra' && !o.cancelled);
+/** Pasos 1–3 son el pedido; desde el 4 (comprobante emitido / factura del proveedor registrada) cuenta como venta o compra. */
+const RECOGNIZED_STEP = 4;
+
+/**
+ * Ventas = órdenes **facturadas** (comprobante emitido y no anulado). Una orden pendiente, confirmada o solo despachada
+ * todavía no es una venta. Misma regla que el Dashboard (función SQL dashboard_summary).
+ */
+export const liveSales = (d: DB) =>
+  d.orders.filter(o => o.kind === 'venta' && !o.cancelled && o.done >= RECOGNIZED_STEP && !d.records.comprobantes.some(c => c.orden === o.code && c.sunat === 'Anulado'));
+
+/** Compras = órdenes con la **factura del proveedor registrada**; una orden por aprobar o por recibir aún no cuenta. */
+export const livePurchases = (d: DB) => d.orders.filter(o => o.kind === 'compra' && !o.cancelled && o.done >= RECOGNIZED_STEP);
+
+/** Fecha en que la orden cuenta como venta/compra: emisión del comprobante o de la factura (si no se conoce, la de creación). */
+export function recognizedAt(d: DB, o: Order): Date {
+  const fromForm = parseDate(o.forms[3]?.fe);
+  if (fromForm) return fromForm;
+  const invoice = o.kind === 'venta' ? d.records.comprobantes.find(c => c.orden === o.code) : undefined;
+  return parseDate(invoice ? String(invoice.emision) : undefined) ?? new Date(o.createdAt);
+}
 
 /** Sales total (with IGV) and order count in a range. */
 export function salesIn(d: DB, range: [Date, Date]): { total: number; orders: number; list: Order[] } {
-  const list = liveSales(d).filter(o => inRange(o.createdAt, range));
+  const list = liveSales(d).filter(o => inRange(recognizedAt(d, o), range));
   const total = list.reduce((a, o) => a + orderTotal(o), 0);
   return { total, orders: list.length, list };
 }
 
 export function purchasesIn(d: DB, range: [Date, Date]) {
-  const list = livePurchases(d).filter(o => inRange(o.createdAt, range));
+  const list = livePurchases(d).filter(o => inRange(recognizedAt(d, o), range));
   return { total: list.reduce((a, o) => a + orderTotal(o), 0), list };
 }
 

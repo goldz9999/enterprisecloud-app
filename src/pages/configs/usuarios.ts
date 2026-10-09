@@ -1,4 +1,4 @@
-import { opts } from './shared';
+import { opts, suggest } from './shared';
 import type { RecordsConfig } from '../../features/records/types';
 
 export const usuarios: RecordsConfig = {
@@ -17,7 +17,7 @@ export const usuarios: RecordsConfig = {
     { k: 'nombre', label: 'Nombres y apellidos', required: true, wide: true },
     { k: 'correo', label: 'Correo corporativo', required: true, wide: true, placeholder: 'nombre@empresa.pe' },
     { k: 'rol', label: 'Rol', type: 'select', options: opts.roles },
-    { k: 'area', label: 'Área', type: 'select', options: ['Comercial', 'Logística', 'Finanzas', 'Gerencia', 'Sistemas'] },
+    { k: 'area', label: 'Área', placeholder: 'Ej. Comercial', suggestions: suggest('usuarios', 'area', ['Comercial', 'Logística', 'Finanzas', 'Gerencia', 'Sistemas']) },
     { k: 'estado', label: 'Estado', type: 'select', options: ['Sin confirmar', 'Activo', 'Bloqueado', 'Inactivo'] },
     { k: 'clave', label: 'Contraseña inicial', type: 'password', required: true, only: 'new', wide: true, placeholder: 'Mínimo 8 caracteres' },
     { k: 'reset', label: 'Nueva contraseña (opcional)', type: 'password', only: 'edit', wide: true, placeholder: 'Déjala vacía para no cambiarla' },

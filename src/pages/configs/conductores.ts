@@ -1,3 +1,5 @@
+import { carrierOptions } from '../../data/domain/carriers';
+import { suggest } from './shared';
 import type { RecordsConfig } from '../../features/records/types';
 
 export const conductores: RecordsConfig = {
@@ -24,13 +26,13 @@ export const conductores: RecordsConfig = {
         { k: 'nombre', label: 'Nombre completo', required: true, wide: true },
         { k: 'dni', label: 'DNI', required: true, placeholder: '8 dígitos', mono: true },
         { k: 'licencia', label: 'N.º de licencia', required: true, mono: true, placeholder: 'Ej. Q03512345' },
-        { k: 'categoria', label: 'Categoría de licencia', type: 'select', options: ['A-I', 'A-IIa', 'A-IIb', 'A-IIIa', 'A-IIIb', 'A-IIIc', 'B-I', 'B-IIa', 'B-IIb'] },
+        { k: 'categoria', label: 'Categoría de licencia', placeholder: 'Ej. A-IIb', suggestions: suggest('conductores', 'categoria', ['A-I', 'A-IIa', 'A-IIb', 'A-IIIa', 'A-IIIb', 'A-IIIc', 'B-I', 'B-IIa', 'B-IIb']) },
         { k: 'tel', label: 'Teléfono', placeholder: '9xx xxx xxx' },
         {
             k: 'empresa', label: 'Empresa / Transportista', type: 'select',
-            options: d => ['Movilidad propia', ...d.records.proveedores.filter(p => p.rubro === 'Transporte' && p.estado !== 'Inactivo').map(p => String(p.razon))]
+            options: carrierOptions
         },
         { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] },
     ],
-    note: 'Los conductores con empresa "Movilidad propia" son empleados directos. Los demás pertenecen a transportistas registrados en Proveedores.',
+    note: 'Los conductores con empresa "Movilidad propia" son empleados directos. Para agregar una empresa transportista, regístrala en Mantenimiento › Proveedores con rubro "Transporte"; aparecerá en esta lista.',
 };

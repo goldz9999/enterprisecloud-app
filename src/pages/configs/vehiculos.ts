@@ -1,3 +1,5 @@
+import { carrierOptions } from '../../data/domain/carriers';
+import { suggest } from './shared';
 import type { RecordsConfig } from '../../features/records/types';
 
 export const vehiculos: RecordsConfig = {
@@ -22,13 +24,13 @@ export const vehiculos: RecordsConfig = {
     ],
     fields: [
         { k: 'placa', label: 'Placa', required: true, mono: true, placeholder: 'Ej. F4Q-728' },
-        { k: 'tipo', label: 'Tipo de vehículo', type: 'select', options: ['Camión', 'Camioneta', 'Furgón', 'Remolque', 'Semirremolque', 'Motofurgón'] },
+        { k: 'tipo', label: 'Tipo de vehículo', placeholder: 'Ej. Camión', suggestions: suggest('vehiculos', 'tipo', ['Camión', 'Camioneta', 'Furgón', 'Remolque', 'Semirremolque', 'Motofurgón']) },
         { k: 'marca', label: 'Marca', placeholder: 'Ej. Mercedes-Benz' },
         { k: 'modelo', label: 'Modelo', placeholder: 'Ej. Atego 1726' },
         { k: 'capacidad', label: 'Capacidad de carga', placeholder: 'Ej. 10 Tn' },
         {
             k: 'empresa', label: 'Empresa / Propietario', type: 'select',
-            options: d => ['Movilidad propia', ...d.records.proveedores.filter(p => p.rubro === 'Transporte' && p.estado !== 'Inactivo').map(p => String(p.razon))]
+            options: carrierOptions
         },
         {
             k: 'conductor', label: 'Conductor asignado', type: 'select',
@@ -36,5 +38,5 @@ export const vehiculos: RecordsConfig = {
         },
         { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] },
     ],
-    note: 'El conductor asignado es el habitual para este vehículo. Al seleccionar la placa en un despacho, se precarga automáticamente.',
+    note: 'El conductor asignado es el habitual para este vehículo. Al seleccionar la placa en un despacho, se precarga automáticamente. Para agregar una empresa transportista, regístrala en Mantenimiento › Proveedores con rubro "Transporte"; aparecerá en "Empresa / Propietario".',
 };

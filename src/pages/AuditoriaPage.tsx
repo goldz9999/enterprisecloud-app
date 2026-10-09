@@ -8,6 +8,7 @@ import { audit } from '../data/domain/audit';
 import type { AuditEvent } from '../data/types';
 import { mutate, useDB } from '../data/store';
 import { downloadCsv } from '../lib/csv';
+import { useRealtimeTick } from '../lib/realtime';
 import './AuditoriaPage.css';
 
 type Result = 'Exitoso' | 'Fallido' | 'Denegado';
@@ -31,6 +32,7 @@ function useEvents() {
   const [remote, setRemote] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const changes = useRealtimeTick();
   useEffect(() => {
     let on = true;
     fetchAuditEvents()
@@ -38,7 +40,7 @@ function useEvents() {
       .catch(e => on && setLoadError(auditError(e)))
       .finally(() => on && setLoading(false));
     return () => { on = false; };
-  }, []);
+  }, [changes]);
   const events = useMemo(() => {
     const now = Date.now();
     return [...remote, ...d.audit].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).map(e => {

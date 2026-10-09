@@ -3,6 +3,15 @@ import { warehouses } from '../../data/domain/orders';
 import type { DB } from '../../data/types';
 import { fmtDate } from '../../lib/dates';
 
+/**
+ * Sugerencias para un campo de texto libre: lo que ya se usó en esa colección más unos valores de ejemplo.
+ * No limita lo que se puede escribir; cada negocio agrega sus propios valores.
+ */
+export const suggest = (collection: keyof DB['records'], key: string, examples: string[] = []) => (d: DB): string[] => {
+  const used = (d.records[collection] as { [k: string]: unknown }[]).map(r => String(r[key] ?? '').trim()).filter(Boolean);
+  return [...new Set([...used, ...examples])].sort((a, b) => a.localeCompare(b, 'es'));
+};
+
 /** Option lists computed from the current data, for selects in record forms. */
 export const opts = {
   warehouses,

@@ -10,6 +10,7 @@ import { cuentasPorCobrar } from './cuentasPorCobrar';
 import { cuentasPorPagar } from './cuentasPorPagar';
 import { kardex } from './kardex';
 import { ordenesDeCompra } from './ordenesDeCompra';
+import { preciosProveedor } from './preciosProveedor';
 import { productos } from './productos';
 import { proveedores } from './proveedores';
 import { recepcion } from './recepcion';
@@ -36,6 +37,7 @@ export const RECORD_PAGES: Record<string, RecordsConfig> = {
   '/mantenimiento/clientes': clientes,
   '/mantenimiento/proveedores': proveedores,
   '/mantenimiento/productos': productos,
+  '/mantenimiento/proveedores/precios': preciosProveedor,
   '/mantenimiento/categorias': categorias,
   '/mantenimiento/almacenes': almacenes,
   '/mantenimiento/conductores': conductores,

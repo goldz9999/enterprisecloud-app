@@ -1,5 +1,5 @@
 import { moveStock, stockStatus } from '../../data/domain/stock';
-import { opts } from './shared';
+import { opts, suggest } from './shared';
 import type { RecordsConfig } from '../../features/records/types';
 
 export const productos: RecordsConfig = {
@@ -33,6 +33,6 @@ export const productos: RecordsConfig = {
     d.records.stock = d.records.stock.filter(s => s.sku !== row.sku);
   },
   columns: [{ k: 'sku', label: 'SKU', w: '116px', mono: true, muted: true }, { k: 'nombre', label: 'Producto', w: 'minmax(0, 1fr)', sub: 'cat', bold: true }, { k: 'unidad', label: 'Unidad', w: '72px', muted: true }, { k: 'precio', label: 'Precio venta', w: '100px', fmt: 'money', align: 'right' }, { k: 'costo', label: 'Costo prom.', w: '100px', fmt: 'money', align: 'right' }, { k: 'estado', label: 'Estado', w: '96px', chip: true }],
-  fields: [{ k: 'sku', label: 'SKU', required: true, placeholder: 'SKU-XXX-0000' }, { k: 'cat', label: 'Categoría', type: 'select', options: opts.categories }, { k: 'nombre', label: 'Nombre del producto', required: true, wide: true }, { k: 'unidad', label: 'Unidad de medida', type: 'select', options: ['Unidad', 'Bolsa', 'Varilla', 'Kg', 'Galón', 'Rollo', 'Caja'] }, { k: 'igv', label: 'Afecto a IGV', type: 'select', options: ['Sí', 'No'] }, { k: 'precio', label: 'Precio de venta (S/)', type: 'number', required: true, fmt: 'money' }, { k: 'costo', label: 'Costo promedio (S/)', type: 'number', fmt: 'money' }, { k: 'min', label: 'Stock mínimo', type: 'number', fmt: 'int' }, { k: 'prov', label: 'Proveedor principal', type: 'select', options: opts.suppliers }, { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] }],
+  fields: [{ k: 'sku', label: 'SKU', required: true, placeholder: 'SKU-XXX-0000' }, { k: 'cat', label: 'Categoría', type: 'select', options: opts.categories }, { k: 'nombre', label: 'Nombre del producto', required: true, wide: true }, { k: 'unidad', label: 'Unidad de medida', placeholder: 'Ej. Unidad, Kg, Caja', suggestions: suggest('productos', 'unidad', ['Unidad', 'Bolsa', 'Varilla', 'Kg', 'Galón', 'Rollo', 'Caja']) }, { k: 'igv', label: 'Afecto a IGV', type: 'select', options: ['Sí', 'No'] }, { k: 'precio', label: 'Precio de venta (S/)', type: 'number', required: true, fmt: 'money' }, { k: 'costo', label: 'Costo promedio (S/) · lo calcula el sistema', type: 'number', fmt: 'money', readOnly: true, only: 'edit' }, { k: 'min', label: 'Stock mínimo', type: 'number', fmt: 'int' }, { k: 'prov', label: 'Proveedor principal', type: 'select', options: opts.suppliers }, { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] }],
   note: 'El costo promedio se recalcula automáticamente con cada recepción de compra. El stock mínimo dispara las alertas de reposición.',
 };

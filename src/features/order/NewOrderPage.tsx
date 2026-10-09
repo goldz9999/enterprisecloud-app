@@ -6,6 +6,7 @@ import { linesError } from '../../lib/lines';
 import { igvRate, partyFromClient, partyFromSupplier, warehouses } from '../../data/domain/orders';
 import { createSaleOrderRemote } from '../../data/domain/salesOrders';
 import { createPurchaseOrderRemote } from '../../data/domain/purchaseOrders';
+import { supplierCost } from '../../data/domain/masters';
 import { can } from '../../data/permissions';
 import { currentUser, useDB } from '../../data/store';
 import type { Order, OrderLine } from '../../data/types';
@@ -26,6 +27,14 @@ export function NewOrderPage({ kind }: { kind: Order['kind'] }) {
   const warehouse = whs.includes(pickedWarehouse) ? pickedWarehouse : defaultWarehouse;
   const seller = pickedSeller || currentUser(d).name;
   const [lines, setLines] = useState<OrderLine[]>([]);
+  const partyName = String(parties.find(p => p._id === partyId)?.razon ?? '');
+  // Compras: al cambiar de proveedor, las líneas toman el precio de ese proveedor (si lo tiene registrado).
+  const pickParty = (id: number) => {
+    setPickedParty(id);
+    if (sale) return;
+    const name = String(parties.find(p => p._id === id)?.razon ?? '');
+    setLines(ls => ls.map(l => ({ ...l, price: supplierCost(name, l.sku) ?? l.price })));
+  };
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const module = sale ? 'Órdenes de venta' : 'Órdenes de compra';
@@ -88,7 +97,7 @@ export function NewOrderPage({ kind }: { kind: Order['kind'] }) {
           <div className="grid3">
             <label className="field">
               <span className="field__label">{sale ? 'Cliente' : 'Proveedor'} *</span>
-              <select className="field__control" value={partyId} onChange={e => setPickedParty(Number(e.target.value))}>
+              <select className="field__control" value={partyId} onChange={e => pickParty(Number(e.target.value))}>
                 {parties.map(p => <option key={p._id} value={p._id}>{String(p.razon)}</option>)}
               </select>
             </label>
@@ -105,7 +114,7 @@ export function NewOrderPage({ kind }: { kind: Order['kind'] }) {
               </select>
             </label>
           </div>
-          <LinesEditor lines={lines} onChange={setLines} priceFrom={sale ? 'precio' : 'costo'} warehouse={sale ? warehouse : undefined} igvRate={igvRate(d)} priceLabel={sale ? 'P. unit.' : 'Costo unit.'} />
+          <LinesEditor lines={lines} onChange={setLines} priceFrom={sale ? 'precio' : 'costo'} warehouse={sale ? warehouse : undefined} igvRate={igvRate(d)} priceLabel={sale ? 'P. unit.' : 'Costo unit.'} costFor={sale ? undefined : sku => supplierCost(partyName, sku)} />
           {error && <div className="drawer-error" role="alert">{error}</div>}
           <div className="drawer-actions">
             <span className="drawer-actions__spacer" />

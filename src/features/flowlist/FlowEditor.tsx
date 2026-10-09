@@ -3,7 +3,8 @@ import { Drawer } from '../../components/Drawer';
 import { LinesEditor } from '../../components/LinesEditor';
 import { linesError } from '../../lib/lines';
 import { dataOf, type FlowData, type FlowKind } from '../../data/domain/flows';
-import { PAY_TERMS, warehouses } from '../../data/domain/orders';
+import { payTermOptions, warehouses } from '../../data/domain/orders';
+import { supplierCost } from '../../data/domain/masters';
 import { currentUser, useDB } from '../../data/store';
 import type { OrderLine } from '../../data/types';
 import { addDays, isoDate, parseDate } from '../../lib/dates';
@@ -30,6 +31,7 @@ export function FlowEditor({ kind, row, initialLines, initialData, onClose, onSa
   const suppliers = d.records.proveedores.filter(p => p.estado !== 'Inactivo').map(p => String(p.razon));
   const users = [...new Set([currentUser(d).name, ...d.records.usuarios.filter(u => u.estado === 'Activo').map(u => String(u.nombre))])];
   const whs = warehouses(d);
+  const areas = [...new Set(['Almacén', 'Compras', 'Ventas', 'Finanzas', 'Gerencia', 'Sistemas', ...d.records.usuarios.map(u => String(u.area ?? '').trim()).filter(Boolean)])];
   const defWh = String(d.settings.almdef && whs.includes(String(d.settings.almdef)) ? d.settings.almdef : whs[0]);
   const validity = Number(/(\d+)/.exec(String(d.settings.vcot ?? '14'))?.[1] ?? 14);
 
@@ -51,7 +53,11 @@ export function FlowEditor({ kind, row, initialLines, initialData, onClose, onSa
       : initialLines ?? [],
   );
   const [error, setError] = useState('');
-  const set = (k: string, v: string) => setData(s => ({ ...s, [k]: v }));
+  const set = (k: string, v: string) => {
+    setData(s => ({ ...s, [k]: v }));
+    // Solicitud: al sugerir otro proveedor, las líneas toman el precio de ese proveedor (si lo tiene registrado).
+    if (!quote && k === 'prov') setLines(ls => ls.map(l => ({ ...l, price: supplierCost(v, l.sku) ?? l.price })));
+  };
 
   const save = () => {
     if (quote && !data.cliente) return setError('Elige un cliente (regístralo antes en Mantenimiento › Clientes).');
@@ -77,7 +83,7 @@ export function FlowEditor({ kind, row, initialLines, initialData, onClose, onSa
       width={760}
       kicker={quote ? 'Ventas · Cotizaciones' : 'Compras · Solicitudes'}
       title={row ? `Editar ${row.id}` : quote ? 'Nueva cotización' : 'Nueva solicitud de compra'}
-      subtitle={quote ? 'Precios de lista sin IGV; puedes ajustarlos por línea.' : 'Costos estimados sin IGV, según el costo promedio.'}
+      subtitle={quote ? 'Precios de venta de Mantenimiento › Productos, sin IGV.' : 'Costos estimados sin IGV, según el costo promedio.'}
       onClose={onClose}
       footer={
         <>
@@ -98,13 +104,17 @@ export function FlowEditor({ kind, row, initialLines, initialData, onClose, onSa
             <span className="field__label">Válida hasta</span>
             <input className="field__control" style={{ padding: '0 10px' }} type="date" value={data.valida} onChange={e => set('valida', e.target.value)} />
           </label>
-          {select('cond', 'Condición de pago', PAY_TERMS)}
+          {select('cond', 'Condición de pago', payTermOptions(d))}
           {select('alm', 'Entrega desde', whs)}
         </div>
       ) : (
         <div className="grid3">
           {select('solicitante', 'Solicitante', users)}
-          {select('area', 'Área', ['Almacén', 'Compras', 'Ventas', 'Finanzas', 'Gerencia', 'Sistemas'])}
+          <label className="field">
+            <span className="field__label">Área</span>
+            <input className="field__control" style={{ padding: '0 10px' }} list="hints-area" value={data.area} onChange={e => set('area', e.target.value)} placeholder="Ej. Almacén" />
+            <datalist id="hints-area">{areas.map(a => <option key={a} value={a} />)}</datalist>
+          </label>
           {select('prioridad', 'Prioridad', ['Alta', 'Media', 'Baja'])}
           <label className="field field--wide">
             <span className="field__label">Motivo *</span>
@@ -118,7 +128,7 @@ export function FlowEditor({ kind, row, initialLines, initialData, onClose, onSa
           {select('prov', 'Proveedor sugerido', ['', ...suppliers])}
         </div>
       )}
-      <LinesEditor lines={lines} onChange={setLines} priceFrom={quote ? 'precio' : 'costo'} warehouse={quote ? data.alm : undefined} igvRate={0.18} priceLabel={quote ? 'P. unit.' : 'Costo est.'} />
+      <LinesEditor lines={lines} onChange={setLines} priceFrom={quote ? 'precio' : 'costo'} warehouse={quote ? data.alm : undefined} igvRate={0.18} priceLabel={quote ? 'P. unit.' : 'Costo est.'} costFor={quote || !data.prov ? undefined : sku => supplierCost(data.prov, sku)} />
     </Drawer>
   );
 }

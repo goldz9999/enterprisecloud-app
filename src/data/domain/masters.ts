@@ -8,7 +8,7 @@ import type { DB, Row, Value } from '../types';
  * de la app (órdenes, flujos, reportes…) siga leyendo `d.records.clientes`, etc. sin cambios.
  */
 
-export const MASTER_COLLECTIONS = ['clientes', 'proveedores', 'productos', 'categorias', 'almacenes', 'conductores', 'vehiculos'] as const;
+export const MASTER_COLLECTIONS = ['clientes', 'proveedores', 'productos', 'categorias', 'almacenes', 'conductores', 'vehiculos', 'preciosProv'] as const;
 export type MasterCollection = (typeof MASTER_COLLECTIONS)[number];
 
 export function isMaster(c: string | undefined): c is MasterCollection {
@@ -42,7 +42,7 @@ const warehouseTypeOf = (label: string) => Object.entries(WAREHOUSE_TYPES).find(
 
 // ---------- cache de datos del backend ----------
 
-const raw: Record<MasterCollection, Raw[]> = { clientes: [], proveedores: [], productos: [], categorias: [], almacenes: [], conductores: [], vehiculos: [] };
+const raw: Record<MasterCollection, Raw[]> = { clientes: [], proveedores: [], productos: [], categorias: [], almacenes: [], conductores: [], vehiculos: [], preciosProv: [] };
 const loaded = new Set<MasterCollection>();
 let users: { id: string; name: string; active: boolean }[] = [];
 
@@ -113,6 +113,18 @@ export function productByNameRaw(name: string): { id: string; sku: string; name:
     return r ? { id: r.id, sku: r.sku, name: r.name, unit: r.unit } : null;
 }
 
+/**
+ * Precio de compra (sin IGV) de un producto en un proveedor, según la lista de Mantenimiento › Precios de proveedor.
+ * null si ese proveedor no tiene precio registrado para el producto.
+ */
+export function supplierCost(supplierName: string, sku: string): number | null {
+    const supplier = raw.proveedores.find(r => r.legal_name === supplierName);
+    const product = raw.productos.find(r => r.sku === sku);
+    if (!supplier || !product) return null;
+    const hit = raw.preciosProv.find(r => r.supplier_id === supplier.id && r.product_id === product.id && r.status !== 'INACTIVE');
+    return hit ? num(hit.unit_cost) : null;
+}
+
 /** UUID de usuario por nombre completo. */
 export function userUuidByName(name: string): string | null {
     return userId(name);
@@ -131,7 +143,7 @@ function carrier(v: Value | undefined): { own: boolean; id: string | null } {
     const n = text(v);
     if (!n || n === OWN) return { own: true, id: null };
     const id = idByName('proveedores', 'legal_name', n);
-    if (!id) bad('Selecciona un transportista registrado en Proveedores.');
+    if (!id) bad('Selecciona un transportista registrado en Proveedores (con rubro "Transporte").');
     return { own: false, id };
 }
 
@@ -238,6 +250,24 @@ const SPECS: Record<MasterCollection, Spec> = {
             };
         },
     },
+    preciosProv: {
+        path: '/supplier-products',
+        row: r => {
+            const p = byId('productos', r.product_id);
+            return {
+                prov: byId('proveedores', r.supplier_id)?.legal_name ?? '', prod: p?.name ?? '', sku: p?.sku ?? '', unidad: p?.unit ?? '',
+                costo: num(r.unit_cost), skuProv: r.supplier_sku ?? '', notas: r.notes ?? '', estado: stateOf(r.status),
+            };
+        },
+        body: v => {
+            const supplierId = idByName('proveedores', 'legal_name', v.prov);
+            const productId = idByName('productos', 'name', v.prod);
+            if (!supplierId) bad('Selecciona un proveedor registrado.');
+            if (!productId) bad('Selecciona un producto registrado.');
+            if (!(num(v.costo) >= 0) || text(v.costo) === '') bad('Indica el precio de compra (S/, sin IGV).');
+            return { supplierId, productId, supplierSku: opt(v.skuProv), unitCost: num(v.costo), notes: opt(v.notas), status: statusOf(v.estado) };
+        },
+    },
     vehiculos: {
         path: '/vehicles',
         row: r => {
@@ -312,10 +342,10 @@ function explain(e: unknown): string {
 
 // ---------- carga ----------
 
-async function fetchAll(path: string): Promise<Raw[]> {
+async function fetchAll(path: string, quiet = false): Promise<Raw[]> {
     const out: Raw[] = [];
     for (; ;) {
-        const res = await api<{ items: Raw[]; total: number }>(`${path}?limit=200&offset=${out.length}`);
+        const res = await api<{ items: Raw[]; total: number }>(`${path}?limit=200&offset=${out.length}`, { quiet });
         out.push(...res.items);
         if (!res.items.length || out.length >= res.total) return out;
     }
@@ -328,7 +358,7 @@ export function loadMasters(): Promise<void> {
     if (!pending) {
         pending = (async () => {
             const [lists, userList] = await Promise.all([
-                Promise.allSettled(MASTER_COLLECTIONS.map(c => fetchAll(SPECS[c].path))),
+                Promise.allSettled(MASTER_COLLECTIONS.map(c => fetchAll(SPECS[c].path, c === 'preciosProv'))),
                 api<Raw[]>('/users').catch(() => null),
             ]);
             users = Array.isArray(userList)

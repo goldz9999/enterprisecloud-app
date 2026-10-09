@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
 import '../../components/KpiCard.css';
 import { StatusChip, toneColor } from '../../components/StatusChip';
@@ -102,7 +102,7 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
     if (remote) void loadRemote(cfg.collection as RemoteCollection);
   }, [remote, cfg.collection]);
   const sk = cfg.statusKey;
-  const mod = cfg.active;
+  const mod = cfg.module ?? cfg.active;
   const canCreate = can(d, mod, 'Crear') && !!cfg.collection;
   const canEdit = can(d, mod, 'Editar');
   const canRemove = can(d, mod, 'Eliminar');
@@ -326,6 +326,14 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
         <h1 className="page__title">{cfg.title}</h1>
         <div className="page__subtitle">{cfg.subtitle}</div>
       </div>
+
+      {cfg.tabs && (
+        <nav className="page-tabs" aria-label="Secciones">
+          {cfg.tabs.map(t => (
+            <NavLink key={t.to} to={t.to} end className={({ isActive }) => 'page-tabs__tab' + (isActive ? ' is-on' : '')}>{t.label}</NavLink>
+          ))}
+        </nav>
+      )}
 
       <div className="toolbar">
         {['Todos', ...Object.keys(cfg.statuses)].map(f => {

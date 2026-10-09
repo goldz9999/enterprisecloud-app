@@ -3,7 +3,7 @@ import { AppShell } from '../components/AppShell';
 import { Modal } from '../components/Modal';
 import { Toast, useToast } from '../components/Toast';
 import { audit } from '../data/domain/audit';
-import { grossMargin, inventoryValue, livePurchases, liveSales, monthKey, openReceivables } from '../data/domain/metrics';
+import { grossMargin, inventoryValue, livePurchases, liveSales, monthKey, openReceivables, recognizedAt } from '../data/domain/metrics';
 import { orderTotal } from '../data/domain/orders';
 import { currentUser, mutate, useDB } from '../data/store';
 import type { DB } from '../data/types';
@@ -37,17 +37,16 @@ function windows(): Window[] {
   ];
 }
 
-const inWindow = (iso: string, w: Window) => {
-  const t = new Date(iso);
+const inWindow = (t: Date, w: Window) => {
   const start = w.months[0];
   const end = new Date(w.months[11].getFullYear(), w.months[11].getMonth() + 1, 1);
   return t >= start && t < end;
 };
 
-/** Monthly sales from the recorded orders. */
+/** Ventas facturadas del mes (ver liveSales en metrics.ts). */
 function monthly(d: DB, m: Date) {
   const key = monthKey(m);
-  const live = liveSales(d).filter(o => monthKey(new Date(o.createdAt)) === key);
+  const live = liveSales(d).filter(o => monthKey(recognizedAt(d, o)) === key);
   return { total: live.reduce((a, o) => a + orderTotal(o), 0), orders: live.length };
 }
 
@@ -90,22 +89,22 @@ function build(id: ReportId, d: DB, w: Window): Report {
     rows.push({ total: true, cells: [{ v: 'Total' }, num(ords), num(S(tot / 1.18)), num(S(tot - tot / 1.18)), num(S(tot)), num(ords ? S(tot / ords) : '—'), prev ? { v: (growth >= 0 ? '+' : '') + pct1(growth), right: true, mono: true, color: growth >= 0 ? 'var(--green)' : 'var(--red)' } : muted('—')] });
     return {
       area: 'Comercial', name: 'Ventas por mes', source: 'Ventas, Comprobantes',
-      desc: 'Total vendido por mes con IGV desglosado, número de órdenes y ticket promedio. Útil para seguimiento mensual y comparar con el año anterior.',
+      desc: 'Total facturado por mes con IGV desglosado, número de ventas y ticket promedio. Solo cuentan las ventas con comprobante emitido (las órdenes pendientes, confirmadas o despachadas sin facturar no suman), en el mes de emisión del comprobante.',
       kpis: [
         { label: 'Ventas del periodo', value: S(tot), note: prev ? (growth >= 0 ? '+' : '') + pct1(growth) + ' vs. periodo anterior' : 'sin periodo anterior', noteColor: growth >= 0 ? 'var(--green)' : 'var(--red)' },
-        { label: 'Órdenes', value: ords.toLocaleString('en-US'), note: 'promedio ' + Math.round(ords / 12) + ' por mes', noteColor: 'var(--muted)' },
+        { label: 'Ventas facturadas', value: ords.toLocaleString('en-US'), note: 'promedio ' + Math.round(ords / 12) + ' por mes', noteColor: 'var(--muted)' },
         { label: 'Ticket promedio', value: ords ? S(tot / ords) : '—', note: best?.total ? `mejor mes: ${MES[best.m.getMonth()]} ${String(best.m.getFullYear()).slice(2)}` : '—', noteColor: 'var(--muted)' },
       ],
       cols: '72px 64px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 72px',
-      heads: [['Mes'], ['Órdenes', true], ['Subtotal', true], ['IGV', true], ['Total', true], ['Ticket prom.', true], ['Var. anual', true]],
+      heads: [['Mes'], ['Ventas', true], ['Subtotal', true], ['IGV', true], ['Total', true], ['Ticket prom.', true], ['Var. anual', true]],
       rows,
-      empty: tot ? undefined : 'Aún no hay ventas registradas en este periodo.',
+      empty: tot ? undefined : 'Aún no hay ventas facturadas en este periodo.',
     };
   }
   if (id === 'vc' || id === 'cp') {
     const sales = id === 'vc';
     const totals = new Map<string, { amount: number; orders: number }>();
-    for (const o of (sales ? liveSales(d) : livePurchases(d)).filter(o => inWindow(o.createdAt, w))) {
+    for (const o of (sales ? liveSales(d) : livePurchases(d)).filter(o => inWindow(recognizedAt(d, o), w))) {
       const t = totals.get(o.party.name) ?? { amount: 0, orders: 0 };
       totals.set(o.party.name, { amount: t.amount + orderTotal(o), orders: t.orders + 1 });
     }
@@ -118,7 +117,7 @@ function build(id: ReportId, d: DB, w: Window): Report {
       area: sales ? 'Comercial' : 'Compras',
       name: sales ? 'Ventas por cliente' : 'Compras por proveedor',
       source: sales ? 'Ventas, Clientes' : 'Compras, Proveedores',
-      desc: sales ? 'Clientes ordenados por monto facturado en el periodo. Ayuda a identificar concentración de ingresos y clientes clave.' : 'Proveedores ordenados por monto comprado. Permite detectar dependencia de pocos proveedores y negociar condiciones.',
+      desc: sales ? 'Clientes ordenados por monto facturado en el periodo (solo ventas con comprobante emitido). Ayuda a identificar concentración de ingresos y clientes clave.' : 'Proveedores ordenados por monto comprado (solo compras con factura del proveedor registrada). Permite detectar dependencia de pocos proveedores y negociar condiciones.',
       kpis: [
         { label: sales ? 'Clientes con compras' : 'Proveedores con compras', value: String(src.length), note: `de ${(sales ? d.records.clientes : d.records.proveedores).length} registrados`, noteColor: 'var(--muted)' },
         { label: `Top ${top.length}`, value: S(topTotal), note: Math.round((topTotal / (base || 1)) * 100) + (sales ? '% de las ventas' : '% de las compras'), noteColor: 'var(--muted)' },
@@ -126,9 +125,9 @@ function build(id: ReportId, d: DB, w: Window): Report {
       ],
       ranking: top.map(([name, t]) => ({ name, amount: S(t.amount), w: (t.amount / (max || 1)) * 100 + '%', pct: pct1((t.amount / (base || 1)) * 100) })),
       cols: '28px minmax(0, 1fr) 120px 120px 90px',
-      heads: [['#'], [sales ? 'Cliente' : 'Proveedor'], ['Órdenes', true], ['Monto', true], ['Participación', true]],
+      heads: [['#'], [sales ? 'Cliente' : 'Proveedor'], [sales ? 'Ventas' : 'Compras', true], ['Monto', true], ['Participación', true]],
       rows: src.map(([name, t], i) => ({ cells: [{ v: i + 1, mono: true, color: 'var(--faint)' }, { v: name }, num(t.orders), num(S(t.amount)), muted(pct1((t.amount / (base || 1)) * 100))] })),
-      empty: src.length ? undefined : sales ? 'Aún no hay ventas en este periodo.' : 'Aún no hay compras en este periodo.',
+      empty: src.length ? undefined : sales ? 'Aún no hay ventas facturadas en este periodo.' : 'Aún no hay compras con factura registrada en este periodo.',
     };
   }
   if (id === 'cxc') {

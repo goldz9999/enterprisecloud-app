@@ -26,12 +26,16 @@ export interface Field {
   k: string;
   label: string;
   type?: 'text' | 'number' | 'select' | 'date' | 'password';
+  /** Free-text field that proposes values (e.g. the ones already used) without restricting what can be typed. */
+  suggestions?: string[] | ((d: DB) => string[]);
   /** Static options, or computed from the data (e.g. active clients). */
   options?: string[] | ((d: DB) => string[]);
   required?: boolean;
   /** Show the field only when creating ('new') or only when editing ('edit'). */
   only?: 'new' | 'edit';
   wide?: boolean;
+  /** Shown but not editable (e.g. values the system calculates). */
+  readOnly?: boolean;
   placeholder?: string;
   fmt?: Fmt;
   mono?: boolean;
@@ -69,8 +73,12 @@ export interface Kpi {
 }
 
 export interface RecordsConfig {
-  /** Sidebar label to highlight; also the permission module. */
+  /** Sidebar label to highlight; also the permission module unless `module` says otherwise. */
   active: string;
+  /** Permission module when it differs from the sidebar label. */
+  module?: string;
+  /** Tabs shown under the title to move between related screens (each one is its own route). */
+  tabs?: { label: string; to: string }[];
   title: string;
   subtitle: string;
   breadcrumb: Crumb[];

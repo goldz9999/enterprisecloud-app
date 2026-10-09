@@ -2,6 +2,10 @@ import type { RecordsConfig } from '../../features/records/types';
 import { payRemote } from '../../data/domain/finance';
 import { formatMoney as fmtM } from '../../lib/format';
 
+/** Cuenta bancaria registrada del proveedor (Mantenimiento › Proveedores), para saber a dónde transferir. */
+const supplierAccount = (d: import('../../data/types').DB, name: unknown) =>
+  String(d.records.proveedores.find(p => p.razon === name)?.cuenta ?? '').trim();
+
 export const cuentasPorPagar: RecordsConfig = {
   active: 'Cuentas por pagar',
   title: 'Cuentas por pagar',
@@ -11,6 +15,7 @@ export const cuentasPorPagar: RecordsConfig = {
   entity: 'Cuenta por pagar', titleKey: 'doc', subKey: 'prov', statusKey: 'estado',
   statuses: { 'Por vencer': 'blue', 'Vence esta semana': 'amber', 'Vencida': 'red', 'Pagada': 'green' },
   keys: ['doc', 'emision', 'prov', 'ruc', 'vence', 'total', 'saldo', 'estado', 'dias', 'orden', 'uuid'],
+  view: (row, d) => ({ ...row, cuenta: supplierAccount(d, row.prov) || 'Sin cuenta registrada' }),
   kpis: rows => {
     const open = rows.filter(r => r.estado !== 'Pagada');
     const sum = (list: typeof rows) => list.reduce((a, r) => a + Number(r.saldo), 0);
@@ -31,6 +36,7 @@ export const cuentasPorPagar: RecordsConfig = {
     { k: 'doc', label: 'Factura del proveedor', mono: true },
     { k: 'emision', label: 'Emisión' },
     { k: 'prov', label: 'Proveedor', wide: true },
+    { k: 'cuenta', label: 'Cuenta bancaria del proveedor', wide: true },
     { k: 'vence', label: 'Vencimiento' },
     { k: 'dias', label: 'Situación' },
     { k: 'orden', label: 'Orden de compra', mono: true },
@@ -41,7 +47,8 @@ export const cuentasPorPagar: RecordsConfig = {
   actions: {
     '*': [{
       label: 'Registrar pago', primary: true, toast: 'Pago registrado',
-      fields: [
+      fields: (r, d) => [
+        { k: 'cuenta', label: 'Cuenta del proveedor (donde se le paga)', readOnly: true, wide: true, value: supplierAccount(d, r.prov) || 'Sin cuenta registrada: agrégala en Proveedores' },
         { k: 'monto', label: 'Monto a pagar (S/)', type: 'number', required: true },
         { k: 'canal', label: 'Canal', type: 'select', options: ['Bancos', 'Caja'] },
         { k: 'ref', label: 'Referencia', placeholder: 'Nº operación / voucher' },
