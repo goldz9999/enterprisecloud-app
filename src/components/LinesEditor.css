@@ -80,8 +80,7 @@
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(5, 7, 12, .55);
-  backdrop-filter: blur(2px);
+  background: rgba(5, 7, 12, .6);
 }
 .ps {
   display: flex;
@@ -96,8 +95,8 @@
   overflow: hidden;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .ps-backdrop { animation: ps-fade 140ms ease-out; }
-  .ps { animation: ps-in 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .ps-backdrop { animation: ps-fade 120ms ease-out; }
+  .ps { animation: ps-in 160ms cubic-bezier(0.23, 1, 0.32, 1); }
 }
 @keyframes ps-fade { from { opacity: 0; } }
 @keyframes ps-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }

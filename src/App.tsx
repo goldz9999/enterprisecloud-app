@@ -7,7 +7,6 @@ import { can } from './data/permissions';
 import { useSession, wasSignedOut } from './data/session';
 import { useDB } from './data/store';
 import { FlowListPage } from './features/flowlist/FlowListPage';
-import { OrderPage } from './features/order/OrderPage';
 import { RecordsPage } from './features/records/RecordsPage';
 import { AuditoriaPage } from './pages/AuditoriaPage';
 import { ComprasPage } from './pages/ComprasPage';
@@ -25,10 +24,10 @@ import { cotizaciones } from './pages/configs/cotizaciones';
 import { solicitudes } from './pages/configs/solicitudes';
 import { startRealtime, stopRealtime } from './lib/realtime';
 
-/** Remounts the order screen per order (and ?paso=) so its local form state starts fresh. */
-function OrderRoute({ kind }: { kind: 'venta' | 'compra' }) {
-  const { pathname, search } = useLocation();
-  return <OrderPage key={pathname + search} kind={kind} />;
+/** Las órdenes de venta tampoco tienen página propia: se ven y aprueban en un modal de la lista (?ver=). */
+function OrdenVentaRedirect() {
+  const { code = '' } = useParams();
+  return <Navigate to={`/ventas/ordenes?ver=${encodeURIComponent(code)}`} replace />;
 }
 
 /** Las órdenes de compra ya no tienen página propia: se ven en un modal de la lista (?ver=). */
@@ -42,7 +41,7 @@ const CUSTOM: { path: string; module: string; el: ReactNode }[] = [
   { path: '/', module: 'Dashboard', el: <DashboardPage /> },
   { path: '/ventas/cotizaciones', module: 'Cotizaciones', el: <FlowListPage key="cot" cfg={cotizaciones} /> },
   { path: '/ventas/ordenes', module: 'Órdenes de venta', el: <VentasPage /> },
-  { path: '/ventas/orden/:code', module: 'Órdenes de venta', el: <OrderRoute kind="venta" /> },
+  { path: '/ventas/orden/:code', module: 'Órdenes de venta', el: <OrdenVentaRedirect /> },
   { path: '/compras/solicitudes', module: 'Solicitudes', el: <FlowListPage key="sol" cfg={solicitudes} /> },
   { path: '/compras/ordenes', module: 'Órdenes de compra', el: <ComprasPage /> },
   { path: '/inventario/kardex', module: 'Kardex', el: <KardexPage /> },

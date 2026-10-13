@@ -138,6 +138,9 @@ const SALE_STEPS: StepDef[] = [
     fields: (o, d, values) => {
       // El transportista se elige al crear la venta (modal); aquí solo se precarga.
       const tra = values.tra ?? o.forms[0]?.tra ?? 'Movilidad propia';
+      // Conductor y placa elegidos al crear la venta; aquí solo se precargan.
+      const plaPre = values.pla ?? o.forms[0]?.pla;
+      const conPre = values.con ?? o.forms[0]?.con;
       const isMobPropia = tra === 'Movilidad propia';
       // Vehicles and conductors filtered by the selected transportista
       const vehiculosEmpresa = (d.records as any).vehiculos
@@ -149,25 +152,25 @@ const SALE_STEPS: StepDef[] = [
         : [];
       const nombresConductores = conductoresList.map((c: any) => String(c.nombre));
       // Autocomplete: if placa chosen, find its conductor and vice-versa
-      const selectedVehiculo = vehiculosEmpresa.find((v: any) => v.placa === values.pla);
-      const selectedConductor = conductoresList.find((c: any) => c.nombre === values.con || (selectedVehiculo && selectedVehiculo.conductor?.startsWith(c.nombre)));
+      const selectedVehiculo = vehiculosEmpresa.find((v: any) => v.placa === plaPre);
+      const selectedConductor = conductoresList.find((c: any) => c.nombre === conPre || (selectedVehiculo && selectedVehiculo.conductor?.startsWith(c.nombre)));
       const autoPlaca = selectedConductor
-        ? (vehiculosEmpresa.find((v: any) => v.conductor?.startsWith(selectedConductor.nombre))?.placa ?? values.pla ?? '')
-        : values.pla ?? '';
+        ? (vehiculosEmpresa.find((v: any) => v.conductor?.startsWith(selectedConductor.nombre))?.placa ?? plaPre ?? '')
+        : plaPre ?? '';
       const autoCon = selectedVehiculo
-        ? (selectedVehiculo.conductor?.split(' · ')[0] ?? values.con ?? '')
-        : values.con ?? '';
+        ? (selectedVehiculo.conductor?.split(' · ')[0] ?? conPre ?? '')
+        : conPre ?? '';
       const useRegistered = placas.length > 0;
       return [
         { k: 'ft', label: 'Fecha de traslado', type: 'date', value: today(), required: true },
         { k: 'mot', label: 'Motivo de traslado', type: 'select', options: ['Venta', 'Venta sujeta a confirmación'], value: 'Venta' },
-        { k: 'tra', label: 'Transportista', type: 'select', options: carrierOptions(d), value: tra },
+        { k: 'tra', label: 'Transportista', type: 'select', options: [...new Set([tra, ...carrierOptions(d)])], value: tra },
         useRegistered
           ? { k: 'pla', label: 'Placa del vehículo', type: 'select' as const, options: placas, value: autoPlaca || placas[0], required: true }
-          : { k: 'pla', label: 'Placa del vehículo', value: values.pla ?? '', placeholder: 'Ej. F4Q-728', required: true },
+          : { k: 'pla', label: 'Placa del vehículo', value: plaPre ?? '', placeholder: 'Ej. F4Q-728', required: true },
         useRegistered && nombresConductores.length > 0
           ? { k: 'con', label: 'Conductor', type: 'select' as const, options: nombresConductores, value: autoCon || nombresConductores[0], required: true }
-          : { k: 'con', label: 'Conductor (nombre)', value: values.con ?? '', placeholder: 'Ej. Juan Pérez García', required: true },
+          : { k: 'con', label: 'Conductor (nombre)', value: conPre ?? '', placeholder: 'Ej. Juan Pérez García', required: true },
         { k: 'lle', label: 'Punto de llegada', value: o.forms[1]?.dir ?? o.party.address, required: true },
       ];
     },
@@ -371,6 +374,15 @@ const PURCHASE_STATUS: [string, Tone][] = [['Por recibir · en Kardex', 'blue'],
 export function orderStatus(o: Order): [string, Tone] {
   if (o.cancelled) return ['Anulada', 'muted'];
   return (o.kind === 'venta' ? SALE_STATUS : PURCHASE_STATUS)[Math.max(0, o.done - 1)];
+}
+
+/**
+ * Una venta al contado sin aprobar tiene fecha límite de pago (`forms[0].lim`). Pasada esa fecha la orden
+ * se anula sola en el servidor; aquí se refleja de inmediato sin esperar a la siguiente lectura.
+ */
+export function payExpired(o: Order): boolean {
+  const lim = o.forms[0]?.lim;
+  return !o.cancelled && o.done <= 1 && !!lim && lim < isoDate(new Date());
 }
 
 /** Short status used in the sales list. */

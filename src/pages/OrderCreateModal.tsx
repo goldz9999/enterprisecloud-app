@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LinesEditor } from '../components/LinesEditor';
-import { carrierOptions } from '../data/domain/carriers';
+import { PartyPicker, type PartyOption } from '../components/PartyPicker';
+import { OWN_FLEET } from '../data/domain/carriers';
 import { supplierCost } from '../data/domain/masters';
 import { igvRate, orderSubtotal, orderTotal, partyFromClient, partyFromSupplier, payTermOptions, warehouses } from '../data/domain/orders';
 import { createPurchaseOrderRemote } from '../data/domain/purchaseOrders';
 import { createSaleOrderRemote } from '../data/domain/salesOrders';
 import { currentUser, useDB } from '../data/store';
-import type { Order, OrderLine } from '../data/types';
+import type { Order, OrderLine, Row } from '../data/types';
 import { addDays, displayDate, isoDate } from '../lib/dates';
 import { formatMoney } from '../lib/format';
 import { linesError } from '../lib/lines';
@@ -35,11 +36,14 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   // Lo elegido por el usuario; si aún no eligió (o los datos llegaron después del primer render) se usa la primera opción real.
   const [pickedParty, setPickedParty] = useState<number | ''>('');
   const [pickedWarehouse, setPickedWarehouse] = useState('');
-  const [pickedCarrier, setPickedCarrier] = useState('');
-  const [pickedSeller, setPickedSeller] = useState('');
+  // Transporte: «Nuestras movilidades» (flota de la empresa, con conductor y vehículo) o «Movilidad propia» (la lleva el cliente).
+  const [transport, setTransport] = useState<'fleet' | 'client'>('fleet');
+  const [pickedDriver, setPickedDriver] = useState('');
+  const [pickedPlate, setPickedPlate] = useState('');
   const [pickedTerms, setPickedTerms] = useState('');
   const [deliveryDate, setDeliveryDate] = useState(() => isoDate(addDays(new Date(), 3)));
-  const [pickedAddress, setPickedAddress] = useState<string | null>(null);
+  // Al contado: fecha límite de pago; si no se aprueba y paga hasta ese día, la orden se anula sola.
+  const [payDeadline, setPayDeadline] = useState(() => isoDate(addDays(new Date(), 1)));
   const [lines, setLines] = useState<OrderLine[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -49,18 +53,62 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   const partyName = String(party?.razon ?? '');
   const defaultWarehouse = d.settings.almdef && whs.includes(String(d.settings.almdef)) ? String(d.settings.almdef) : whs[0];
   const warehouse = whs.includes(pickedWarehouse) ? pickedWarehouse : defaultWarehouse;
-  const carriers = carrierOptions(d);
-  const carrier = carriers.includes(pickedCarrier) ? pickedCarrier : carriers[0];
-  const sellers = [...new Set([currentUser(d).name, ...d.records.usuarios.filter(u => u.estado === 'Activo').map(u => String(u.nombre))])];
-  const seller = pickedSeller || currentUser(d).name;
+  // Flota propia: conductores y vehículos activos de la empresa. Elegir uno trae al otro (el vehículo guarda su conductor habitual).
+  const fleetDrivers = d.records.conductores.filter(c => c.estado === 'Activo' && c.empresa === OWN_FLEET);
+  const fleetVehicles = d.records.vehiculos.filter(v => v.estado === 'Activo' && v.empresa === OWN_FLEET);
+  const driverOf = (v: Row | undefined) => String(v?.conductor ?? '').split(' · ')[0];
+  const driver = pickedDriver && fleetDrivers.some(c => c.nombre === pickedDriver) ? pickedDriver : '';
+  const plate = pickedPlate && fleetVehicles.some(v => v.placa === pickedPlate) ? pickedPlate : '';
+  const pickDriver = (name: string) => {
+    setPickedDriver(name);
+    const v = fleetVehicles.find(x => name && driverOf(x) === name);
+    if (v) setPickedPlate(String(v.placa));
+  };
+  const pickPlate = (p: string) => {
+    setPickedPlate(p);
+    const name = driverOf(fleetVehicles.find(x => x.placa === p));
+    if (name && fleetDrivers.some(c => c.nombre === name)) setPickedDriver(name);
+  };
+  const needsFleet = transport === 'fleet' && fleetDrivers.length > 0 && fleetVehicles.length > 0;
+  const carrier = transport === 'fleet' ? OWN_FLEET : 'Retira el cliente';
+  const seller = currentUser(d).name;
   const terms = pickedTerms || String(party?.cond || 'Contado');
-  const address = pickedAddress ?? String(party?.dir ?? '');
+  const creditDays = Number(/(\d+)/.exec(terms)?.[1] ?? 0);
+  const cash = creditDays === 0;
+  // La dirección de entrega es la del cliente (Mantenimiento › Clientes); no se vuelve a pedir aquí.
+  const address = String(party?.dir ?? '').trim();
+  const options: PartyOption[] = parties.map(p => ({
+    id: p._id as number,
+    name: String(p.razon),
+    doc: sale ? [p.tdoc, p.ndoc].filter(Boolean).join(' ') : p.ruc ? `RUC ${p.ruc}` : '',
+    code: String(p.cod ?? ''),
+    contact: String(p.contacto ?? ''),
+    phone: String(p.tel ?? ''),
+    email: String(p.correo ?? ''),
+    address: String(p.dir ?? ''),
+    terms: String(p.cond || 'Contado'),
+    credit: sale ? Number(p.linea) || 0 : undefined,
+  }));
 
   const subtotal = orderSubtotal({ lines });
   const total = orderTotal({ lines, igvRate: rate });
+  // Crédito del cliente: línea − saldo por cobrar − ventas a crédito aún sin facturar. Una venta a crédito debe caber.
+  const creditLimit = Number(party?.linea ?? 0);
+  const owed = d.records.cxc.filter(r => r.cliente === partyName && r.estado !== 'Cobrada').reduce((a, r) => a + Number(r.saldo), 0);
+  const uninvoiced = d.orders
+    .filter(o => o.kind === 'venta' && !o.cancelled && o.done >= 1 && o.done <= 3 && o.party.name === partyName && Number(/(\d+)/.exec(o.party.terms || '')?.[1] ?? 0) > 0)
+    .reduce((a, o) => a + orderTotal(o), 0);
+  const creditAvailable = creditLimit - owed - uninvoiced;
+  const creditError = !sale || cash
+    ? ''
+    : creditLimit <= 0
+      ? 'Este cliente no tiene línea de crédito: la venta debe ser al contado'
+      : total > creditAvailable + 0.005
+        ? `Supera el crédito disponible (${formatMoney(Math.max(creditAvailable, 0))})`
+        : '';
   const units = lines.reduce((a, l) => a + l.qty, 0);
   // Qué falta para poder guardar: se muestra en el resumen en vez de dejar un botón que "no hace nada".
-  const missing = !party ? 'Elige un ' + (sale ? 'cliente' : 'proveedor') : !lines.length ? 'Agrega al menos un producto' : sale && !address.trim() ? 'Indica la dirección de entrega' : '';
+  const missing = !party ? 'Elige un ' + (sale ? 'cliente' : 'proveedor') : !lines.length ? 'Agrega al menos un producto' : creditError ? creditError : sale && needsFleet && (!driver || !plate) ? 'Elige conductor y vehículo' : '';
 
   // Esc cierra el modal, salvo mientras se guarda.
   useEffect(() => {
@@ -72,7 +120,6 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   const pickParty = (id: number) => {
     setPickedParty(id);
     setPickedTerms('');
-    setPickedAddress(null);
     if (sale) return;
     // Compras: al cambiar de proveedor las líneas toman el costo pactado con ese proveedor (si lo tiene registrado).
     const name = String(parties.find(p => p._id === id)?.razon ?? '');
@@ -81,10 +128,10 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
 
   const save = async () => {
     if (!party) return setError(sale ? 'Elige un cliente.' : 'Elige un proveedor.');
-    if (sale) {
-      if (!deliveryDate) return setError('Indica la fecha de entrega.');
-      if (!address.trim()) return setError('Indica la dirección de entrega.');
-    }
+    if (creditError) return setError(creditError + '.');
+    if (sale && !deliveryDate) return setError('Indica la fecha de entrega.');
+    if (sale && cash && !payDeadline) return setError('Indica la fecha límite de pago.');
+    if (sale && cash && payDeadline < isoDate(new Date())) return setError('La fecha límite de pago no puede ser anterior a hoy.');
     const le = linesError(lines);
     if (le) return setError(le);
     setSaving(true);
@@ -92,14 +139,17 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
     try {
       const res = sale
         ? await createSaleOrderRemote({
-            party: { ...partyFromClient(party), terms, address },
+            party: { ...partyFromClient(party), terms },
             lines,
             warehouse,
             seller,
             customerLocalId: Number(party._id),
             carrier,
+            driver: transport === 'fleet' ? driver : undefined,
+            vehiclePlate: transport === 'fleet' ? plate : undefined,
             deliveryDate,
-            deliveryAddress: address.trim(),
+            deliveryAddress: address,
+            payDeadline: cash ? payDeadline : undefined,
           })
         : await createPurchaseOrderRemote({
             party: partyFromSupplier(party),
@@ -125,7 +175,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
 
   return (
     <div className="purchase-modal-backdrop" onClick={() => !saving && onClose()}>
-      <div className="purchase-modal" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
+      <div className="purchase-modal purchase-modal--fixed" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
         <div className="purchase-modal__head">
           <div className="panel__title">{title}</div>
           <button type="button" className="drawer__close" style={{ marginLeft: 'auto', fontSize: 16 }} title="Cerrar" aria-label="Cerrar" disabled={saving} onClick={onClose}>×</button>
@@ -139,21 +189,72 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
           <div className="purchase-modal__body">
             <div className="purchase-modal__main">
               <section className="om-section">
-                <h3 className="om-section__title">{sale ? 'Cliente y pago' : 'Proveedor y destino'}</h3>
+                <h3 className="om-section__title">{sale ? 'Pago y entrega' : 'Destino'}</h3>
                 <div className="purchase-modal__fields">
-                  <label className="field">
-                    <span className="field__label">{sale ? 'Cliente' : 'Proveedor'} *</span>
-                    <select className="field__control" value={partyId} onChange={e => pickParty(Number(e.target.value))}>
-                      {parties.map(p => <option key={p._id} value={p._id}>{String(p.razon)}</option>)}
-                    </select>
-                  </label>
                   {sale ? (
-                    <label className="field">
-                      <span className="field__label">Condición de pago</span>
-                      <select className="field__control" value={terms} onChange={e => setPickedTerms(e.target.value)}>
-                        {[...new Set([terms, ...payTermOptions(d)])].map(t => <option key={t}>{t}</option>)}
-                      </select>
-                    </label>
+                    <>
+                      <label className="field">
+                        <span className="field__label">Condición de pago</span>
+                        <select className="field__control" value={terms} onChange={e => setPickedTerms(e.target.value)}>
+                          {[...new Set([terms, ...payTermOptions(d)])].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </label>
+                      {cash ? (
+                        <label className="field">
+                          <span className="field__label">Pagar hasta *</span>
+                          <input className="field__control" type="date" min={isoDate(new Date())} value={payDeadline} onChange={e => setPayDeadline(e.target.value)} />
+                        </label>
+                      ) : (
+                        <div className="field">
+                          <span className="field__label">Vencimiento del cobro</span>
+                          <div className="purchase-modal__hint" style={{ lineHeight: '36px' }}>{creditDays} días desde el comprobante</div>
+                        </div>
+                      )}
+                      <label className="field">
+                        <span className="field__label">Fecha de entrega *</span>
+                        <input className="field__control" type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
+                      </label>
+                      <p className="purchase-modal__hint purchase-modal__wide">
+                        {cash
+                          ? 'Al contado: si la orden no se aprueba y paga hasta esa fecha, se anula sola.'
+                          : creditLimit > 0
+                            ? `Crédito ${creditDays} días. Disponible ${formatMoney(Math.max(creditAvailable, 0))} de una línea de ${formatMoney(creditLimit)}. Si no paga queda «Vencido» en Cuentas por cobrar (no se anula).`
+                            : 'Este cliente no tiene línea de crédito: solo se le puede vender al contado.'}
+                      </p>
+                      <label className="field">
+                        <span className="field__label">Almacén de despacho</span>
+                        <select className="field__control" value={warehouse} onChange={e => setPickedWarehouse(e.target.value)}>
+                          {whs.map(w => <option key={w}>{w}</option>)}
+                        </select>
+                      </label>
+                      <label className="field purchase-modal__wide">
+                        <span className="field__label">Método de transporte</span>
+                        <select className="field__control" value={transport} onChange={e => setTransport(e.target.value as 'fleet' | 'client')}>
+                          <option value="fleet">Nuestras movilidades</option>
+                          <option value="client">Movilidad propia (la lleva el cliente)</option>
+                        </select>
+                      </label>
+                      {transport === 'fleet' && (fleetDrivers.length > 0 || fleetVehicles.length > 0 ? (
+                        <>
+                          <label className="field">
+                            <span className="field__label">Conductor *</span>
+                            <select className="field__control" value={driver} onChange={e => pickDriver(e.target.value)}>
+                              <option value="">Elige un conductor…</option>
+                              {fleetDrivers.map(c => <option key={String(c.nombre)} value={String(c.nombre)}>{String(c.nombre)}</option>)}
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span className="field__label">Vehículo (placa) *</span>
+                            <select className="field__control mono" value={plate} onChange={e => pickPlate(e.target.value)}>
+                              <option value="">Elige un vehículo…</option>
+                              {fleetVehicles.map(v => <option key={String(v.placa)} value={String(v.placa)}>{String(v.placa)}{v.tipo ? ` · ${String(v.tipo)}` : ''}</option>)}
+                            </select>
+                          </label>
+                        </>
+                      ) : (
+                        <p className="purchase-modal__hint purchase-modal__wide">No hay conductores ni vehículos propios registrados. Regístralos en <Link to="/mantenimiento/conductores">Mantenimiento</Link>; también puedes indicarlos al despachar.</p>
+                      ))}
+                    </>
                   ) : (
                     <label className="field">
                       <span className="field__label">Almacén destino</span>
@@ -164,40 +265,6 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
                   )}
                 </div>
               </section>
-
-              {sale && (
-                <section className="om-section">
-                  <h3 className="om-section__title">Entrega</h3>
-                  <div className="purchase-modal__fields">
-                    <label className="field purchase-modal__wide">
-                      <span className="field__label">Dirección de entrega *</span>
-                      <input className="field__control" value={address} onChange={e => setPickedAddress(e.target.value)} placeholder="Dirección donde se entrega la mercadería" autoComplete="street-address" />
-                    </label>
-                    <label className="field">
-                      <span className="field__label">Fecha de entrega *</span>
-                      <input className="field__control" type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
-                    </label>
-                    <label className="field">
-                      <span className="field__label">Almacén de despacho</span>
-                      <select className="field__control" value={warehouse} onChange={e => setPickedWarehouse(e.target.value)}>
-                        {whs.map(w => <option key={w}>{w}</option>)}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span className="field__label">Transportista</span>
-                      <select className="field__control" value={carrier} onChange={e => setPickedCarrier(e.target.value)}>
-                        {carriers.map(c => <option key={c}>{c}</option>)}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span className="field__label">Vendedor</span>
-                      <select className="field__control" value={seller} onChange={e => setPickedSeller(e.target.value)}>
-                        {sellers.map(u => <option key={u}>{u}</option>)}
-                      </select>
-                    </label>
-                  </div>
-                </section>
-              )}
 
               <section className="om-section">
                 <h3 className="om-section__title">
@@ -221,17 +288,18 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
             </div>
 
             <aside className="purchase-modal__aside" aria-label="Resumen de la orden">
-              <div className="om-summary__who">
-                <span className="purchase-modal__label">{sale ? 'Cliente' : 'Proveedor'}</span>
-                <strong className="purchase-modal__supplier">{partyName || '—'}</strong>
-                <span className="om-pill">{sale ? terms : String(party?.cond || 'Contado')}</span>
-              </div>
+              <section className="om-aside-party">
+                <h3 className="purchase-modal__label">{sale ? 'Cliente' : 'Proveedor'}</h3>
+                <PartyPicker compact noun={sale ? 'Cliente' : 'Proveedor'} options={options} value={partyId} onChange={id => pickParty(Number(id))} />
+              </section>
 
+              <div className="purchase-modal__label">Resumen</div>
               <dl className="om-facts">
                 {sale && <div><dt>Entrega</dt><dd>{deliveryDate ? displayDate(deliveryDate) : '—'}</dd></div>}
                 <div><dt>{sale ? 'Despacho desde' : 'Ingresa a'}</dt><dd>{warehouse || '—'}</dd></div>
-                {sale && <div><dt>Transporte</dt><dd>{carrier}</dd></div>}
+                {sale && <div><dt>Transporte</dt><dd>{transport === 'client' ? 'Lo lleva el cliente' : [driver, plate].filter(Boolean).join(' · ') || 'Nuestras movilidades'}</dd></div>}
                 <div><dt>Productos</dt><dd>{lines.length ? `${lines.length} · ${units.toLocaleString('en-US')} und.` : '—'}</dd></div>
+                {sale && !cash && <div><dt>Crédito disponible</dt><dd className={creditError ? 'om-warn' : undefined}>{formatMoney(Math.max(creditAvailable, 0))}</dd></div>}
               </dl>
 
               <dl className="purchase-modal__totals">

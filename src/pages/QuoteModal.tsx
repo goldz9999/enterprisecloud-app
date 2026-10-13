@@ -95,7 +95,7 @@ export function QuoteModal({ row, onClose, onSave }: Props) {
 
   return (
     <div className="purchase-modal-backdrop" onClick={() => !saving && onClose()}>
-      <div className="purchase-modal" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
+      <div className="purchase-modal purchase-modal--fixed" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
         <div className="purchase-modal__head">
           <div className="panel__title">{title}</div>
           <button type="button" className="drawer__close" style={{ marginLeft: 'auto', fontSize: 16 }} title="Cerrar" aria-label="Cerrar" disabled={saving} onClick={onClose}>×</button>
@@ -156,11 +156,7 @@ export function QuoteModal({ row, onClose, onSave }: Props) {
             </div>
 
             <aside className="purchase-modal__aside" aria-label="Resumen de la cotización">
-              <div className="om-summary__who">
-                <span className="purchase-modal__label">Cotización</span>
-                <strong className="purchase-modal__supplier">{row?.id ?? 'Nueva cotización'}</strong>
-                <span className="om-pill">{data.cond}</span>
-              </div>
+              <div className="purchase-modal__label">Resumen</div>
 
               <dl className="om-facts">
                 <div><dt>Válida hasta</dt><dd>{data.valida ? displayDate(data.valida) : '—'}</dd></div>

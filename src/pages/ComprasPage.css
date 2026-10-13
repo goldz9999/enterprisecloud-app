@@ -233,3 +233,30 @@
 .purchase-modal .le-row { grid-template-columns: minmax(0, 1fr) 68px 84px 92px 24px; gap: 8px; }
 .purchase-modal .le-row--head { padding-top: 9px; padding-bottom: 9px; }
 .purchase-modal .le-avail { font-size: 11px; line-height: 1.35; }
+
+.om-facts .om-warn { color: var(--amber); }
+
+/* Ventana de alto fijo: no crece ni se encoge al cambiar de cliente; el contenido se desplaza dentro. */
+.purchase-modal--fixed { height: min(800px, calc(100vh - 48px)); }
+.purchase-modal--fixed .purchase-modal__body { grid-template-rows: minmax(0, 1fr); }
+.purchase-modal--fixed .purchase-modal__main { overflow-y: auto; min-height: 0; }
+.om-summary__cta { margin-top: 8px; }
+
+/* Con el cliente en la columna derecha, esa columna es más ancha y se desplaza si no cabe. */
+.purchase-modal--fixed .purchase-modal__body { grid-template-columns: minmax(0, 1fr) 320px; }
+.purchase-modal--fixed .purchase-modal__aside { overflow-y: auto; min-height: 0; }
+.om-aside-party { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border-soft); }
+.om-aside-party .purchase-modal__label { margin: 0; }
+
+.row-actions__text--primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+.row-actions__text--primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.row-actions__text--danger { color: var(--red); }
+.row-actions__text:disabled { opacity: .55; cursor: default; }
+
+/* Botones con texto en la fila: más específico que `.row-actions > button` (cuadrado de 26 px). */
+.row-actions > .row-actions__text { width: auto; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; margin-right: 4px; }
+.row-actions > .row-actions__text { border: 1px solid var(--border); }
+.row-actions > .row-actions__text--primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+.row-actions > .row-actions__text--primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+.row-actions > .row-actions__text--danger { color: var(--red); }
+.row-actions > .row-actions__text--danger:hover { background: var(--hover); color: var(--red); }

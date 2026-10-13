@@ -115,8 +115,12 @@ export async function createSaleOrderRemote(input: {
     customerLocalId?: number;
     /** Datos de entrega capturados en el modal de venta. */
     carrier?: string;
+    driver?: string;
+    vehiclePlate?: string;
     deliveryDate?: string;
     deliveryAddress?: string;
+    /** Venta al contado: fecha límite de pago (yyyy-mm-dd). */
+    payDeadline?: string;
 }): Promise<OrderResult> {
     try {
         const customerId =
@@ -140,8 +144,11 @@ export async function createSaleOrderRemote(input: {
             partyEmail: input.party.email || null,
             origin: 'Venta directa',
             carrier: input.carrier || null,
+            driver: input.driver || null,
+            vehiclePlate: input.vehiclePlate || null,
             deliveryDate: input.deliveryDate || null,
             deliveryAddress: input.deliveryAddress || null,
+            payDeadline: input.payDeadline || null,
             lines: input.lines.map(l => ({
                 productId: productUuidBySku(l.sku),
                 sku: l.sku,

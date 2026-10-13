@@ -197,7 +197,7 @@ export function ComprasPage() {
         <OrderViewModal
           order={orders.find(o => o.id === viewing)!.order}
           onClose={() => setViewing(null)}
-          onCancelled={msg => { setViewing(null); toast.flash(msg); }}
+          onDone={msg => { setViewing(null); toast.flash(msg); }}
         />
       )}
       {creating && (
