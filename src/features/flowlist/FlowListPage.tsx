@@ -23,7 +23,9 @@ import { can, type PermAction } from '../../data/permissions';
 import { getDB, mutate, useDB } from '../../data/store';
 import type { OrderLine } from '../../data/types';
 import { openPrintable } from '../../lib/csv';
+import { addDays, isoDate } from '../../lib/dates';
 import { formatMoney } from '../../lib/format';
+import { QuoteModal } from '../../pages/QuoteModal';
 import { FlowEditor } from './FlowEditor';
 import type { FlowListConfig, FlowRow } from './types';
 import './FlowListPage.css';
@@ -52,6 +54,8 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
   useEffect(() => setQuery(params.get('q') ?? ''), [params]);
   const [selId, setSelId] = useState(rows[0]?.id);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Cotización sin cliente: al convertirla hay que indicar con qué cliente registrado se crea la orden.
+  const [convertTo, setConvertTo] = useState('');
   const [error, setError] = useState('');
   const toast = useToast();
 
@@ -100,7 +104,13 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
   };
   const convert = async () => {
     if (quote) {
-      const res = await convertQuotationRemote(sel!.id);
+      let customerLocalId: number | undefined;
+      if (sel!.prospect) {
+        const c = d.records.clientes.find(x => x.razon === convertTo);
+        if (!c) return setError('Elige el cliente de la orden de venta (si aún no está registrado, créalo en Mantenimiento › Clientes).');
+        customerLocalId = Number(c._id);
+      }
+      const res = await convertQuotationRemote(sel!.id, customerLocalId);
       if (!res.ok) return setError(res.error);
       setError('');
       if (res.code) navigate(`/ventas/orden/${res.code}`);
@@ -120,25 +130,28 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
 
   const actionsFor = (r: FlowRow): FlowAction[] => {
     const edit: FlowAction = { label: 'Editar', perm: [cfg.active, 'Editar'], run: () => setEditor({ row: r }) };
+    const duplicate = (r: FlowRow): FlowAction => ({
+      label: 'Duplicar como nueva cotización', perm: [cfg.active, 'Crear'], run: () => {
+        void (async () => {
+          const data = dataOf(d, 'cotizacion', r);
+          // La copia es un borrador nuevo: si la original ya venció, arranca con la vigencia por defecto.
+          const res = await duplicateQuotationRemote(r.id, r.status === 'Vencida' ? { ...data, valida: isoDate(addDays(new Date(), Number(/(\d+)/.exec(String(d.settings.vcot ?? '14'))?.[1] ?? 14))) } : data, r.items);
+          if (!res.ok) return setError(res.error);
+          setError('');
+          toast.flash('Cotización duplicada como borrador');
+          if (res.code) setSelId(res.code);
+        })();
+      }
+    });
     const openOrder: FlowAction = { label: `Ver ${quote ? 'orden de venta' : 'orden de compra'} ${r.order ?? ''}`, perm: [orderModule, 'Ver'], run: () => r.order && navigate(`/${quote ? 'ventas' : 'compras'}/orden/${r.order}`) };
     if (quote) {
       switch (r.status) {
         case 'Borrador': return [{ label: 'Enviar al cliente', primary: true, perm: [cfg.active, 'Editar'], run: () => void status('Enviada')() }, edit, { label: 'Eliminar borrador', danger: true, perm: [cfg.active, 'Eliminar'], run: () => setConfirmDelete(true) }];
         case 'Enviada': return [{ label: 'Marcar como aprobada', primary: true, perm: [cfg.active, 'Editar'], run: () => void status('Aprobada')() }, { label: 'Marcar como rechazada', danger: true, perm: [cfg.active, 'Editar'], run: () => void status('Rechazada')() }, edit];
         case 'Aprobada': return [{ label: 'Convertir en orden de venta →', primary: true, perm: [orderModule, 'Crear'], run: () => void convert() }];
+        case 'Vencida': return [{ label: 'Extender vigencia', primary: true, perm: [cfg.active, 'Editar'], run: () => setEditor({ row: r }) }, duplicate(r)];
         case 'Convertida': return r.order ? [openOrder] : [];
-        case 'Rechazada': return [{
-          label: 'Duplicar como nueva cotización', perm: [cfg.active, 'Crear'], run: () => {
-            void (async () => {
-              const data = dataOf(d, 'cotizacion', r);
-              const res = await duplicateQuotationRemote(r.id, data, r.items);
-              if (!res.ok) return setError(res.error);
-              setError('');
-              toast.flash('Cotización duplicada como borrador');
-              if (res.code) setSelId(res.code);
-            })();
-          }
-        }];
+        case 'Rechazada': return [duplicate(r)];
       }
       return [];
     }
@@ -278,6 +291,16 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
                   </div>
                 </div>
                 {note && <div className="note">{note}</div>}
+                {quote && sel.prospect && sel.status === 'Aprobada' && (
+                  <label className="field">
+                    <span className="field__label">Cliente para la orden de venta *</span>
+                    <select className="field__control" value={convertTo} onChange={e => setConvertTo(e.target.value)}>
+                      <option value="">Elige un cliente registrado…</option>
+                      {d.records.clientes.filter(c => c.estado !== 'Inactivo').map(c => <option key={c._id} value={String(c.razon)}>{String(c.razon)}</option>)}
+                    </select>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>Esta cotización no tiene cliente. Elige quién compra; si no está registrado, créalo en Mantenimiento › Clientes.</span>
+                  </label>
+                )}
                 {error && <div className="drawer-error" role="alert">{error}</div>}
                 {confirmDelete ? (
                   <div className="confirm-del">
@@ -318,7 +341,24 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
         </aside>
       </section>
 
-      {editor && (
+      {editor && quote && (
+        <QuoteModal
+          row={editor.row}
+          onClose={() => setEditor(null)}
+          onSave={async (data, items) => {
+            const cliente = d.records.clientes.find(c => c.razon === data.cliente);
+            const res = await saveQuotationRemote(data, items, editor.row?.id, cliente?._id);
+            if (!res.ok) return res.error;
+            setError('');
+            setEditor(null);
+            setFilter('Todos');
+            if (res.code) setSelId(res.code);
+            toast.flash(editor.row ? 'Cambios guardados' : `${res.code} creada`);
+            return undefined;
+          }}
+        />
+      )}
+      {editor && !quote && (
         <FlowEditor
           kind={cfg.kind}
           row={editor.row}

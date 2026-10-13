@@ -7,7 +7,7 @@ import { audit } from './audit';
 import { carrierOptions } from './carriers';
 import { addGeneratedDoc, renderDocHtml } from './documents';
 import { bankAccounts, dueFromTerm, termDays } from './finance';
-import { available, moveStock, productBySku, stockRow, updateAverageCost } from './stock';
+import { available, moveStock, productBySku, stockRow } from './stock';
 
 export const PAY_TERMS = ['Contado', 'Crédito 15 días', 'Crédito 30 días', 'Crédito 45 días'];
 
@@ -114,7 +114,7 @@ const SALE_STEPS: StepDef[] = [
     intro: 'Confirma los datos comerciales. Al confirmar se reserva el stock en el almacén elegido.',
     submit: 'Confirmar orden de venta',
     fields: (o, d) => [
-      { k: 'ent', label: 'Fecha de entrega', type: 'date', value: isoDate(addDays(new Date(), 3)), required: true },
+      { k: 'ent', label: 'Fecha de entrega', type: 'date', value: o.forms[0]?.ent || isoDate(addDays(new Date(), 3)), required: true },
       { k: 'alm', label: 'Almacén de despacho', type: 'select', options: warehouses(d), value: o.warehouse },
       { k: 'cond', label: 'Condición de pago', type: 'select', options: payTermOptions(d), value: o.party.terms || 'Contado' },
       { k: 'dir', label: 'Dirección de entrega', value: o.party.address, wide: true, required: true },
@@ -136,7 +136,8 @@ const SALE_STEPS: StepDef[] = [
     intro: 'Registra el traslado de la mercadería al cliente. Se emite la guía de remisión electrónica y se descuenta el stock.',
     submit: 'Generar guía y registrar salida',
     fields: (o, d, values) => {
-      const tra = values.tra ?? 'Movilidad propia';
+      // El transportista se elige al crear la venta (modal); aquí solo se precarga.
+      const tra = values.tra ?? o.forms[0]?.tra ?? 'Movilidad propia';
       const isMobPropia = tra === 'Movilidad propia';
       // Vehicles and conductors filtered by the selected transportista
       const vehiculosEmpresa = (d.records as any).vehiculos
@@ -160,7 +161,7 @@ const SALE_STEPS: StepDef[] = [
       return [
         { k: 'ft', label: 'Fecha de traslado', type: 'date', value: today(), required: true },
         { k: 'mot', label: 'Motivo de traslado', type: 'select', options: ['Venta', 'Venta sujeta a confirmación'], value: 'Venta' },
-        { k: 'tra', label: 'Transportista', type: 'select', options: carrierOptions(d), value: 'Movilidad propia' },
+        { k: 'tra', label: 'Transportista', type: 'select', options: carrierOptions(d), value: tra },
         useRegistered
           ? { k: 'pla', label: 'Placa del vehículo', type: 'select' as const, options: placas, value: autoPlaca || placas[0], required: true }
           : { k: 'pla', label: 'Placa del vehículo', value: values.pla ?? '', placeholder: 'Ej. F4Q-728', required: true },
@@ -268,18 +269,19 @@ const PURCHASE_STEPS: StepDef[] = [
     doneMsg: () => '',
   },
   {
-    title: 'Orden de compra', action: 'Aprobar orden', verb: 'aprobar', pending: 'Requiere aprobación', histo: 'aprobó la orden de compra',
-    intro: 'Elige el proveedor y las condiciones. Al aprobar se envía la orden al proveedor.',
-    submit: 'Aprobar orden de compra',
+    // Las órdenes nuevas nacen con este paso ya completo (no piden aprobación al crearse); solo las anteriores quedan aquí.
+    title: 'Orden de compra', action: 'Aprobar orden', verb: 'aprobar', pending: 'Registrada al crear', histo: 'registró la orden de compra',
+    intro: 'Orden anterior sin aprobar: confirma las condiciones para dejarla lista para recepción en Kardex.',
+    submit: 'Confirmar orden de compra',
     fields: (o, d) => [
       { k: 'prv', label: 'Proveedor', type: 'select', options: [...new Set([o.party.name, ...d.records.proveedores.filter(p => p.estado !== 'Inactivo').map(p => String(p.razon))])], value: o.party.name },
       { k: 'ent', label: 'Entrega pactada', type: 'date', value: isoDate(addDays(new Date(), 5)), required: true },
       { k: 'alm', label: 'Almacén destino', type: 'select', options: warehouses(d), value: o.warehouse },
       { k: 'cond', label: 'Condición de pago', type: 'select', options: payTermOptions(d), value: o.party.terms || 'Contado' },
     ],
-    note: () => 'Requiere permiso de aprobación. El proveedor recibe la orden por correo.',
-    meta: o => `Aprobada ${fmtDayMonth(new Date(o.log[1]?.at ?? Date.now()))} · ${o.log[1]?.who ?? ''}`,
-    doneMsg: () => 'Orden de compra aprobada y enviada al proveedor.',
+    note: () => 'Requiere permiso de aprobación.',
+    meta: o => `Registrada ${fmtDayMonth(new Date(o.log[1]?.at ?? o.createdAt))} · ${o.log[1]?.who || o.seller}`,
+    doneMsg: () => 'Orden de compra lista para recepción en Kardex.',
     apply: (d, o, v) => {
       if (v.prv !== o.party.name) {
         const p = d.records.proveedores.find(x => x.razon === v.prv);
@@ -291,9 +293,9 @@ const PURCHASE_STEPS: StepDef[] = [
     },
   },
   {
-    title: 'Recepción', action: 'Registrar recepción', verb: 'recibir', pending: 'Genera ingreso de stock', histo: 'registró la recepción de mercadería',
-    intro: 'Registra la mercadería que llegó del proveedor. Se genera la nota de ingreso y aumenta el stock.',
-    submit: 'Registrar ingreso a almacén',
+    title: 'Recepción', action: 'Recibir en Kardex', verb: 'recibir', pending: 'Se aprueba en Kardex', histo: 'aprobó la recepción de mercadería',
+    intro: 'La recepción se aprueba en Kardex: ingreso a inventario, factura del proveedor con su archivo y egreso de caja.',
+    submit: 'Aprobar recepción',
     fields: (o, d) => [
       { k: 'fr', label: 'Fecha de recepción', type: 'date', value: today(), required: true },
       { k: 'gr', label: 'Guía del proveedor', value: '', placeholder: 'Ej. EG07-00312', required: true },
@@ -305,19 +307,8 @@ const PURCHASE_STEPS: StepDef[] = [
     note: o => `Se sumará al ${o.warehouse}: ${lineSummary(o)}.`,
     meta: o => `Entrada a ${o.forms[2]?.alm ?? o.warehouse}`,
     doneMsg: o => `Nota de ingreso ${o.docs[2]?.replace('Ingreso ', '')} registrada. Stock y costo promedio actualizados.`,
-    apply: (d, o, v) => {
-      const ni = nextCode(d, `NI-${year()}-`, 4);
-      o.warehouse = v.alm;
-      o.lines.forEach(l => {
-        moveStock(d, { sku: l.sku, name: l.name, alm: v.alm, delta: l.qty, tipo: 'Entrada', doc: ni, costo: l.price });
-        updateAverageCost(d, l.sku, l.qty, l.price);
-      });
-      addGeneratedDoc(d, {
-        name: `${ni}.pdf`, cat: 'Órdenes de compra', ref: o.code, entity: o.party.name,
-        html: renderDocHtml(d, { title: 'Nota de ingreso', number: ni, party: o.party, partyLabel: 'Proveedor', lines: o.lines, facts: [['Orden de compra', o.code], ['Guía del proveedor', v.gr], ['Almacén', v.alm], ['Estado', v.est], ['Recibido por', v.rec]] }),
-      });
-      return { doc: 'Ingreso ' + ni };
-    },
+    // El ingreso a inventario lo registra el servidor al aprobar la recepción en Kardex; aquí no se duplica esa lógica.
+    apply: () => ({ error: 'La recepción de mercadería se aprueba en Kardex.' }),
   },
   {
     title: 'Factura proveedor', action: 'Registrar factura', verb: 'registrar factura', pending: 'Genera la cuenta por pagar', histo: 'registró la factura del proveedor',
@@ -375,7 +366,7 @@ const PURCHASE_STEPS: StepDef[] = [
 export const STEPS: Record<Order['kind'], StepDef[]> = { venta: SALE_STEPS, compra: PURCHASE_STEPS };
 
 const SALE_STATUS: [string, Tone][] = [['Por confirmar', 'blue'], ['Confirmada · por despachar', 'amber'], ['Despachada · por facturar', 'amber'], ['Facturada · por cobrar', 'blue'], ['Cobrada · completada', 'green']];
-const PURCHASE_STATUS: [string, Tone][] = [['Por aprobar', 'amber'], ['Aprobada · por recibir', 'blue'], ['Recibida · por facturar', 'blue'], ['Facturada · por pagar', 'amber'], ['Pagada · completada', 'green']];
+const PURCHASE_STATUS: [string, Tone][] = [['Por recibir · en Kardex', 'blue'], ['Por recibir · en Kardex', 'blue'], ['Recibida · por facturar', 'blue'], ['Facturada · por pagar', 'amber'], ['Pagada · completada', 'green']];
 
 export function orderStatus(o: Order): [string, Tone] {
   if (o.cancelled) return ['Anulada', 'muted'];
@@ -397,7 +388,7 @@ export function saleListStatus(d: DB, o: Order): 'Pagado' | 'Pendiente' | 'Venci
 /** Short status used in the purchase-order list. */
 export function purchaseListStatus(o: Order): string {
   if (o.cancelled) return 'Anulada';
-  return ['Por aprobar', 'Aprobada', 'Recibida', 'Facturada', 'Pagada'][Math.max(0, o.done - 1)];
+  return ['Por recibir', 'Por recibir', 'Recibida', 'Facturada', 'Pagada'][Math.max(0, o.done - 1)];
 }
 
 export function partyFromClient(c: Row): OrderParty {
@@ -469,11 +460,11 @@ export function orderEffects(o: Order): { module: string; text: string; ref: str
     ];
   return [
     { module: 'Mantenimiento', text: 'Usa proveedor y productos registrados (costos pactados)', ref: `${o.party.code || o.party.name} · ${o.lines.length} producto${o.lines.length === 1 ? '' : 's'}`, at: 0 },
-    { module: 'Compras', text: 'Compromiso de compra con el proveedor', ref: o.forms[1]?.ent ? `Entrega pactada ${fmtDate(parseDate(o.forms[1].ent)!)}` : 'Al aprobar', at: 1 },
-    { module: 'Inventario', text: 'Ingreso a almacén y movimiento en kardex', ref: `${o.docs[2] || 'Nota de ingreso'} · ${qty.map(q => '+' + q).join(' / ')}`, at: 2 },
+    { module: 'Compras', text: 'Orden registrada y lista para recepción', ref: 'Aparece en Kardex para aprobar la recepción', at: 1 },
+    { module: 'Inventario', text: 'Ingreso a almacén y movimiento en kardex (al aprobar la recepción)', ref: `${o.docs[2] || 'Nota de ingreso'} · ${qty.map(q => '+' + q).join(' / ')}`, at: 2 },
     { module: 'Inventario', text: 'Actualiza costo promedio de los productos', ref: `${o.lines.length} producto${o.lines.length === 1 ? '' : 's'}`, at: 2 },
     { module: 'Finanzas', text: 'Cuenta por pagar', ref: `CxP ${total}`, at: 3 },
-    { module: 'Finanzas', text: 'Egreso de bancos o caja y cierre de la cuenta por pagar', ref: total, at: 4 },
+    { module: 'Finanzas', text: 'Egreso de caja o bancos al aprobar la recepción (Contado) o al pagar (Crédito)', ref: total, at: 4 },
   ];
 }
 

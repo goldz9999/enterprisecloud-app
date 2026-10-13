@@ -24,7 +24,7 @@ export function PermisosPage() {
   // La matriz vive en el backend: se carga al entrar y se vuelve a sincronizar si cambia lo guardado.
   const savedKey = JSON.stringify(saved);
   const roleKey = roles.map(([r]) => r).join('|');
-  useEffect(() => { void loadAdmin(); }, []);
+  useEffect(() => { void loadAdmin({ permissions: true }); }, []);
   useEffect(() => { setPerms(clone(saved)); }, [savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (roles.length && !roles.some(([r]) => r === role)) setRole(roles[0][0]); }, [roleKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const canEdit = can(d, 'Permisos', 'Editar');

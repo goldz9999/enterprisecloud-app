@@ -29,6 +29,7 @@ function toOrder(r: Raw): Order {
     const party = r.party || {};
     return {
         kind: 'venta',
+        id: r.id ? String(r.id) : undefined,
         code: String(r.code),
         createdAt: String(r.createdAt || r.created_at || new Date().toISOString()),
         party: {
@@ -112,6 +113,10 @@ export async function createSaleOrderRemote(input: {
     warehouse: string;
     seller?: string;
     customerLocalId?: number;
+    /** Datos de entrega capturados en el modal de venta. */
+    carrier?: string;
+    deliveryDate?: string;
+    deliveryAddress?: string;
 }): Promise<OrderResult> {
     try {
         const customerId =
@@ -134,6 +139,9 @@ export async function createSaleOrderRemote(input: {
             partyContact: input.party.contact || null,
             partyEmail: input.party.email || null,
             origin: 'Venta directa',
+            carrier: input.carrier || null,
+            deliveryDate: input.deliveryDate || null,
+            deliveryAddress: input.deliveryAddress || null,
             lines: input.lines.map(l => ({
                 productId: productUuidBySku(l.sku),
                 sku: l.sku,

@@ -6,6 +6,7 @@ import { useSession } from '../data/session';
 import { fmtDayTime } from '../lib/dates';
 import { currentUser, mutate, useDB } from '../data/store';
 import { audit } from '../data/domain/audit';
+import { isLoaded } from '../data/loadAll';
 import { Modal } from './Modal';
 import { NAV, type NavEntry, type NavItem } from './nav';
 import './Sidebar.css';
@@ -30,12 +31,15 @@ export function Sidebar({ active, startCollapsed = false }: SidebarProps) {
   const expanded = !collapsed;
 
   // Live counters next to menu entries.
+  // Solo hay contador de los módulos cuyos datos ya se cargaron en esta sesión (se cargan al entrar a su pantalla).
   const counts: Record<string, number> = {
-    Cotizaciones: d.cotizaciones.filter(c => c.status === 'Enviada' || c.status === 'Borrador').length,
-    'Órdenes de venta': d.orders.filter(o => o.kind === 'venta' && !o.cancelled && o.done < 5).length,
-    Solicitudes: d.solicitudes.filter(s => s.status === 'Pendiente').length,
-    'Órdenes de compra': d.orders.filter(o => o.kind === 'compra' && !o.cancelled && o.done < 5).length,
-    'Stock por almacén': d.records.stock.filter(s => s.estado === 'Bajo mínimo' || s.estado === 'Sin stock').length,
+    Cotizaciones: isLoaded('quotations') ? d.cotizaciones.filter(c => c.status === 'Enviada' || c.status === 'Borrador').length : 0,
+    'Órdenes de venta': isLoaded('sales') ? d.orders.filter(o => o.kind === 'venta' && !o.cancelled && o.done < 5).length : 0,
+    Solicitudes: isLoaded('requests') ? d.solicitudes.filter(s => s.status === 'Pendiente').length : 0,
+    'Órdenes de compra': isLoaded('purchases') ? d.orders.filter(o => o.kind === 'compra' && !o.cancelled && o.done < 5).length : 0,
+    'Stock por almacén': isLoaded('stock') ? d.records.stock.filter(s => s.estado === 'Bajo mínimo' || s.estado === 'Sin stock').length : 0,
+    // Órdenes de compra pendientes de recepción.
+    Kardex: isLoaded('purchases') ? d.orders.filter(o => o.kind === 'compra' && !o.cancelled && o.done === 2).length : 0,
   };
   const badge = (label: string) => (counts[label] ? String(counts[label]) : undefined);
 

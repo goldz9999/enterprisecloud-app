@@ -4,7 +4,7 @@ import { MODULES, MODULE_KEYS } from '../permissions';
 import { getDB, update } from '../store';
 import type { AuditEvent, DB, PermMatrix, Row, Settings, Value } from '../types';
 import { refreshSession } from './auth';
-import { loadMasters, warehouseIdByName, warehouseNameById, type Effects, type Result } from './masters';
+import { loadMasters, usersRawFromMasters, warehouseIdByName, warehouseNameById, type Effects, type Result } from './masters';
 
 /**
  * Administración: usuarios, roles, permisos, configuración y auditoría.
@@ -258,13 +258,22 @@ async function refreshRoles() {
 }
 
 let pending: Promise<void> | null = null;
+let pendingPermissions = false;
 
-/** Descarga usuarios, roles, permisos y configuración del backend. Si ya hay una carga en curso, la reutiliza. */
-export function loadAdmin(): Promise<void> {
+/**
+ * Descarga usuarios, roles y configuración del backend. Si ya hay una carga en curso, la reutiliza.
+ * La matriz de permisos de cada rol (una petición por rol) solo se pide si una pantalla la usa (`permissions`)
+ * o si ya se había cargado antes; los permisos de la persona que inició sesión vienen de /auth/me.
+ */
+export function loadAdmin(opts: { permissions?: boolean } = {}): Promise<void> {
+    const wantPermissions = !!opts.permissions || permsLoaded;
+    if (pending && wantPermissions && !pendingPermissions) return pending.then(() => loadAdmin(opts));
     if (!pending) {
+        pendingPermissions = wantPermissions;
         pending = (async () => {
             await loadMasters().catch(() => undefined); // la configuración necesita los almacenes para mostrar el almacén por defecto
-            const [u, r, c] = await Promise.allSettled([api<Raw[]>('/users'), api<Raw[]>('/roles'), api<Raw>('/settings')]);
+            // /users ya lo trajo la carga de maestros: no se pide otra vez.
+            const [u, r, c] = await Promise.allSettled([usersRawFromMasters ? Promise.resolve(usersRawFromMasters) : api<Raw[]>('/users'), api<Raw[]>('/roles'), api<Raw>('/settings')]);
             if (u.status === 'fulfilled') {
                 rawUsers = u.value;
                 usersLoaded = true;
@@ -280,7 +289,7 @@ export function loadAdmin(): Promise<void> {
                 rolesLoaded = true;
             }
             if (c.status === 'fulfilled') settingsRaw = c.value;
-            if (rolesLoaded && rawRoles.length) await loadPermissions();
+            if (rolesLoaded && rawRoles.length && wantPermissions) await loadPermissions();
             update(d => {
                 applyAdmin(d);
                 if (settingsRaw) d.settings = { ...d.settings, ...settingsFrom(settingsRaw) };
@@ -504,6 +513,8 @@ const AUDIT_RESULT: Record<string, AuditEvent['result']> = { SUCCESS: 'Exitoso',
 
 function moduleLabel(key: string): string {
     if (key === 'security') return 'Seguridad';
+    // Claves antiguas de Finanzas que quedaron en eventos ya registrados.
+    if (key === 'ap' || key === 'ar') return 'Finanzas';
     const label = LABEL_OF_KEY[key];
     if (!label) return key;
     const group = MODULES.find(([, ms]) => ms.includes(label))?.[0] ?? label;

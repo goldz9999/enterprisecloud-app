@@ -7,7 +7,7 @@ export type RemoteCollection = MasterCollection | AdminCollection;
 
 export const isRemote = (c: string | undefined): c is RemoteCollection => isMaster(c) || isAdminCollection(c);
 
-export const loadRemote = (c: RemoteCollection): Promise<void> => (isMaster(c) ? loadMasters() : loadAdmin());
+export const loadRemote = (c: RemoteCollection): Promise<void> => (isMaster(c) ? loadMasters() : loadAdmin({ permissions: c === 'roles' }));
 
 export const createRemote = (c: RemoteCollection, values: Record<string, Value>, effects?: Effects): Promise<Result> =>
     isMaster(c) ? createMaster(c, values, effects) : createAdmin(c, values, effects);

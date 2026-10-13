@@ -77,6 +77,9 @@ export function OrderPage({ kind }: { kind: 'venta' | 'compra' }) {
   const isLocked = vi > o.done || (o.cancelled && vi >= o.done);
   const current = o.done < n && !o.cancelled ? steps[o.done] : null;
   const allowed = can(d, module, sale || o.done !== 1 ? 'Editar' : 'Aprobar');
+  // Compras: la recepción (ingreso a inventario + factura con archivo + egreso) se aprueba en Kardex, no con este formulario.
+  const inKardex = !sale && isForm && vi === 2;
+  const kardexLink = `/inventario/kardex?oc=${encodeURIComponent(o.code)}`;
   const docs = d.documentos.filter(x => x.ref === o.code);
   // Use the warehouse being typed in the active form (field 'alm') so stock column
   // updates live when the user switches warehouse before confirming.
@@ -282,7 +285,10 @@ export function OrderPage({ kind }: { kind: 'venta' | 'compra' }) {
           {canCancel(o) && can(d, module, 'Editar') && (
             <button type="button" className="btn btn--sm btn--danger-text" onClick={() => setConfirmCancel(true)}>Anular</button>
           )}
-          {current && allowed && (
+          {!sale && o.done === 2 && !o.cancelled && can(d, 'Kardex', 'Ver') && (
+            <Link className="btn btn--sm btn--primary" style={{ padding: '0 14px' }} to={kardexLink}>Recibir en Kardex</Link>
+          )}
+          {current && allowed && !(!sale && o.done === 2) && (
             <button type="button" className="btn btn--sm btn--primary" style={{ padding: '0 14px' }} onClick={goCurrent}>
               {current.action}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
@@ -377,13 +383,23 @@ export function OrderPage({ kind }: { kind: 'venta' | 'compra' }) {
             </span>
           </div>
 
-          {isForm && !allowed && (
+          {inKardex && (
+            <div className="stepbody">
+              <div style={{ color: 'var(--text-2)', textWrap: 'pretty', fontSize: 13 }}>
+                La orden ya está registrada y lista para recibirse. La recepción se aprueba en <strong>Kardex</strong>: ahí se confirman las cantidades recibidas,
+                se adjunta la factura del proveedor y se registra el ingreso a inventario y el egreso.
+              </div>
+              {can(d, 'Kardex', 'Ver') && <div className="drawer-actions"><span className="drawer-actions__spacer" /><Link className="btn btn--primary" to={kardexLink}>Ir a Kardex</Link></div>}
+            </div>
+          )}
+
+          {isForm && !allowed && !inKardex && (
             <div className="locked">
               <span>Tu rol no tiene permiso para {sale || o.done !== 1 ? 'avanzar esta orden' : 'aprobar órdenes de compra'}.</span>
             </div>
           )}
 
-          {isForm && allowed && (
+          {isForm && allowed && !inKardex && (
             <div className="stepbody">
               <div style={{ color: 'var(--text-2)', textWrap: 'pretty', fontSize: 13 }}>{step.intro}</div>
               <div className="grid2">

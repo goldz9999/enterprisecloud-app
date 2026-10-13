@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { Pagination } from '../components/Pagination';
 import { StatusChip, toneColor, type Tone } from '../components/StatusChip';
@@ -11,6 +11,7 @@ import { getDB, mutate, useDB } from '../data/store';
 import { addDays, daysBetween, fmtDate, fmtDayMonth } from '../lib/dates';
 import { downloadCsv, openPrintable } from '../lib/csv';
 import { formatMoney } from '../lib/format';
+import { OrderCreateModal } from './OrderCreateModal';
 import './VentasPage.css';
 
 type SaleStatus = 'Pagado' | 'Pendiente' | 'Vencido' | 'Anulado';
@@ -33,6 +34,13 @@ export function VentasPage() {
   const d = useDB();
   const navigate = useNavigate();
   const toast = useToast();
+  const [params, setParams] = useSearchParams();
+  // ?nueva=1 (enlaces del dashboard o de la ruta anterior /ventas/ordenes/nueva) abre directamente el modal.
+  const [creating, setCreating] = useState(() => params.get('nueva') === '1');
+  const closeCreate = () => {
+    setCreating(false);
+    if (params.has('nueva')) setParams({}, { replace: true });
+  };
   const [range, setRange] = useState<Range>('30 días');
   const [status, setStatus] = useState<StatusFilter>('Todos');
   const [client, setClient] = useState('');
@@ -130,9 +138,9 @@ export function VentasPage() {
       breadcrumb={[{ label: 'Inicio', to: '/' }, { label: 'Ventas' }, { label: 'Órdenes de venta' }]}
       actions={
         canCreate && (
-          <button type="button" className="btn btn--primary" onClick={() => navigate('/ventas/ordenes/nueva')}>
+          <button type="button" className="btn btn--primary" onClick={() => setCreating(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-            Nueva venta
+            Nueva orden de venta
           </button>
         )
       }
@@ -258,7 +266,7 @@ export function VentasPage() {
         {list.length === 0 && (
           <div className="table__empty">
             {sales.length === 0 ? (
-              <>Aún no hay ventas. {canCreate && <Link to="/ventas/ordenes/nueva">Registrar la primera venta</Link>}</>
+              <>Aún no hay ventas. {canCreate && <a onClick={() => setCreating(true)} style={{ cursor: 'pointer' }}>Registrar la primera venta</a>}</>
             ) : (
               <>No hay ventas que coincidan con los filtros. <a onClick={clear} style={{ cursor: 'pointer' }}>Limpiar filtros</a></>
             )}
@@ -280,6 +288,16 @@ export function VentasPage() {
           <Pagination page={cur} pages={pages} onPage={setPage} />
         </div>
       </section>
+      {creating && (
+        <OrderCreateModal
+          kind="venta"
+          onClose={closeCreate}
+          onCreated={o => {
+            closeCreate();
+            toast.flash(`${o.code} creada · confírmala para reservar el stock`);
+          }}
+        />
+      )}
       <Toast message={toast.message} />
     </AppShell>
   );

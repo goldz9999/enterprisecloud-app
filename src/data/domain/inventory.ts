@@ -71,6 +71,10 @@ function kardexRow(r: Raw): Row {
         delta: Number(r.delta) || 0,
         costo: Number(r.costo) || 0,
         ref: String(r.ref || ''),
+        doc: String(r.ref || ''),
+        resp: String(r.resp || '—'),
+        saldo: r.saldo == null ? '' : Number(r.saldo),
+        antes: r.antes == null ? '' : Number(r.antes),
     };
 }
 

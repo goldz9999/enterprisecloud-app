@@ -1,0 +1,261 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { LinesEditor } from '../components/LinesEditor';
+import { carrierOptions } from '../data/domain/carriers';
+import { supplierCost } from '../data/domain/masters';
+import { igvRate, orderSubtotal, orderTotal, partyFromClient, partyFromSupplier, payTermOptions, warehouses } from '../data/domain/orders';
+import { createPurchaseOrderRemote } from '../data/domain/purchaseOrders';
+import { createSaleOrderRemote } from '../data/domain/salesOrders';
+import { currentUser, useDB } from '../data/store';
+import type { Order, OrderLine } from '../data/types';
+import { addDays, displayDate, isoDate } from '../lib/dates';
+import { formatMoney } from '../lib/format';
+import { linesError } from '../lib/lines';
+import './ComprasPage.css';
+
+interface Props {
+  kind: Order['kind'];
+  onClose: () => void;
+  /** Se llama con la orden ya guardada en el servidor; el modal no navega a ninguna otra pantalla. */
+  onCreated: (order: Order) => void;
+}
+
+/**
+ * Ventana ancha para crear una orden de compra o de venta sin salir de la lista: formulario a la izquierda y resumen a la derecha.
+ * Compras: proveedor + almacén destino + productos. Ventas: cliente, entrega y condiciones + productos.
+ * La orden de compra no pide aprobación al crearse: queda lista para recepción en Kardex.
+ */
+export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
+  const d = useDB();
+  const sale = kind === 'venta';
+  const parties = (sale ? d.records.clientes : d.records.proveedores).filter(p => p.estado !== 'Inactivo');
+  const whs = warehouses(d);
+  const rate = igvRate(d);
+
+  // Lo elegido por el usuario; si aún no eligió (o los datos llegaron después del primer render) se usa la primera opción real.
+  const [pickedParty, setPickedParty] = useState<number | ''>('');
+  const [pickedWarehouse, setPickedWarehouse] = useState('');
+  const [pickedCarrier, setPickedCarrier] = useState('');
+  const [pickedSeller, setPickedSeller] = useState('');
+  const [pickedTerms, setPickedTerms] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState(() => isoDate(addDays(new Date(), 3)));
+  const [pickedAddress, setPickedAddress] = useState<string | null>(null);
+  const [lines, setLines] = useState<OrderLine[]>([]);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const partyId = parties.some(p => p._id === pickedParty) ? pickedParty : (parties[0]?._id ?? '');
+  const party = parties.find(p => p._id === partyId);
+  const partyName = String(party?.razon ?? '');
+  const defaultWarehouse = d.settings.almdef && whs.includes(String(d.settings.almdef)) ? String(d.settings.almdef) : whs[0];
+  const warehouse = whs.includes(pickedWarehouse) ? pickedWarehouse : defaultWarehouse;
+  const carriers = carrierOptions(d);
+  const carrier = carriers.includes(pickedCarrier) ? pickedCarrier : carriers[0];
+  const sellers = [...new Set([currentUser(d).name, ...d.records.usuarios.filter(u => u.estado === 'Activo').map(u => String(u.nombre))])];
+  const seller = pickedSeller || currentUser(d).name;
+  const terms = pickedTerms || String(party?.cond || 'Contado');
+  const address = pickedAddress ?? String(party?.dir ?? '');
+
+  const subtotal = orderSubtotal({ lines });
+  const total = orderTotal({ lines, igvRate: rate });
+  const units = lines.reduce((a, l) => a + l.qty, 0);
+  // Qué falta para poder guardar: se muestra en el resumen en vez de dejar un botón que "no hace nada".
+  const missing = !party ? 'Elige un ' + (sale ? 'cliente' : 'proveedor') : !lines.length ? 'Agrega al menos un producto' : sale && !address.trim() ? 'Indica la dirección de entrega' : '';
+
+  // Esc cierra el modal, salvo mientras se guarda.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !saving && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, saving]);
+
+  const pickParty = (id: number) => {
+    setPickedParty(id);
+    setPickedTerms('');
+    setPickedAddress(null);
+    if (sale) return;
+    // Compras: al cambiar de proveedor las líneas toman el costo pactado con ese proveedor (si lo tiene registrado).
+    const name = String(parties.find(p => p._id === id)?.razon ?? '');
+    setLines(ls => ls.map(l => ({ ...l, price: supplierCost(name, l.sku) ?? l.price })));
+  };
+
+  const save = async () => {
+    if (!party) return setError(sale ? 'Elige un cliente.' : 'Elige un proveedor.');
+    if (sale) {
+      if (!deliveryDate) return setError('Indica la fecha de entrega.');
+      if (!address.trim()) return setError('Indica la dirección de entrega.');
+    }
+    const le = linesError(lines);
+    if (le) return setError(le);
+    setSaving(true);
+    setError('');
+    try {
+      const res = sale
+        ? await createSaleOrderRemote({
+            party: { ...partyFromClient(party), terms, address },
+            lines,
+            warehouse,
+            seller,
+            customerLocalId: Number(party._id),
+            carrier,
+            deliveryDate,
+            deliveryAddress: address.trim(),
+          })
+        : await createPurchaseOrderRemote({
+            party: partyFromSupplier(party),
+            lines,
+            warehouse,
+            seller: currentUser(d).name,
+            supplierLocalId: Number(party._id),
+          });
+      if (!res.ok) return setError(res.error);
+      onCreated(res.order);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const title = sale ? 'Nueva orden de venta' : 'Nueva orden de compra';
+  const submit = sale ? 'Crear orden de venta' : 'Crear orden de compra';
+  const emptyNote = sale ? (
+    <>Primero registra un cliente en <Link to="/mantenimiento/clientes">Mantenimiento</Link>.</>
+  ) : (
+    <>Primero registra un proveedor en <Link to="/mantenimiento/proveedores">Mantenimiento</Link>.</>
+  );
+
+  return (
+    <div className="purchase-modal-backdrop" onClick={() => !saving && onClose()}>
+      <div className="purchase-modal" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
+        <div className="purchase-modal__head">
+          <div className="panel__title">{title}</div>
+          <button type="button" className="drawer__close" style={{ marginLeft: 'auto', fontSize: 16 }} title="Cerrar" aria-label="Cerrar" disabled={saving} onClick={onClose}>×</button>
+        </div>
+
+        {!parties.length ? (
+          <div className="purchase-modal__body purchase-modal__body--single">
+            <div className="note">{emptyNote}</div>
+          </div>
+        ) : (
+          <div className="purchase-modal__body">
+            <div className="purchase-modal__main">
+              <section className="om-section">
+                <h3 className="om-section__title">{sale ? 'Cliente y pago' : 'Proveedor y destino'}</h3>
+                <div className="purchase-modal__fields">
+                  <label className="field">
+                    <span className="field__label">{sale ? 'Cliente' : 'Proveedor'} *</span>
+                    <select className="field__control" value={partyId} onChange={e => pickParty(Number(e.target.value))}>
+                      {parties.map(p => <option key={p._id} value={p._id}>{String(p.razon)}</option>)}
+                    </select>
+                  </label>
+                  {sale ? (
+                    <label className="field">
+                      <span className="field__label">Condición de pago</span>
+                      <select className="field__control" value={terms} onChange={e => setPickedTerms(e.target.value)}>
+                        {[...new Set([terms, ...payTermOptions(d)])].map(t => <option key={t}>{t}</option>)}
+                      </select>
+                    </label>
+                  ) : (
+                    <label className="field">
+                      <span className="field__label">Almacén destino</span>
+                      <select className="field__control" value={warehouse} onChange={e => setPickedWarehouse(e.target.value)}>
+                        {whs.map(w => <option key={w}>{w}</option>)}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              </section>
+
+              {sale && (
+                <section className="om-section">
+                  <h3 className="om-section__title">Entrega</h3>
+                  <div className="purchase-modal__fields">
+                    <label className="field purchase-modal__wide">
+                      <span className="field__label">Dirección de entrega *</span>
+                      <input className="field__control" value={address} onChange={e => setPickedAddress(e.target.value)} placeholder="Dirección donde se entrega la mercadería" autoComplete="street-address" />
+                    </label>
+                    <label className="field">
+                      <span className="field__label">Fecha de entrega *</span>
+                      <input className="field__control" type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
+                    </label>
+                    <label className="field">
+                      <span className="field__label">Almacén de despacho</span>
+                      <select className="field__control" value={warehouse} onChange={e => setPickedWarehouse(e.target.value)}>
+                        {whs.map(w => <option key={w}>{w}</option>)}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span className="field__label">Transportista</span>
+                      <select className="field__control" value={carrier} onChange={e => setPickedCarrier(e.target.value)}>
+                        {carriers.map(c => <option key={c}>{c}</option>)}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span className="field__label">Vendedor</span>
+                      <select className="field__control" value={seller} onChange={e => setPickedSeller(e.target.value)}>
+                        {sellers.map(u => <option key={u}>{u}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                </section>
+              )}
+
+              <section className="om-section">
+                <h3 className="om-section__title">
+                  Productos
+                  {lines.length > 0 && <span className="om-count">{lines.length}</span>}
+                </h3>
+                <LinesEditor
+                  lines={lines}
+                  onChange={setLines}
+                  priceFrom={sale ? 'precio' : 'costo'}
+                  warehouse={sale ? warehouse : undefined}
+                  igvRate={rate}
+                  priceLabel={sale ? 'P. unit.' : 'Costo unit.'}
+                  costFor={sale ? undefined : sku => supplierCost(partyName, sku)}
+                  showTotals={false}
+                  emptyHint={sale ? 'Agrega los productos que se venden. El precio y la disponibilidad salen del catálogo.' : 'Agrega los productos que compras. El costo sale del precio pactado con el proveedor.'}
+                />
+              </section>
+
+              {error && <div className="drawer-error" role="alert">{error}</div>}
+            </div>
+
+            <aside className="purchase-modal__aside" aria-label="Resumen de la orden">
+              <div className="om-summary__who">
+                <span className="purchase-modal__label">{sale ? 'Cliente' : 'Proveedor'}</span>
+                <strong className="purchase-modal__supplier">{partyName || '—'}</strong>
+                <span className="om-pill">{sale ? terms : String(party?.cond || 'Contado')}</span>
+              </div>
+
+              <dl className="om-facts">
+                {sale && <div><dt>Entrega</dt><dd>{deliveryDate ? displayDate(deliveryDate) : '—'}</dd></div>}
+                <div><dt>{sale ? 'Despacho desde' : 'Ingresa a'}</dt><dd>{warehouse || '—'}</dd></div>
+                {sale && <div><dt>Transporte</dt><dd>{carrier}</dd></div>}
+                <div><dt>Productos</dt><dd>{lines.length ? `${lines.length} · ${units.toLocaleString('en-US')} und.` : '—'}</dd></div>
+              </dl>
+
+              <dl className="purchase-modal__totals">
+                <div><dt>Subtotal</dt><dd className="mono">{formatMoney(subtotal)}</dd></div>
+                <div><dt>IGV {Math.round(rate * 100)}%</dt><dd className="mono">{formatMoney(total - subtotal)}</dd></div>
+                <div className="is-total"><dt>Total</dt><dd className="mono">{formatMoney(total)}</dd></div>
+              </dl>
+
+              <div className="om-summary__cta">
+                <button type="button" className="btn btn--primary" onClick={() => void save()} disabled={saving || !!missing} aria-describedby="om-missing">
+                  {saving ? 'Guardando…' : submit}
+                </button>
+                <p id="om-missing" className="purchase-modal__hint om-missing" aria-live="polite">
+                  {missing || (sale ? 'Queda por confirmar: ahí se reserva el stock.' : 'Queda lista para recibirse en Kardex; el egreso se registra al aprobar la recepción.')}
+                </p>
+              </div>
+            </aside>
+          </div>
+        )}
+
+        <div className="purchase-modal__foot">
+          <button type="button" className="btn" onClick={onClose} disabled={saving}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}

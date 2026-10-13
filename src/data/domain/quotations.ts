@@ -31,6 +31,7 @@ function toFlowRow(r: Raw): FlowRow {
         facts: (r.facts || []).map((f: Raw) => ({ k: String(f.k), v: String(f.v) })),
         data: r.data ? { ...r.data } : undefined,
         order: r.order ? String(r.order) : undefined,
+        prospect: r.prospect === true,
     };
 }
 
@@ -91,10 +92,10 @@ export async function saveQuotationRemote(
     customerLocalId?: number,
 ): Promise<QResult> {
     try {
+        // El cliente es opcional: se cotiza sin cliente y se asigna al convertir en orden de venta.
         const customerId =
             (customerLocalId != null ? masterUuid('clientes', customerLocalId) : null) ||
             customerUuidByName(data.cliente);
-        if (!customerId) return { ok: false, error: 'Cliente no encontrado en el servidor.' };
         const warehouseId = data.alm ? warehouseIdByName(data.alm) : null;
         const termsDays = Number(/(\d+)/.exec(data.cond || '')?.[1] ?? 0);
         const body = {
@@ -162,10 +163,13 @@ export async function deleteQuotationRemote(code: string): Promise<QResult> {
     }
 }
 
-export async function convertQuotationRemote(code: string): Promise<QResult> {
+/** `customerLocalId`: obligatorio si la cotización es de un prospecto; es el cliente con el que se crea la orden. */
+export async function convertQuotationRemote(code: string, customerLocalId?: number): Promise<QResult> {
     try {
+        const customerId = customerLocalId != null ? masterUuid('clientes', customerLocalId) : null;
         const res = await api<{ quotation: Raw; order: Raw }>(`/quotations/${encodeURIComponent(code)}/convert`, {
             method: 'POST',
+            body: customerId ? { customerId } : undefined,
         });
         const row = toFlowRow(res.quotation);
         update(d => {

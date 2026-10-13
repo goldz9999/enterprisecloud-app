@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { can } from '../data/permissions';
 import { useDB } from '../data/store';
+import { ALL_DOMAINS, ensureLoaded } from '../data/loadAll';
 import type { DB } from '../data/types';
 import { NAV } from './nav';
 import './GlobalSearch.css';
@@ -84,7 +85,8 @@ export function GlobalSearch({ placeholder }: { placeholder: string }) {
           aria-expanded={open && results.length > 0}
           aria-controls="gsearch-results"
           onChange={e => { setQ(e.target.value); setOpen(true); setActive(0); }}
-          onFocus={() => setOpen(true)}
+          // La búsqueda cubre todos los módulos: al usarla se cargan los que aún no se habían abierto.
+          onFocus={() => { setOpen(true); ensureLoaded(ALL_DOMAINS); }}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={e => {
             if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(results.length - 1, a + 1)); }
