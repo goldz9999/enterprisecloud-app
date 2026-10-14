@@ -30,6 +30,9 @@ interface AppShellProps {
   children: ReactNode;
 }
 
+/** Plataforma CloudOps (mide la seguridad de este ERP). Configurable con VITE_CLOUDOPS_URL. */
+const CLOUDOPS_URL = String(import.meta.env.VITE_CLOUDOPS_URL ?? 'https://cloudops-dashboard-ochre.vercel.app').replace(/\/+$/, '');
+
 const Chevron = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2" strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
 );
@@ -75,6 +78,16 @@ export function AppShell({ active, breadcrumb, actions, searchPlaceholder = 'Bus
               <span className="clock__time">{timeStr}</span>
             </div>
             <div className="topbar__divider" />
+            <a
+              className="btn"
+              href={CLOUDOPS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir CloudOps en una pestaña nueva: mide la seguridad de este sistema"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6l8-3z" /><path d="M9 12l2 2 4-4" /></svg>
+              CloudOps
+            </a>
             <button type="button" className="icon-btn" title="Cambiar a modo claro / oscuro" onClick={toggle}>
               {theme === 'dark' ? (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
