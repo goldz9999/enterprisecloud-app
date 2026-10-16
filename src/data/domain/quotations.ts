@@ -1,3 +1,4 @@
+import { isoDate } from '../../lib/dates';
 import { api, ApiError } from '../../lib/api';
 import type { FlowItem, FlowRow } from '../../features/flowlist/types';
 import { update } from '../store';
@@ -17,7 +18,8 @@ type Raw = Record<string, any>;
 function toFlowRow(r: Raw): FlowRow {
     return {
         id: String(r.code || r.id),
-        date: String(r.date || (r.createdAt || '').slice(0, 10) || ''),
+        // Fecha en hora local (Lima), igual que las órdenes; el servidor la manda en UTC.
+        date: r.createdAt ? isoDate(new Date(String(r.createdAt))) : String(r.date || ''),
         party: String(r.party || ''),
         partySub: String(r.partySub || ''),
         status: String(r.status || 'Borrador'),
