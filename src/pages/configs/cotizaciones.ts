@@ -26,9 +26,8 @@ export const cotizaciones: FlowListConfig = {
     Vencida: "muted"
   },
   notes: {
-    Borrador: "Aún no se envía al cliente. Puedes editar precios y cantidades.",
+    Borrador: "Puedes editar precios y cantidades. Márcala como aprobada o rechazada según la respuesta del cliente.",
     Enviada: "Esperando respuesta del cliente. Válida hasta la fecha de vencimiento.",
-    Aprobada: "El cliente aceptó. Al convertirla se crea la orden de venta con el mismo cliente, productos y precios, y se reserva el stock.",
     Convertida: "Ya generó una orden de venta. No se puede editar.",
     Rechazada: "El cliente no aceptó la propuesta.",
     Vencida: "Pasó la fecha de validez y ya no se puede aprobar ni convertir. Extiende la vigencia o duplícala como nueva cotización."

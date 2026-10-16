@@ -3,11 +3,14 @@ import { Link } from 'react-router-dom';
 import { LinesEditor } from '../components/LinesEditor';
 import { PartyPicker, type PartyOption } from '../components/PartyPicker';
 import { OWN_FLEET } from '../data/domain/carriers';
-import { supplierCost } from '../data/domain/masters';
+import { productUuidBySku, supplierCost, userUuidByName, warehouseIdByName } from '../data/domain/masters';
+import { dataOf } from '../data/domain/flows';
+import { convertQuotationRemote } from '../data/domain/quotations';
+import type { FlowRow } from '../features/flowlist/types';
 import { igvRate, orderSubtotal, orderTotal, partyFromClient, partyFromSupplier, payTermOptions, warehouses } from '../data/domain/orders';
 import { createPurchaseOrderRemote } from '../data/domain/purchaseOrders';
 import { createSaleOrderRemote } from '../data/domain/salesOrders';
-import { currentUser, useDB } from '../data/store';
+import { currentUser, getDB, useDB } from '../data/store';
 import type { Order, OrderLine, Row } from '../data/types';
 import { addDays, displayDate, isoDate } from '../lib/dates';
 import { formatMoney } from '../lib/format';
@@ -19,6 +22,8 @@ interface Props {
   onClose: () => void;
   /** Se llama con la orden ya guardada en el servidor; el modal no navega a ninguna otra pantalla. */
   onCreated: (order: Order) => void;
+  /** Cotización aprobada que se convierte: precarga productos, precios, almacén y condición; al guardar queda «Convertida». */
+  quote?: FlowRow;
 }
 
 /**
@@ -26,25 +31,34 @@ interface Props {
  * Compras: proveedor + almacén destino + productos. Ventas: cliente, entrega y condiciones + productos.
  * La orden de compra no pide aprobación al crearse: queda lista para recepción en Kardex.
  */
-export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
+export function OrderCreateModal({ kind, onClose, onCreated, quote }: Props) {
   const d = useDB();
+  const qData = quote ? dataOf(d, 'cotizacion', quote) : undefined;
   const sale = kind === 'venta';
   const parties = (sale ? d.records.clientes : d.records.proveedores).filter(p => p.estado !== 'Inactivo');
   const whs = warehouses(d);
   const rate = igvRate(d);
 
   // Lo elegido por el usuario; si aún no eligió (o los datos llegaron después del primer render) se usa la primera opción real.
-  const [pickedParty, setPickedParty] = useState<number | ''>('');
-  const [pickedWarehouse, setPickedWarehouse] = useState('');
+  const [pickedParty, setPickedParty] = useState<number | ''>(() => {
+    const c = quote && !quote.prospect ? d.records.clientes.find(x => x.razon === quote.party) : undefined;
+    return c ? Number(c._id) : '';
+  });
+  const [pickedWarehouse, setPickedWarehouse] = useState(qData?.alm ?? '');
   // Transporte: «Nuestras movilidades» (flota de la empresa, con conductor y vehículo) o «Movilidad propia» (la lleva el cliente).
   const [transport, setTransport] = useState<'fleet' | 'client'>('fleet');
   const [pickedDriver, setPickedDriver] = useState('');
   const [pickedPlate, setPickedPlate] = useState('');
-  const [pickedTerms, setPickedTerms] = useState('');
+  const [pickedTerms, setPickedTerms] = useState(qData?.cond ?? '');
   const [deliveryDate, setDeliveryDate] = useState(() => isoDate(addDays(new Date(), 3)));
   // Al contado: fecha límite de pago; si no se aprueba y paga hasta ese día, la orden se anula sola.
   const [payDeadline, setPayDeadline] = useState(() => isoDate(addDays(new Date(), 1)));
-  const [lines, setLines] = useState<OrderLine[]>([]);
+  const [lines, setLines] = useState<OrderLine[]>(() =>
+    (quote?.items ?? []).map(i => {
+      const p = d.records.productos.find(x => x.sku === i.sku || x.nombre === i.name);
+      return { sku: String(p?.sku ?? i.sku ?? i.name), name: String(p?.nombre ?? i.name), unit: i.unit, qty: i.qty, price: i.price };
+    }),
+  );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -119,7 +133,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
 
   const pickParty = (id: number) => {
     setPickedParty(id);
-    setPickedTerms('');
+    if (!quote) setPickedTerms('');
     if (sale) return;
     // Compras: al cambiar de proveedor las líneas toman el costo pactado con ese proveedor (si lo tiene registrado).
     const name = String(parties.find(p => p._id === id)?.razon ?? '');
@@ -137,27 +151,47 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
     setSaving(true);
     setError('');
     try {
+      if (quote) {
+        const termsDays = Number(/(\d+)/.exec(terms)?.[1] ?? 0);
+        const res = await convertQuotationRemote(quote.id, Number(party._id), {
+          warehouseId: warehouseIdByName(warehouse) || undefined,
+          sellerUserId: (qData?.vendedor && userUuidByName(qData.vendedor)) || undefined,
+          paymentTermsDays: termsDays,
+          carrier,
+          driver: transport === 'fleet' ? driver || undefined : undefined,
+          vehiclePlate: transport === 'fleet' ? plate || undefined : undefined,
+          deliveryDate,
+          deliveryAddress: address || undefined,
+          payDeadline: cash ? payDeadline : undefined,
+          lines: lines.map(l => ({ productId: productUuidBySku(l.sku) || undefined, sku: l.sku, name: l.name, unit: l.unit, quantity: l.qty, unitPrice: l.price })),
+        });
+        if (!res.ok) return setError(res.error);
+        const o = getDB().orders.find(x => x.kind === 'venta' && x.code === res.code);
+        if (o) onCreated(o);
+        else onClose();
+        return;
+      }
       const res = sale
         ? await createSaleOrderRemote({
-            party: { ...partyFromClient(party), terms },
-            lines,
-            warehouse,
-            seller,
-            customerLocalId: Number(party._id),
-            carrier,
-            driver: transport === 'fleet' ? driver : undefined,
-            vehiclePlate: transport === 'fleet' ? plate : undefined,
-            deliveryDate,
-            deliveryAddress: address,
-            payDeadline: cash ? payDeadline : undefined,
-          })
+          party: { ...partyFromClient(party), terms },
+          lines,
+          warehouse,
+          seller,
+          customerLocalId: Number(party._id),
+          carrier,
+          driver: transport === 'fleet' ? driver : undefined,
+          vehiclePlate: transport === 'fleet' ? plate : undefined,
+          deliveryDate,
+          deliveryAddress: address,
+          payDeadline: cash ? payDeadline : undefined,
+        })
         : await createPurchaseOrderRemote({
-            party: partyFromSupplier(party),
-            lines,
-            warehouse,
-            seller: currentUser(d).name,
-            supplierLocalId: Number(party._id),
-          });
+          party: partyFromSupplier(party),
+          lines,
+          warehouse,
+          seller: currentUser(d).name,
+          supplierLocalId: Number(party._id),
+        });
       if (!res.ok) return setError(res.error);
       onCreated(res.order);
     } finally {
@@ -165,7 +199,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
     }
   };
 
-  const title = sale ? 'Nueva orden de venta' : 'Nueva orden de compra';
+  const title = quote ? `Orden de venta desde ${quote.id}` : sale ? 'Nueva orden de venta' : 'Nueva orden de compra';
   const submit = sale ? 'Crear orden de venta' : 'Crear orden de compra';
   const emptyNote = sale ? (
     <>Primero registra un cliente en <Link to="/mantenimiento/clientes">Mantenimiento</Link>.</>

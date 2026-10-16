@@ -6,7 +6,6 @@ import { Toast, useToast } from '../../components/Toast';
 import { renderDocHtml } from '../../data/domain/documents';
 import { dataOf, flowTotal, setFlowStatus } from '../../data/domain/flows';
 import {
-  convertQuotationRemote,
   deleteQuotationRemote,
   duplicateQuotationRemote,
   saveQuotationRemote,
@@ -54,8 +53,6 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
   useEffect(() => setQuery(params.get('q') ?? ''), [params]);
   const [selId, setSelId] = useState(rows[0]?.id);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  // Cotización sin cliente: al convertirla hay que indicar con qué cliente registrado se crea la orden.
-  const [convertTo, setConvertTo] = useState('');
   const [error, setError] = useState('');
   const toast = useToast();
 
@@ -104,16 +101,8 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
   };
   const convert = async () => {
     if (quote) {
-      let customerLocalId: number | undefined;
-      if (sel!.prospect) {
-        const c = d.records.clientes.find(x => x.razon === convertTo);
-        if (!c) return setError('Elige el cliente de la orden de venta (si aún no está registrado, créalo en Mantenimiento › Clientes).');
-        customerLocalId = Number(c._id);
-      }
-      const res = await convertQuotationRemote(sel!.id, customerLocalId);
-      if (!res.ok) return setError(res.error);
-      setError('');
-      if (res.code) navigate(`/ventas/orden/${res.code}`);
+      // Abre «Órdenes de venta» con el modal de la nueva orden ya cargado con esta cotización, para completar cliente, entrega y pago.
+      navigate(`/ventas/ordenes?cotizacion=${encodeURIComponent(sel!.id)}`);
       return;
     }
     // solicitud → orden de compra: usa proveedor sugerido del data
@@ -146,7 +135,7 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
     const openOrder: FlowAction = { label: `Ver ${quote ? 'orden de venta' : 'orden de compra'} ${r.order ?? ''}`, perm: [orderModule, 'Ver'], run: () => r.order && navigate(`/${quote ? 'ventas' : 'compras'}/orden/${r.order}`) };
     if (quote) {
       switch (r.status) {
-        case 'Borrador': return [{ label: 'Enviar al cliente', primary: true, perm: [cfg.active, 'Editar'], run: () => void status('Enviada')() }, edit, { label: 'Eliminar borrador', danger: true, perm: [cfg.active, 'Eliminar'], run: () => setConfirmDelete(true) }];
+        case 'Borrador': return [{ label: 'Marcar como aprobada', primary: true, perm: [cfg.active, 'Editar'], run: () => void status('Aprobada')() }, { label: 'Marcar como rechazada', danger: true, perm: [cfg.active, 'Editar'], run: () => void status('Rechazada')() }, edit, { label: 'Eliminar borrador', danger: true, perm: [cfg.active, 'Eliminar'], run: () => setConfirmDelete(true) }];
         case 'Enviada': return [{ label: 'Marcar como aprobada', primary: true, perm: [cfg.active, 'Editar'], run: () => void status('Aprobada')() }, { label: 'Marcar como rechazada', danger: true, perm: [cfg.active, 'Editar'], run: () => void status('Rechazada')() }, edit];
         case 'Aprobada': return [{ label: 'Convertir en orden de venta →', primary: true, perm: [orderModule, 'Crear'], run: () => void convert() }];
         case 'Vencida': return [{ label: 'Extender vigencia', primary: true, perm: [cfg.active, 'Editar'], run: () => setEditor({ row: r }) }, duplicate(r)];
@@ -291,16 +280,6 @@ export function FlowListPage({ cfg }: { cfg: FlowListConfig }) {
                   </div>
                 </div>
                 {note && <div className="note">{note}</div>}
-                {quote && sel.prospect && sel.status === 'Aprobada' && (
-                  <label className="field">
-                    <span className="field__label">Cliente para la orden de venta *</span>
-                    <select className="field__control" value={convertTo} onChange={e => setConvertTo(e.target.value)}>
-                      <option value="">Elige un cliente registrado…</option>
-                      {d.records.clientes.filter(c => c.estado !== 'Inactivo').map(c => <option key={c._id} value={String(c.razon)}>{String(c.razon)}</option>)}
-                    </select>
-                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>Esta cotización no tiene cliente. Elige quién compra; si no está registrado, créalo en Mantenimiento › Clientes.</span>
-                  </label>
-                )}
                 {error && <div className="drawer-error" role="alert">{error}</div>}
                 {confirmDelete ? (
                   <div className="confirm-del">

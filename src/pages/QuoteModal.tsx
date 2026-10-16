@@ -95,7 +95,7 @@ export function QuoteModal({ row, onClose, onSave }: Props) {
 
   return (
     <div className="purchase-modal-backdrop" onClick={() => !saving && onClose()}>
-      <div className="purchase-modal purchase-modal--fixed" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
+      <div className="purchase-modal purchase-modal--quote" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
         <div className="purchase-modal__head">
           <div className="panel__title">{title}</div>
           <button type="button" className="drawer__close" style={{ marginLeft: 'auto', fontSize: 16 }} title="Cerrar" aria-label="Cerrar" disabled={saving} onClick={onClose}>×</button>
@@ -176,16 +176,13 @@ export function QuoteModal({ row, onClose, onSave }: Props) {
                   {saving ? 'Guardando…' : row ? 'Guardar cambios' : 'Crear cotización'}
                 </button>
                 <p id="om-missing" className="purchase-modal__hint om-missing" aria-live="polite">
-                  {missing || 'Se guarda como borrador; luego la envías al cliente.'}
+                  {missing || 'Se guarda como borrador; luego la marcas como aprobada o rechazada.'}
                 </p>
+                <button type="button" className="btn" onClick={onClose} disabled={saving}>Cancelar</button>
               </div>
             </aside>
           </div>
         )}
-
-        <div className="purchase-modal__foot">
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>Cancelar</button>
-        </div>
       </div>
     </div>
   );

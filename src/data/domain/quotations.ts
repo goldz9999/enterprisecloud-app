@@ -164,12 +164,13 @@ export async function deleteQuotationRemote(code: string): Promise<QResult> {
 }
 
 /** `customerLocalId`: obligatorio si la cotización es de un prospecto; es el cliente con el que se crea la orden. */
-export async function convertQuotationRemote(code: string, customerLocalId?: number): Promise<QResult> {
+export async function convertQuotationRemote(code: string, customerLocalId?: number, order?: Record<string, unknown>): Promise<QResult> {
     try {
         const customerId = customerLocalId != null ? masterUuid('clientes', customerLocalId) : null;
+        const body = { ...(order ?? {}), ...(customerId ? { customerId } : {}) };
         const res = await api<{ quotation: Raw; order: Raw }>(`/quotations/${encodeURIComponent(code)}/convert`, {
             method: 'POST',
-            body: customerId ? { customerId } : undefined,
+            body: Object.keys(body).length ? body : undefined,
         });
         const row = toFlowRow(res.quotation);
         update(d => {

@@ -39,10 +39,12 @@ export function VentasPage() {
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   // ?nueva=1 (enlaces del dashboard o de la ruta anterior /ventas/ordenes/nueva) abre directamente el modal.
-  const [creating, setCreating] = useState(() => params.get('nueva') === '1');
+  // ?cotizacion=COT-… (botón «Convertir en orden de venta») abre el modal precargado con esa cotización.
+  const [fromQuote] = useState(() => params.get('cotizacion'));
+  const [creating, setCreating] = useState(() => params.get('nueva') === '1' || !!params.get('cotizacion'));
   const closeCreate = () => {
     setCreating(false);
-    if (params.has('nueva')) setParams({}, { replace: true });
+    if (params.has('nueva') || params.has('cotizacion')) setParams({}, { replace: true });
   };
   // En un ERP hay muchas ventas por día: la lista abre en el día de hoy y se cambia con el calendario.
   const [day, setDay] = useState(() => isoDate(new Date()));
@@ -271,7 +273,7 @@ export function VentasPage() {
                       <button type="button" role="menuitem" onClick={() => { setMenu(null); setViewing(r.id); }}>Abrir orden</button>
                       <button type="button" role="menuitem" onClick={() => { setMenu(null); navigate(`/documentos?q=${r.id}`); }}>Ver documentos</button>
                       <button type="button" role="menuitem" onClick={() => { setMenu(null); printList([r]); }}>Imprimir resumen</button>
-                                          </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -306,6 +308,7 @@ export function VentasPage() {
       {creating && (
         <OrderCreateModal
           kind="venta"
+          quote={fromQuote ? d.cotizaciones.find(c => c.id === fromQuote) : undefined}
           onClose={closeCreate}
           onCreated={o => {
             closeCreate();
