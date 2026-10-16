@@ -259,6 +259,9 @@ export function VentasPage() {
                   {canEdit && r.status === 'Por aprobar' && (
                     <button type="button" className="row-actions__text row-actions__text--primary" disabled={busyCode === r.id} onClick={() => void approve(r.id)}>{busyCode === r.id ? 'Aprobando…' : 'Aprobar'}</button>
                   )}
+                  {(r.status === 'Pendiente' || r.status === 'Vencido') && can(d, 'Cuentas por cobrar', 'Ver') && (
+                    <button type="button" className="row-actions__text row-actions__text--primary" title="Ir a Cuentas por cobrar para registrar el pago" onClick={() => navigate(`/finanzas/cxc?q=${encodeURIComponent(r.id)}&abrir=1`)}>Registrar cobro</button>
+                  )}
                   {canEdit && canCancel(r.order) && r.status !== 'Anulado' && (
                     <button type="button" className="row-actions__text row-actions__text--danger" disabled={busyCode === r.id} onClick={() => void cancelMany([r.id])}>Anular</button>
                   )}

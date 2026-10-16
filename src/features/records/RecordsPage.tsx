@@ -128,6 +128,17 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
     setDrawer({ mode, id });
   };
   const close = () => setDrawer(null);
+
+  // ?q=…&abrir=1 (p. ej. «Registrar cobro» desde Órdenes de venta): si la búsqueda deja un solo registro, se abre su detalle.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || params.get('abrir') !== '1' || !q) return;
+    if (searched.length === 1) {
+      autoOpened.current = true;
+      open('view' as DrawerMode, searched[0]._id as number);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searched, params, q]);
   const labels = Object.fromEntries(cfg.fields.map(f => [f.k, f.label]));
 
   /** Guarda un registro en el backend y refleja el resultado en el store local. */
