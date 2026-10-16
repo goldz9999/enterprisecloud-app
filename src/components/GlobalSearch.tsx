@@ -31,7 +31,6 @@ function buildIndex(d: DB): Hit[] {
   for (const p of d.records.productos) hits.push({ kind: 'Producto', title: String(p.nombre), sub: String(p.sku), to: `/mantenimiento/productos?q=${enc(String(p.sku))}`, module: 'Productos' });
   for (const c of d.records.comprobantes) hits.push({ kind: 'Comprobante', title: String(c.num), sub: String(c.cliente), to: `/ventas/comprobantes?q=${enc(String(c.num))}`, module: 'Comprobantes' });
   for (const c of d.cotizaciones) hits.push({ kind: 'Cotización', title: c.id, sub: c.party, to: `/ventas/cotizaciones?q=${enc(c.id)}`, module: 'Cotizaciones' });
-  for (const s of d.solicitudes) hits.push({ kind: 'Solicitud', title: s.id, sub: s.partySub, to: `/compras/solicitudes?q=${enc(s.id)}`, module: 'Solicitudes' });
   for (const x of d.documentos) hits.push({ kind: 'Documento', title: x.name, sub: `${x.cat} · ${x.ref}`, to: `/documentos?q=${enc(x.name)}`, module: 'Documentos' });
   for (const u of d.records.usuarios) hits.push({ kind: 'Usuario', title: String(u.nombre), sub: String(u.correo), to: `/admin/usuarios?q=${enc(String(u.correo))}`, module: 'Usuarios' });
   return hits;

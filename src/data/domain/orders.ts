@@ -260,15 +260,15 @@ const SALE_STEPS: StepDef[] = [
 
 const PURCHASE_STEPS: StepDef[] = [
   {
-    title: 'Solicitud', action: '', verb: 'solicitar', pending: '', histo: 'registró la compra',
+    title: 'Registro', action: '', verb: 'registrar', pending: '', histo: 'registró la compra',
     intro: '', submit: '',
     fields: o => [
       { k: 'cod', label: 'Origen', value: o.origin ?? 'Compra directa' },
       { k: 'f', label: 'Fecha', type: 'date', value: isoDate(new Date(o.createdAt)) },
-      { k: 'sol', label: 'Solicitante / comprador', value: o.seller },
+      { k: 'sol', label: 'Comprador', value: o.seller },
     ],
     note: () => '',
-    meta: o => (o.origin ? `Solicitud aprobada · ${o.seller}` : `Compra directa · ${o.seller}`),
+    meta: o => (o.origin && o.origin !== 'Compra directa' ? `Desde ${o.origin} · ${o.seller}` : `Compra directa · ${o.seller}`),
     doneMsg: () => '',
   },
   {

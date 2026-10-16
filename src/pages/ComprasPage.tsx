@@ -23,11 +23,17 @@ const COLS = '110px minmax(0, 1.4fr) minmax(0, 1.2fr) 92px 80px 100px 112px 140p
 export function ComprasPage() {
   const d = useDB();
   const navigate = useNavigate();
+  const [params0] = useSearchParams();
   const [status, setStatus] = useState<StatusFilter>('Todos');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(10);
-  const [creating, setCreating] = useState(false);
+  // ?nuevo=SKU&alm=Almacén (desde Stock bajo mínimo) abre la nueva orden ya cargada con ese producto.
+  const [prefill] = useState(() => {
+    const sku = params0.get('nuevo');
+    return sku ? { sku, alm: params0.get('alm') ?? undefined } : null;
+  });
+  const [creating, setCreating] = useState(!!prefill);
   // ?ver=OC-… abre la orden en un modal de solo lectura (también es a donde redirigen los enlaces a una orden).
   const [params, setParams] = useSearchParams();
   const viewing = params.get('ver');
@@ -203,9 +209,11 @@ export function ComprasPage() {
       {creating && (
         <OrderCreateModal
           kind="compra"
-          onClose={() => setCreating(false)}
+          restock={prefill ?? undefined}
+          onClose={() => { setCreating(false); if (params.has('nuevo')) setParams({}, { replace: true }); }}
           onCreated={o => {
             setCreating(false);
+            if (params.has('nuevo')) setParams({}, { replace: true });
             toast.flash(`${o.code} creada · queda pendiente de recepción en Kardex`);
           }}
         />

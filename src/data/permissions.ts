@@ -8,7 +8,7 @@ export type PermAction = (typeof ACTIONS)[number];
 export const MODULES: [group: string, modules: string[]][] = [
   ['Inicio', ['Dashboard']],
   ['Ventas', ['Cotizaciones', 'Órdenes de venta', 'Comprobantes']],
-  ['Compras', ['Solicitudes', 'Órdenes de compra']],
+  ['Compras', ['Órdenes de compra']],
   // «Kardex» es la recepción de mercadería (permiso goods-receipts); «Movimientos Kardex» es el registro de movimientos (kardex).
   ['Inventario', ['Stock por almacén', 'Kardex', 'Movimientos Kardex', 'Transferencias', 'Ajustes']],
   ['Finanzas', ['Cuentas por cobrar', 'Cuentas por pagar', 'Caja', 'Bancos']],

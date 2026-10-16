@@ -38,7 +38,6 @@ export const NAV: NavEntry[] = [
   {
     kind: 'item', label: 'Compras', icon: 'M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8',
     children: [
-      { label: 'Solicitudes', to: '/compras/solicitudes', badge: '2' },
       { label: 'Órdenes de compra', to: '/compras/ordenes', badge: '5' },
     ],
   },

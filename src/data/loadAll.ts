@@ -42,7 +42,6 @@ const ROUTES: [prefix: string, needs: Domain[]][] = [
   ['/ventas/cotizaciones', ['quotations', 'stock']],
   ['/ventas/comprobantes', ['invoices', 'sales']],
   ['/ventas', ['sales', 'invoices', 'stock', 'receivables']],
-  ['/compras/solicitudes', ['requests', 'purchases']],
   ['/compras', ['purchases', 'receipts']],
   ['/inventario/stock', ['stock']],
   ['/inventario/kardex', ['purchases', 'receipts']],

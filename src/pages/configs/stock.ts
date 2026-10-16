@@ -21,8 +21,8 @@ export const stock: RecordsConfig & { sidePanel: boolean } = {
   fields: [{ k: 'prod', label: 'Producto', wide: true }, { k: 'sku', label: 'SKU', mono: true }, { k: 'cat', label: 'Categoría' }, { k: 'alm', label: 'Almacén' }, { k: 'stock', label: 'Stock actual', fmt: 'int' }, { k: 'min', label: 'Stock mínimo', fmt: 'int' }, { k: 'res', label: 'Reservado por órdenes', fmt: 'int' }, { k: 'disp', label: 'Disponible para venta', fmt: 'int' }, { k: 'valor', label: 'Valorizado (costo prom.)', fmt: 'money' }],
   note: 'El stock cambia con despachos, recepciones, transferencias y ajustes. El mínimo se define en Mantenimiento › Productos.',
   actions: {
-    'Bajo mínimo': [{ label: 'Crear solicitud de compra →', href: r => `/compras/solicitudes?nuevo=${r.sku}&alm=${encodeURIComponent(String(r.alm))}`, primary: true }, { label: 'Ver kardex', href: r => `/inventario/kardex?q=${r.sku}` }],
-    'Sin stock': [{ label: 'Crear solicitud de compra →', href: r => `/compras/solicitudes?nuevo=${r.sku}&alm=${encodeURIComponent(String(r.alm))}`, primary: true }, { label: 'Ver kardex', href: r => `/inventario/kardex?q=${r.sku}` }],
+    'Bajo mínimo': [{ label: 'Crear orden de compra →', href: r => `/compras/ordenes?nuevo=${r.sku}&alm=${encodeURIComponent(String(r.alm))}`, primary: true }, { label: 'Ver kardex', href: r => `/inventario/kardex?q=${r.sku}` }],
+    'Sin stock': [{ label: 'Crear orden de compra →', href: r => `/compras/ordenes?nuevo=${r.sku}&alm=${encodeURIComponent(String(r.alm))}`, primary: true }, { label: 'Ver kardex', href: r => `/inventario/kardex?q=${r.sku}` }],
     'Sobrestock': [{ label: 'Crear transferencia', href: '/inventario/transferencias', primary: true }, { label: 'Ver kardex', href: r => `/inventario/kardex?q=${r.sku}` }],
     'Normal': [{ label: 'Ver kardex', href: r => `/inventario/kardex?q=${r.sku}` }],
   },

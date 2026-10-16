@@ -20,7 +20,16 @@ interface SidebarProps {
 export function Sidebar({ active, startCollapsed = false }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(startCollapsed);
   // Explicit open/closed per group; groups without an entry fall back to "open if it holds the active screen".
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  // Se guarda para que, al cambiar de pantalla (el sidebar se vuelve a montar), los grupos abiertos sigan abiertos.
+  const [openGroups, setOpenGroupsState] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('sb-open-groups') || '{}'); } catch { return {}; }
+  });
+  const setOpenGroups = (fn: (s: Record<string, boolean>) => Record<string, boolean>) =>
+    setOpenGroupsState(s => {
+      const next = fn(s);
+      try { localStorage.setItem('sb-open-groups', JSON.stringify(next)); } catch { /* sin almacenamiento */ }
+      return next;
+    });
   const [menuOpen, setMenuOpen] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);
   const d = useDB();

@@ -1,5 +1,12 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+
+function SolicitudesRedirect() {
+  const { search } = useLocation();
+  const p = new URLSearchParams(search);
+  const sku = p.get('nuevo');
+  return <Navigate to={sku ? `/compras/ordenes?nuevo=${encodeURIComponent(sku)}${p.get('alm') ? `&alm=${encodeURIComponent(p.get('alm')!)}` : ''}` : '/compras/ordenes'} replace />;
+}
 import { AppShell } from './components/AppShell';
 import { logout, sessionExpired } from './data/domain/auth';
 import { bootData, domainsForPath, ensureLoaded } from './data/loadAll';
@@ -21,7 +28,6 @@ import { ReportesPage } from './pages/ReportesPage';
 import { VentasPage } from './pages/VentasPage';
 import { RECORD_PAGES } from './pages/configs';
 import { cotizaciones } from './pages/configs/cotizaciones';
-import { solicitudes } from './pages/configs/solicitudes';
 import { startRealtime, stopRealtime } from './lib/realtime';
 
 /** Las órdenes de venta tampoco tienen página propia: se ven y aprueban en un modal de la lista (?ver=). */
@@ -42,7 +48,6 @@ const CUSTOM: { path: string; module: string; el: ReactNode }[] = [
   { path: '/ventas/cotizaciones', module: 'Cotizaciones', el: <FlowListPage key="cot" cfg={cotizaciones} /> },
   { path: '/ventas/ordenes', module: 'Órdenes de venta', el: <VentasPage /> },
   { path: '/ventas/orden/:code', module: 'Órdenes de venta', el: <OrdenVentaRedirect /> },
-  { path: '/compras/solicitudes', module: 'Solicitudes', el: <FlowListPage key="sol" cfg={solicitudes} /> },
   { path: '/compras/ordenes', module: 'Órdenes de compra', el: <ComprasPage /> },
   { path: '/inventario/kardex', module: 'Kardex', el: <KardexPage /> },
   { path: '/historial', module: 'Historial', el: <HistorialPage /> },
@@ -130,6 +135,8 @@ export function App() {
       {/* Rutas anteriores: crear órdenes ahora es un modal dentro de cada lista; la recepción vive en Kardex. */}
       <Route path="/ventas/ordenes/nueva" element={<Navigate to="/ventas/ordenes?nueva=1" replace />} />
       <Route path="/compras/orden/:code" element={<OrdenCompraRedirect />} />
+      {/* Solicitudes de compra se retiraron: los enlaces antiguos van a Órdenes de compra (con ?nuevo=SKU&alm=… abre la nueva orden). */}
+      <Route path="/compras/solicitudes" element={<SolicitudesRedirect />} />
       <Route path="/compras/ordenes/nueva" element={<Navigate to="/compras/ordenes" replace />} />
       <Route path="/compras/recepcion" element={<Navigate to="/inventario/kardex" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />

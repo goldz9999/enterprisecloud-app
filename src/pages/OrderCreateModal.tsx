@@ -6,6 +6,7 @@ import { PartyPicker, type PartyOption } from '../components/PartyPicker';
 import { OWN_FLEET } from '../data/domain/carriers';
 import { productUuidBySku, supplierCost, userUuidByName, warehouseIdByName } from '../data/domain/masters';
 import { dataOf } from '../data/domain/flows';
+import { stockRow } from '../data/domain/stock';
 import { convertQuotationRemote } from '../data/domain/quotations';
 import type { FlowRow } from '../features/flowlist/types';
 import { igvRate, orderSubtotal, orderTotal, partyFromClient, partyFromSupplier, payTermOptions, warehouses } from '../data/domain/orders';
@@ -25,6 +26,8 @@ interface Props {
   onCreated: (order: Order) => void;
   /** Cotización aprobada que se convierte: precarga productos, precios, almacén y condición; al guardar queda «Convertida». */
   quote?: FlowRow;
+  /** Compras desde Stock bajo mínimo: producto y almacén con los que arranca la orden. */
+  restock?: { sku: string; alm?: string };
 }
 
 /**
@@ -32,7 +35,7 @@ interface Props {
  * Compras: proveedor + almacén destino + productos. Ventas: cliente, entrega y condiciones + productos.
  * La orden de compra no pide aprobación al crearse: queda lista para recepción en Kardex.
  */
-export function OrderCreateModal({ kind, onClose, onCreated, quote }: Props) {
+export function OrderCreateModal({ kind, onClose, onCreated, quote, restock }: Props) {
   const d = useDB();
   const qData = quote ? dataOf(d, 'cotizacion', quote) : undefined;
   const sale = kind === 'venta';
@@ -42,7 +45,7 @@ export function OrderCreateModal({ kind, onClose, onCreated, quote }: Props) {
 
   // Lo elegido por el usuario; si aún no eligió (o los datos llegaron después del primer render) se usa la primera opción real.
   const [pickedParty, setPickedParty] = useState<number | ''>('');
-  const [pickedWarehouse, setPickedWarehouse] = useState(qData?.alm ?? '');
+  const [pickedWarehouse, setPickedWarehouse] = useState(qData?.alm ?? restock?.alm ?? '');
   // Transporte: «Nuestras movilidades» (flota de la empresa, con conductor y vehículo) o «Movilidad propia» (la lleva el cliente).
   const [transport, setTransport] = useState<'fleet' | 'client'>('fleet');
   const [pickedDriver, setPickedDriver] = useState('');
@@ -51,12 +54,20 @@ export function OrderCreateModal({ kind, onClose, onCreated, quote }: Props) {
   const [deliveryDate, setDeliveryDate] = useState(() => isoDate(addDays(new Date(), 3)));
   // Al contado: fecha límite de pago; si no se aprueba y paga hasta ese día, la orden se anula sola.
   const [payDeadline, setPayDeadline] = useState(() => isoDate(addDays(new Date(), 1)));
-  const [lines, setLines] = useState<OrderLine[]>(() =>
-    (quote?.items ?? []).map(i => {
+  const [lines, setLines] = useState<OrderLine[]>(() => {
+    if (restock) {
+      // Reponer: el doble del mínimo menos lo que hay en ese almacén (al menos 1).
+      const p = d.records.productos.find(x => x.sku === restock.sku);
+      if (!p) return [];
+      const st = restock.alm ? stockRow(d, restock.sku, restock.alm) : undefined;
+      const qty = Math.max(1, Number(p.min) * 2 - Number(st?.stock ?? 0));
+      return [{ sku: String(p.sku), name: String(p.nombre), unit: String(p.unidad).toLowerCase(), qty, price: Number(p.costo) || 0 }];
+    }
+    return (quote?.items ?? []).map(i => {
       const p = d.records.productos.find(x => x.sku === i.sku || x.nombre === i.name);
       return { sku: String(p?.sku ?? i.sku ?? i.name), name: String(p?.nombre ?? i.name), unit: i.unit, qty: i.qty, price: i.price };
-    }),
-  );
+    });
+  });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
