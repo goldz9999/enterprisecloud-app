@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import type { Crumb } from '../../components/AppShell';
 import type { Tone } from '../../components/StatusChip';
 import type { PermAction } from '../../data/permissions';
@@ -75,6 +76,8 @@ export interface Kpi {
 export interface RecordsConfig {
   /** Sidebar label to highlight; also the permission module unless `module` says otherwise. */
   active: string;
+  /** Al abrir un registro se muestra este modal en vez del panel lateral. */
+  modal?: ComponentType<{ row: Row; onClose: () => void; onDone: (msg: string) => void }>;
   /** Permission module when it differs from the sidebar label. */
   module?: string;
   /** Tabs shown under the title to move between related screens (each one is its own route). */

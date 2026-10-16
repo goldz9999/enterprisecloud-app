@@ -388,7 +388,10 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
         </>
       )}
 
-      {!sidePanel && drawer && (drawer.mode === 'new' || current) && (
+      {cfg.modal && drawer && drawer.mode !== 'new' && current && (
+        <cfg.modal key={String(current._id)} row={current} onClose={close} onDone={msg => { close(); toast.flash(msg); }} />
+      )}
+      {!sidePanel && !(cfg.modal && drawer?.mode !== 'new') && drawer && (drawer.mode === 'new' || current) && (
         <RecordDrawer
           key={drawer.mode + (drawer.id ?? 'new')}
           cfg={cfg}

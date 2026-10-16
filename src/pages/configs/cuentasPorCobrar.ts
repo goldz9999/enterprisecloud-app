@@ -1,6 +1,7 @@
 import type { RecordsConfig } from '../../features/records/types';
 import { collectRemote } from '../../data/domain/finance';
 import { formatMoney as fmtM } from '../../lib/format';
+import { CollectModal } from '../CollectModal';
 
 export const cuentasPorCobrar: RecordsConfig = {
   active: 'Cuentas por cobrar',
@@ -8,6 +9,7 @@ export const cuentasPorCobrar: RecordsConfig = {
   subtitle: 'Saldos de clientes por facturas emitidas. Se cierran al registrar el cobro en Caja o Bancos.',
   breadcrumb: [{ label: 'Inicio', to: '/' }, { label: 'Finanzas' }, { label: 'Cuentas por cobrar' }],
   collection: 'cxc',
+  modal: CollectModal,
   entity: 'Cuenta por cobrar', titleKey: 'doc', subKey: 'cliente', statusKey: 'estado',
   statuses: { 'Por vencer': 'blue', 'Vence esta semana': 'amber', 'Vencida': 'red', 'Cobrada': 'green' },
   keys: ['doc', 'emision', 'cliente', 'ruc', 'vence', 'total', 'saldo', 'estado', 'dias', 'orden', 'uuid'],
