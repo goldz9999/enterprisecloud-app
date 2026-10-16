@@ -54,18 +54,17 @@ export function PartyPicker({ noun, options, value, onChange, compact }: Props) 
           <strong className="ellipsis">{current?.name ?? `Elegir ${noun.toLowerCase()}`}</strong>
           <small className="mono ellipsis">{current ? [current.doc, current.code].filter(Boolean).join(' · ') : `Busca por nombre o documento`}</small>
         </span>
-        <span className="pp__change">Cambiar</span>
+        <span className="pp__change">{current ? 'Cambiar' : 'Buscar'}</span>
       </button>
 
-      {current && (
-        <dl className="pp__facts">
-          <Fact label="Contacto" value={current.contact} />
-          <Fact label="Teléfono" value={current.phone} mono />
-          <Fact label="Correo" value={current.email} />
-          <Fact label="Condición" value={current.credit && current.credit > 0 ? `${current.terms} · línea ${formatMoney(current.credit)}` : current.terms} />
-          <Fact wide label="Dirección" value={current.address} warn={`Sin dirección registrada: complétala en Mantenimiento › ${noun}s`} />
-        </dl>
-      )}
+      {/* Siempre visible (vacía si no hay elegido) para que el espacio quede reservado y no salte el layout. */}
+      <dl className="pp__facts">
+        <Fact label="Contacto" value={current?.contact ?? ''} />
+        <Fact label="Teléfono" value={current?.phone ?? ''} mono />
+        <Fact label="Correo" value={current?.email ?? ''} />
+        <Fact label="Condición" value={!current ? '' : current.credit && current.credit > 0 ? `${current.terms} · línea ${formatMoney(current.credit)}` : current.terms} />
+        <Fact wide label="Dirección" value={current?.address ?? ''} warn={current ? `Sin dirección registrada: complétala en Mantenimiento › ${noun}s` : undefined} />
+      </dl>
 
       {open && <PartyDialog noun={noun} options={options} currentId={current?.id} onPick={id => { onChange(id); close(); }} onClose={close} />}
     </div>

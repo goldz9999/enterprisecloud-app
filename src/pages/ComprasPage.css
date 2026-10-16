@@ -697,3 +697,62 @@
   flex-direction: column;
   gap: 6px;
 }
+
+/* Orden de venta: formulario compacto y scroll solo en la lista de productos. */
+.purchase-modal--order .purchase-modal__main {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.purchase-modal--order .om-section {
+  gap: 10px;
+  padding-top: 14px;
+}
+
+.purchase-modal--order .om-section+.om-section {
+  margin-top: 14px;
+}
+
+.purchase-modal--order .purchase-modal__fields {
+  gap: 10px 12px;
+}
+
+.purchase-modal--order .om-terms-hint {
+  margin: -2px 0 0;
+}
+
+.purchase-modal--order .om-transport {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.purchase-modal--order .om-section--lines {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.purchase-modal--order .om-section--lines .om-section__title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  padding-bottom: 4px;
+}
+
+@media (max-width: 720px) {
+  .purchase-modal--order .om-transport {
+    grid-template-columns: 1fr;
+  }
+
+  .purchase-modal--order .purchase-modal__main {
+    overflow-y: auto;
+  }
+
+  .purchase-modal--order .om-section--lines {
+    overflow: visible;
+  }
+}

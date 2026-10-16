@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LinesEditor } from '../components/LinesEditor';
+import { Combobox } from '../components/Combobox';
 import { PartyPicker, type PartyOption } from '../components/PartyPicker';
 import { OWN_FLEET } from '../data/domain/carriers';
 import { productUuidBySku, supplierCost, userUuidByName, warehouseIdByName } from '../data/domain/masters';
@@ -40,10 +41,7 @@ export function OrderCreateModal({ kind, onClose, onCreated, quote }: Props) {
   const rate = igvRate(d);
 
   // Lo elegido por el usuario; si aún no eligió (o los datos llegaron después del primer render) se usa la primera opción real.
-  const [pickedParty, setPickedParty] = useState<number | ''>(() => {
-    const c = quote && !quote.prospect ? d.records.clientes.find(x => x.razon === quote.party) : undefined;
-    return c ? Number(c._id) : '';
-  });
+  const [pickedParty, setPickedParty] = useState<number | ''>('');
   const [pickedWarehouse, setPickedWarehouse] = useState(qData?.alm ?? '');
   // Transporte: «Nuestras movilidades» (flota de la empresa, con conductor y vehículo) o «Movilidad propia» (la lleva el cliente).
   const [transport, setTransport] = useState<'fleet' | 'client'>('fleet');
@@ -62,7 +60,7 @@ export function OrderCreateModal({ kind, onClose, onCreated, quote }: Props) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const partyId = parties.some(p => p._id === pickedParty) ? pickedParty : (parties[0]?._id ?? '');
+  const partyId = parties.some(p => p._id === pickedParty) ? pickedParty : sale ? '' : (parties[0]?._id ?? '');
   const party = parties.find(p => p._id === partyId);
   const partyName = String(party?.razon ?? '');
   const defaultWarehouse = d.settings.almdef && whs.includes(String(d.settings.almdef)) ? String(d.settings.almdef) : whs[0];
@@ -209,7 +207,7 @@ export function OrderCreateModal({ kind, onClose, onCreated, quote }: Props) {
 
   return (
     <div className="purchase-modal-backdrop" onClick={() => !saving && onClose()}>
-      <div className="purchase-modal purchase-modal--fixed" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
+      <div className={'purchase-modal purchase-modal--fixed' + (sale ? ' purchase-modal--order' : '')} role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
         <div className="purchase-modal__head">
           <div className="panel__title">{title}</div>
           <button type="button" className="drawer__close" style={{ marginLeft: 'auto', fontSize: 16 }} title="Cerrar" aria-label="Cerrar" disabled={saving} onClick={onClose}>×</button>
@@ -248,46 +246,41 @@ export function OrderCreateModal({ kind, onClose, onCreated, quote }: Props) {
                         <span className="field__label">Fecha de entrega *</span>
                         <input className="field__control" type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
                       </label>
-                      <p className="purchase-modal__hint purchase-modal__wide">
+                      <div className="field">
+                        <span className="field__label">Almacén de despacho</span>
+                        <Combobox ariaLabel="Almacén de despacho" value={warehouse} options={whs.map(w => ({ value: w, label: w }))} onChange={setPickedWarehouse} />
+                      </div>
+                      <p className="purchase-modal__hint purchase-modal__wide om-terms-hint">
                         {cash
                           ? 'Al contado: si la orden no se aprueba y paga hasta esa fecha, se anula sola.'
                           : creditLimit > 0
                             ? `Crédito ${creditDays} días. Disponible ${formatMoney(Math.max(creditAvailable, 0))} de una línea de ${formatMoney(creditLimit)}. Si no paga queda «Vencido» en Cuentas por cobrar (no se anula).`
                             : 'Este cliente no tiene línea de crédito: solo se le puede vender al contado.'}
                       </p>
-                      <label className="field">
-                        <span className="field__label">Almacén de despacho</span>
-                        <select className="field__control" value={warehouse} onChange={e => setPickedWarehouse(e.target.value)}>
-                          {whs.map(w => <option key={w}>{w}</option>)}
-                        </select>
-                      </label>
-                      <label className="field purchase-modal__wide">
-                        <span className="field__label">Método de transporte</span>
-                        <select className="field__control" value={transport} onChange={e => setTransport(e.target.value as 'fleet' | 'client')}>
-                          <option value="fleet">Nuestras movilidades</option>
-                          <option value="client">Movilidad propia (la lleva el cliente)</option>
-                        </select>
-                      </label>
-                      {transport === 'fleet' && (fleetDrivers.length > 0 || fleetVehicles.length > 0 ? (
-                        <>
-                          <label className="field">
-                            <span className="field__label">Conductor *</span>
-                            <select className="field__control" value={driver} onChange={e => pickDriver(e.target.value)}>
-                              <option value="">Elige un conductor…</option>
-                              {fleetDrivers.map(c => <option key={String(c.nombre)} value={String(c.nombre)}>{String(c.nombre)}</option>)}
-                            </select>
-                          </label>
-                          <label className="field">
-                            <span className="field__label">Vehículo (placa) *</span>
-                            <select className="field__control mono" value={plate} onChange={e => pickPlate(e.target.value)}>
-                              <option value="">Elige un vehículo…</option>
-                              {fleetVehicles.map(v => <option key={String(v.placa)} value={String(v.placa)}>{String(v.placa)}{v.tipo ? ` · ${String(v.tipo)}` : ''}</option>)}
-                            </select>
-                          </label>
-                        </>
-                      ) : (
+                      <div className="om-transport purchase-modal__wide">
+                        <label className="field">
+                          <span className="field__label">Transporte</span>
+                          <select className="field__control" value={transport} onChange={e => setTransport(e.target.value as 'fleet' | 'client')}>
+                            <option value="fleet">Nuestras movilidades</option>
+                            <option value="client">Movilidad propia (cliente)</option>
+                          </select>
+                        </label>
+                        {transport === 'fleet' && (fleetDrivers.length > 0 || fleetVehicles.length > 0) && (
+                          <>
+                            <div className="field">
+                              <span className="field__label">Conductor *</span>
+                              <Combobox ariaLabel="Conductor" placeholder="Buscar conductor…" value={driver} options={fleetDrivers.map(c => ({ value: String(c.nombre), label: String(c.nombre) }))} onChange={pickDriver} />
+                            </div>
+                            <div className="field">
+                              <span className="field__label">Vehículo (placa) *</span>
+                              <Combobox ariaLabel="Vehículo" mono placeholder="Buscar placa…" value={plate} options={fleetVehicles.map(v => ({ value: String(v.placa), label: String(v.placa), hint: v.tipo ? String(v.tipo) : undefined }))} onChange={pickPlate} />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {transport === 'fleet' && !fleetDrivers.length && !fleetVehicles.length && (
                         <p className="purchase-modal__hint purchase-modal__wide">No hay conductores ni vehículos propios registrados. Regístralos en <Link to="/mantenimiento/conductores">Mantenimiento</Link>; también puedes indicarlos al despachar.</p>
-                      ))}
+                      )}
                     </>
                   ) : (
                     <label className="field">
@@ -300,7 +293,7 @@ export function OrderCreateModal({ kind, onClose, onCreated, quote }: Props) {
                 </div>
               </section>
 
-              <section className="om-section">
+              <section className="om-section om-section--lines">
                 <h3 className="om-section__title">
                   Productos
                   {lines.length > 0 && <span className="om-count">{lines.length}</span>}
