@@ -81,7 +81,7 @@ export function DashboardPage() {
             ))}
           </div>
           {can(d, 'Órdenes de venta', 'Crear') && (
-            <button type="button" className="btn btn--primary" style={{ height: 30 }} onClick={() => navigate('/ventas/ordenes/nueva')}>
+            <button type="button" className="btn btn--primary" style={{ height: 30 }} onClick={() => navigate('/ventas/ordenes?nueva=1')}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               Nueva venta
             </button>
@@ -163,7 +163,7 @@ export function DashboardPage() {
           </div>
           {rows.length === 0 && (
             <div className="table__empty" style={{ padding: '32px 16px' }}>
-              {latest.length ? 'Sin ventas con este estado.' : <>Aún no hay ventas. <Link to="/ventas/ordenes/nueva">Registrar una venta</Link></>}
+              {latest.length ? 'Sin ventas con este estado.' : <>Aún no hay ventas. <Link to="/ventas/ordenes?nueva=1">Registrar una venta</Link></>}
             </div>
           )}
           <div className="table__foot" style={{ alignItems: 'center' }}>

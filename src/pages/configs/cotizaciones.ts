@@ -22,13 +22,15 @@ export const cotizaciones: FlowListConfig = {
     Enviada: "amber",
     Aprobada: "green",
     Convertida: "blue",
-    Rechazada: "red"
+    Rechazada: "red",
+    Vencida: "muted"
   },
   notes: {
     Borrador: "Aún no se envía al cliente. Puedes editar precios y cantidades.",
     Enviada: "Esperando respuesta del cliente. Válida hasta la fecha de vencimiento.",
     Aprobada: "El cliente aceptó. Al convertirla se crea la orden de venta con el mismo cliente, productos y precios, y se reserva el stock.",
     Convertida: "Ya generó una orden de venta. No se puede editar.",
-    Rechazada: "El cliente no aceptó la propuesta."
+    Rechazada: "El cliente no aceptó la propuesta.",
+    Vencida: "Pasó la fecha de validez y ya no se puede aprobar ni convertir. Extiende la vigencia o duplícala como nueva cotización."
   },
 };

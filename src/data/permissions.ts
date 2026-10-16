@@ -8,8 +8,9 @@ export type PermAction = (typeof ACTIONS)[number];
 export const MODULES: [group: string, modules: string[]][] = [
   ['Inicio', ['Dashboard']],
   ['Ventas', ['Cotizaciones', 'Órdenes de venta', 'Comprobantes']],
-  ['Compras', ['Solicitudes', 'Órdenes de compra', 'Recepción']],
-  ['Inventario', ['Stock por almacén', 'Kardex', 'Transferencias', 'Ajustes']],
+  ['Compras', ['Solicitudes', 'Órdenes de compra']],
+  // «Kardex» es la recepción de mercadería (permiso goods-receipts); «Movimientos Kardex» es el registro de movimientos (kardex).
+  ['Inventario', ['Stock por almacén', 'Kardex', 'Movimientos Kardex', 'Transferencias', 'Ajustes']],
   ['Finanzas', ['Cuentas por cobrar', 'Cuentas por pagar', 'Caja', 'Bancos']],
   ['Documentos y reportes', ['Documentos', 'Reportes']],
   ['Mantenimiento', ['Clientes', 'Proveedores', 'Productos', 'Categorías', 'Almacenes', 'Conductores', 'Vehículos']],
@@ -29,8 +30,8 @@ export function defaultPermissions(): PermMatrix {
   set('Administrador', () => FULL);
   set('Gerente', g => (g === 'Sistema' ? VIEW : FULL));
   set('Ventas', (g, m) => (g === 'Ventas' ? (m === 'Comprobantes' ? P(1, 1, 0, 0, 0) : WORK) : m === 'Clientes' ? WORK : isIn(m, ['Dashboard', 'Reportes', 'Stock por almacén', 'Documentos', 'Productos']) ? VIEW : NONE));
-  set('Compras', (g, m) => (g === 'Compras' || m === 'Proveedores' ? WORK : isIn(m, ['Dashboard', 'Reportes', 'Stock por almacén', 'Kardex', 'Documentos', 'Productos', 'Cuentas por pagar']) ? VIEW : NONE));
-  set('Almacén', (g, m) => (g === 'Inventario' || m === 'Recepción' ? WORK : m === 'Órdenes de venta' ? P(1, 0, 1, 0, 0) : m === 'Solicitudes' ? P(1, 1, 0, 0, 0) : isIn(m, ['Dashboard', 'Productos', 'Almacenes', 'Documentos']) ? VIEW : NONE));
+  set('Compras', (g, m) => (g === 'Compras' || m === 'Proveedores' ? WORK : m === 'Kardex' ? P(1, 1, 1, 0, 1) : isIn(m, ['Dashboard', 'Reportes', 'Stock por almacén', 'Movimientos Kardex', 'Documentos', 'Productos', 'Cuentas por pagar']) ? VIEW : NONE));
+  set('Almacén', (g, m) => (g === 'Inventario' ? (m === 'Kardex' ? P(1, 1, 1, 0, 1) : WORK) : m === 'Órdenes de venta' ? P(1, 0, 1, 0, 0) : m === 'Solicitudes' ? P(1, 1, 0, 0, 0) : isIn(m, ['Dashboard', 'Productos', 'Almacenes', 'Documentos']) ? VIEW : NONE));
   set('Contabilidad', (g, m) => (g === 'Finanzas' ? FULL : m === 'Comprobantes' ? P(1, 1, 1, 0, 1) : isIn(m, ['Dashboard', 'Reportes', 'Documentos', 'Clientes', 'Proveedores', 'Auditoría']) ? VIEW : NONE));
   return all;
 }
@@ -39,14 +40,17 @@ export function defaultPermissions(): PermMatrix {
 export const MODULE_KEYS: Record<string, string> = {
   Dashboard: 'dashboard',
   Cotizaciones: 'quotations', 'Órdenes de venta': 'sales-orders', Comprobantes: 'receipts',
-  Solicitudes: 'purchase-requests', 'Órdenes de compra': 'purchase-orders', Recepción: 'goods-receipts',
-  'Stock por almacén': 'stock', Kardex: 'kardex', Transferencias: 'transfers', Ajustes: 'adjustments',
+  Solicitudes: 'purchase-requests', 'Órdenes de compra': 'purchase-orders',
+  'Stock por almacén': 'stock', Kardex: 'goods-receipts', 'Movimientos Kardex': 'kardex', Transferencias: 'transfers', Ajustes: 'adjustments',
   'Cuentas por cobrar': 'receivables', 'Cuentas por pagar': 'payables', Caja: 'cash', Bancos: 'banks',
   Documentos: 'documents', Reportes: 'reports',
   Clientes: 'customers', Proveedores: 'suppliers', Productos: 'products', Categorías: 'categories',
   Almacenes: 'warehouses', Conductores: 'drivers', Vehículos: 'vehicles',
   Usuarios: 'users', Roles: 'roles', Permisos: 'permissions', Auditoría: 'audit', Configuración: 'settings',
 };
+
+/** Pantallas que no son un módulo propio y se rigen por el permiso de otro. «Historial» consolida eventos del servidor: pide ver Auditoría. */
+const MODULE_ALIAS: Record<string, string> = { Historial: 'Auditoría' };
 
 const ACTION_KEYS: Record<PermAction, string> = { Ver: 'view', Crear: 'create', Editar: 'edit', Eliminar: 'delete', Aprobar: 'approve' };
 
@@ -55,7 +59,7 @@ export function can(_d: DB | undefined, module: string, action: PermAction = 'Ve
   const session = getSession();
   if (!session) return false;
   if (session.user.role.code === 'ADMIN') return true;
-  const key = MODULE_KEYS[module];
+  const key = MODULE_KEYS[MODULE_ALIAS[module] ?? module];
   if (!key) return true; // modules without a backend key are not restricted
   return session.permissions[key]?.includes(ACTION_KEYS[action]) ?? false;
 }

@@ -105,3 +105,15 @@ export function sessionExpired(): boolean {
   const s = getSession();
   return !s || Date.now() >= s.expiresAt;
 }
+
+/**
+ * Solo en desarrollo (`npm run dev`): inicia sesión sola con VITE_DEV_EMAIL / VITE_DEV_PASSWORD
+ * (definidas en .env.local) cuando no hay sesión válida. En producción no hace nada.
+ */
+export async function devAutoLogin(): Promise<void> {
+  const email = import.meta.env.VITE_DEV_EMAIL;
+  const password = import.meta.env.VITE_DEV_PASSWORD;
+  if (!import.meta.env.DEV || !email || !password) return;
+  if (getSession() && !sessionExpired()) return;
+  await login(String(email), String(password));
+}

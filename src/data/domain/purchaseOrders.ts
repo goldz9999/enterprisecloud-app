@@ -23,6 +23,7 @@ function toOrder(r: Raw): Order {
     const party = r.party || {};
     return {
         kind: 'compra',
+        id: r.id ? String(r.id) : undefined,
         code: String(r.code),
         createdAt: String(r.createdAt || r.created_at || new Date().toISOString()),
         party: {
@@ -130,6 +131,48 @@ export async function createPurchaseOrderRemote(input: {
         const order = toOrder(rec);
         update(d => {
             d.orders = [order, ...d.orders.filter(o => !(o.kind === 'compra' && o.code === order.code))];
+        });
+        return { ok: true, order };
+    } catch (e) {
+        return { ok: false, error: explain(e) };
+    }
+}
+
+export interface ApproveReceiptInput {
+    /** Cantidades realmente recibidas por SKU (si no se envía una línea, se asume lo pedido). */
+    lines: { sku: string; quantity: number }[];
+    warehouse: string;
+    observations: string;
+    /** Comprobante que entregó el proveedor: Factura, Boleta de venta, Nota de crédito… */
+    invoiceType: string;
+    invoiceNumber: string;
+    /** Id del documento (archivo del comprobante) ya subido a /documents; vacío si no se adjuntó. */
+    documentId: string;
+}
+
+/**
+ * Kardex: aprueba la recepción de una OC. El servidor registra, como una sola operación, la nota de ingreso con las entradas
+ * de inventario, la factura del proveedor y (si corresponde) el egreso de caja; si algo falla no deja nada a medias.
+ */
+export async function approveReceiptRemote(code: string, input: ApproveReceiptInput): Promise<OrderResult> {
+    try {
+        const rec = await api<Raw>(`/purchase-orders/${encodeURIComponent(code)}/approve-receipt`, {
+            method: 'POST',
+            // El monto, las fechas y el pago los resuelve el servidor (total recibido, condición de pago de la orden).
+            body: {
+                lines: input.lines,
+                warehouse: input.warehouse || null,
+                observations: input.observations || null,
+                invoiceType: input.invoiceType,
+                invoiceNumber: input.invoiceNumber,
+                documentId: input.documentId || null,
+            },
+        });
+        const order = toOrder(rec);
+        update(d => {
+            const i = d.orders.findIndex(o => o.code === code && o.kind === 'compra');
+            if (i >= 0) d.orders[i] = order;
+            else d.orders.unshift(order);
         });
         return { ok: true, order };
     } catch (e) {

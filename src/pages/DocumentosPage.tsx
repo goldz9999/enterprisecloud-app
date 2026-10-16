@@ -6,6 +6,7 @@ import type { Tone } from '../components/StatusChip';
 import { Toast, useToast } from '../components/Toast';
 import { audit } from '../data/domain/audit';
 import { deleteDocument, documentActivity, documentError, downloadDocument, DOC_CATEGORIES, listDocuments, MAX_UPLOAD_BYTES, uploadDocument, type DocEvent, type RemoteDoc } from '../data/domain/documentsApi';
+import { loadAdmin } from '../data/domain/admin';
 import { loadMasters, relationByCode, relationOptions } from '../data/domain/masters';
 import { deleteFile, getFile } from '../data/files';
 import { can } from '../data/permissions';
@@ -146,6 +147,7 @@ export function DocumentosPage() {
   useEffect(() => {
     void reload();
     void loadMasters(); // clientes y proveedores para vincular documentos
+    void loadAdmin({ permissions: true }); // qué roles pueden ver Documentos
   }, [reload]);
 
   const docs: Item[] = [...remote.map(fromRemote), ...d.documentos.map(fromLocal)].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

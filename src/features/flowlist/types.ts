@@ -22,6 +22,8 @@ export interface FlowRow {
   data?: Record<string, string>;
   /** Order generated from this document. */
   order?: string;
+  /** Cotización hecha a alguien que aún no es cliente registrado. */
+  prospect?: boolean;
 }
 
 /** A document list that is the first step of a business flow (quotations, purchase requests). */

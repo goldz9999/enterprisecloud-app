@@ -1,19 +1,20 @@
 import { useEffect, type ReactNode } from 'react';
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { logout, sessionExpired } from './data/domain/auth';
-import { loadAll } from './data/loadAll';
+import { bootData, domainsForPath, ensureLoaded } from './data/loadAll';
 import { can } from './data/permissions';
 import { useSession, wasSignedOut } from './data/session';
 import { useDB } from './data/store';
 import { FlowListPage } from './features/flowlist/FlowListPage';
-import { NewOrderPage } from './features/order/NewOrderPage';
-import { OrderPage } from './features/order/OrderPage';
 import { RecordsPage } from './features/records/RecordsPage';
 import { AuditoriaPage } from './pages/AuditoriaPage';
+import { ComprasPage } from './pages/ComprasPage';
 import { ConfiguracionPage } from './pages/ConfiguracionPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DocumentosPage } from './pages/DocumentosPage';
+import { HistorialPage } from './pages/HistorialPage';
+import { KardexPage } from './pages/KardexPage';
 import { LoginPage } from './pages/LoginPage';
 import { PermisosPage } from './pages/PermisosPage';
 import { ReportesPage } from './pages/ReportesPage';
@@ -23,10 +24,16 @@ import { cotizaciones } from './pages/configs/cotizaciones';
 import { solicitudes } from './pages/configs/solicitudes';
 import { startRealtime, stopRealtime } from './lib/realtime';
 
-/** Remounts the order screen per order (and ?paso=) so its local form state starts fresh. */
-function OrderRoute({ kind }: { kind: 'venta' | 'compra' }) {
-  const { pathname, search } = useLocation();
-  return <OrderPage key={pathname + search} kind={kind} />;
+/** Las órdenes de venta tampoco tienen página propia: se ven y aprueban en un modal de la lista (?ver=). */
+function OrdenVentaRedirect() {
+  const { code = '' } = useParams();
+  return <Navigate to={`/ventas/ordenes?ver=${encodeURIComponent(code)}`} replace />;
+}
+
+/** Las órdenes de compra ya no tienen página propia: se ven en un modal de la lista (?ver=). */
+function OrdenCompraRedirect() {
+  const { code = '' } = useParams();
+  return <Navigate to={`/compras/ordenes?ver=${encodeURIComponent(code)}`} replace />;
 }
 
 /** Screens with their own layout, and the permission module each one belongs to. */
@@ -34,11 +41,11 @@ const CUSTOM: { path: string; module: string; el: ReactNode }[] = [
   { path: '/', module: 'Dashboard', el: <DashboardPage /> },
   { path: '/ventas/cotizaciones', module: 'Cotizaciones', el: <FlowListPage key="cot" cfg={cotizaciones} /> },
   { path: '/ventas/ordenes', module: 'Órdenes de venta', el: <VentasPage /> },
-  { path: '/ventas/ordenes/nueva', module: 'Órdenes de venta', el: <NewOrderPage key="nv" kind="venta" /> },
-  { path: '/ventas/orden/:code', module: 'Órdenes de venta', el: <OrderRoute kind="venta" /> },
+  { path: '/ventas/orden/:code', module: 'Órdenes de venta', el: <OrdenVentaRedirect /> },
   { path: '/compras/solicitudes', module: 'Solicitudes', el: <FlowListPage key="sol" cfg={solicitudes} /> },
-  { path: '/compras/ordenes/nueva', module: 'Órdenes de compra', el: <NewOrderPage key="nc" kind="compra" /> },
-  { path: '/compras/orden/:code', module: 'Órdenes de compra', el: <OrderRoute kind="compra" /> },
+  { path: '/compras/ordenes', module: 'Órdenes de compra', el: <ComprasPage /> },
+  { path: '/inventario/kardex', module: 'Kardex', el: <KardexPage /> },
+  { path: '/historial', module: 'Historial', el: <HistorialPage /> },
   { path: '/documentos', module: 'Documentos', el: <DocumentosPage /> },
   { path: '/reportes', module: 'Reportes', el: <ReportesPage /> },
   { path: '/admin/permisos', module: 'Permisos', el: <PermisosPage /> },
@@ -86,8 +93,14 @@ export function App() {
   // On load (and after each sign-in) confirm the token with the backend and pick up role/permission changes.
   const token = session?.token;
   useEffect(() => {
-    if (token) loadAll();
+    bootData(token, pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Cada pantalla pide solo los datos de su módulo (lo ya cargado no se vuelve a pedir).
+  useEffect(() => {
+    if (token) ensureLoaded(domainsForPath(pathname));
+  }, [token, pathname]);
 
   // Actualización automática: el backend avisa por WebSocket cuando otra persona guarda algo.
   useEffect(() => {
@@ -114,6 +127,11 @@ export function App() {
         // key per path so state resets when moving between list screens
         <Route key={path} path={path} element={<Guard module={cfg.module ?? cfg.active}><RecordsPage key={path} cfg={cfg} /></Guard>} />
       ))}
+      {/* Rutas anteriores: crear órdenes ahora es un modal dentro de cada lista; la recepción vive en Kardex. */}
+      <Route path="/ventas/ordenes/nueva" element={<Navigate to="/ventas/ordenes?nueva=1" replace />} />
+      <Route path="/compras/orden/:code" element={<OrdenCompraRedirect />} />
+      <Route path="/compras/ordenes/nueva" element={<Navigate to="/compras/ordenes" replace />} />
+      <Route path="/compras/recepcion" element={<Navigate to="/inventario/kardex" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

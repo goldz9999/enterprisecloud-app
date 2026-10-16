@@ -353,6 +353,9 @@ async function fetchAll(path: string, quiet = false): Promise<Raw[]> {
 
 let pending: Promise<void> | null = null;
 
+/** Respuesta cruda de /users de la última carga de maestros (Administración la reutiliza para no pedirla dos veces). */
+export let usersRawFromMasters: Raw[] | null = null;
+
 /** Descarga los maestros del backend y actualiza el espejo local. Si ya hay una carga en curso, la reutiliza. */
 export function loadMasters(): Promise<void> {
     if (!pending) {
@@ -361,6 +364,7 @@ export function loadMasters(): Promise<void> {
                 Promise.allSettled(MASTER_COLLECTIONS.map(c => fetchAll(SPECS[c].path, c === 'preciosProv'))),
                 api<Raw[]>('/users').catch(() => null),
             ]);
+            usersRawFromMasters = Array.isArray(userList) ? userList : null;
             users = Array.isArray(userList)
                 ? userList.filter(u => u?.id).map(u => ({ id: String(u.id), name: String(u.fullName ?? ''), active: u.status !== 'INACTIVE' }))
                 : [];

@@ -32,6 +32,8 @@ export interface OrderParty {
 /** A sales or purchase order and the state of its 5-step flow. */
 export interface Order {
   kind: 'venta' | 'compra';
+  /** UUID en el servidor (para vincular documentos, p. ej. la factura del proveedor). */
+  id?: string;
   code: string;
   /** ISO date-time of creation. */
   createdAt: string;

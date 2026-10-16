@@ -40,7 +40,6 @@ export const NAV: NavEntry[] = [
     children: [
       { label: 'Solicitudes', to: '/compras/solicitudes', badge: '2' },
       { label: 'Órdenes de compra', to: '/compras/ordenes', badge: '5' },
-      { label: 'Recepción', to: '/compras/recepcion' },
     ],
   },
   {
@@ -48,6 +47,7 @@ export const NAV: NavEntry[] = [
     children: [
       { label: 'Stock por almacén', to: '/inventario/stock', badge: '7' },
       { label: 'Kardex', to: '/inventario/kardex' },
+      { label: 'Movimientos Kardex', to: '/inventario/movimientos' },
       { label: 'Transferencias', to: '/inventario/transferencias' },
       { label: 'Ajustes', to: '/inventario/ajustes' },
     ],
@@ -63,6 +63,7 @@ export const NAV: NavEntry[] = [
   },
   { kind: 'item', label: 'Documentos', to: '/documentos', icon: 'M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5' },
   { kind: 'item', label: 'Reportes', to: '/reportes', icon: 'M21 12A9 9 0 1 1 12 3v9zM15 3.5A9 9 0 0 1 20.5 9H15z' },
+  { kind: 'item', label: 'Historial', to: '/historial', icon: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2' },
   { kind: 'section', label: 'Mantenimiento' },
   {
     kind: 'item', label: 'Mantenimiento',
