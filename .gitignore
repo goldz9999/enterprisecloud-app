@@ -7,3 +7,4 @@ dist
 # Skills y configuración local del agente
 .claude/
 .agents/
+skills-lock.json
