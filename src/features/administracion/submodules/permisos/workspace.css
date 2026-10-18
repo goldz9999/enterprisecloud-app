@@ -1,0 +1,52 @@
+.perm-row { display: grid; gap: 8px; align-items: center; padding: 7px 16px; border-bottom: 1px solid var(--border-soft); }
+.perm-row--head {
+  padding: 10px 16px;
+  border-bottom-color: var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 500;
+}
+.perm-row--body:hover { background: var(--row-hover); }
+
+.perm-group {
+  padding: 10px 16px 6px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.perm-box {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.perm-box.is-on { background: var(--accent); border-color: var(--accent); }
+.perm-box.is-changed { border-color: var(--amber); }
+.perm-box:disabled { cursor: not-allowed; opacity: .6; }
+
+.perm-all {
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+

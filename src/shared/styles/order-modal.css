@@ -1,0 +1,262 @@
+/* Wide dialog for creating a purchase order (form | summary aside). */
+.purchase-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 7, 12, .6);
+  display: grid;
+  place-items: center;
+  z-index: 20;
+  backdrop-filter: blur(2px);
+}
+.purchase-modal {
+  width: 860px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.purchase-modal__head { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.purchase-modal__body {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.purchase-modal__body--single { grid-template-columns: 1fr; padding: 16px; }
+.purchase-modal__main { display: flex; flex-direction: column; gap: 14px; padding: 16px; min-width: 0; }
+.purchase-modal__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.purchase-modal__aside {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+.purchase-modal__label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.purchase-modal__supplier { font-weight: 500; overflow-wrap: anywhere; }
+.purchase-modal__totals { margin: 6px 0 4px; display: flex; flex-direction: column; gap: 8px; }
+.purchase-modal__totals > div { display: flex; justify-content: space-between; gap: 8px; color: var(--text-2); }
+.purchase-modal__totals dt, .purchase-modal__totals dd { margin: 0; }
+.purchase-modal__totals .is-total { padding-top: 10px; border-top: 1px solid var(--border); color: var(--text); font-weight: 600; }
+.purchase-modal__aside .btn { justify-content: center; margin-top: 6px; }
+.purchase-modal__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+
+@media (max-width: 720px) {
+  .purchase-modal__body { grid-template-columns: 1fr; }
+  .purchase-modal__aside { border-left: 0; border-top: 1px solid var(--border); }
+  .purchase-modal__fields { grid-template-columns: 1fr; }
+}
+
+.purchase-modal__wide { grid-column: 1 / -1; }
+.purchase-modal__hint { font-size: 12px; color: var(--muted); text-wrap: pretty; }
+
+/* Tabla de mercadería de la recepción (Kardex) */
+.kardex-lines { border: 1px solid var(--border); border-radius: 8px; margin-top: 6px; overflow: hidden; }
+.kardex-lines__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 96px 72px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.kardex-lines__row:last-child { border-bottom: 0; }
+.kardex-lines__row--head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); background: var(--bg); }
+.kardex-lines__row .field__control { height: 28px; text-align: right; }
+
+/* ── Recepción y vista de orden: tarjetas y archivo ── */
+.purchase-modal__main > *, .purchase-modal__fields > *, .rcv-card > * { min-width: 0; }
+.purchase-modal .field__control { width: 100%; box-sizing: border-box; min-width: 0; }
+.rcv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.rcv-card__title { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.rcv-card .kardex-lines { margin-top: 0; background: var(--surface); }
+.kardex-lines__row .field__control { width: 100%; padding: 0 8px; text-align: right; }
+.kardex-lines--view .kardex-lines__row { grid-template-columns: minmax(0, 1fr) 64px 92px 100px; }
+
+.rcv-file {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.rcv-file:hover { border-color: var(--accent); background: var(--accent-bg); }
+.rcv-file.has-file { border-style: solid; border-color: var(--green); color: var(--green); }
+.rcv-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.rcv-file svg { flex: none; }
+.rcv-file__text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.rcv-file__text strong { font-weight: 500; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rcv-file__text small { font-size: 11.5px; color: var(--muted); }
+
+.rcv-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0; }
+.rcv-facts > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rcv-facts dt { font-size: 11px; color: var(--muted); }
+.rcv-facts dd { margin: 0; overflow-wrap: anywhere; }
+.rcv-docs { display: flex; flex-wrap: wrap; gap: 6px; }
+.rcv-docs__chip { font-size: 11px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-2); }
+
+.row-actions__text {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.row-actions__text:hover { background: var(--accent-bg); border-color: var(--accent); }
+@media (max-width: 720px) { .rcv-facts { grid-template-columns: 1fr; } }
+
+/* ── Modal de orden (compra/venta): composición, resumen y movimiento ── */
+.purchase-modal {
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), 0 24px 60px -12px rgba(0, 0, 0, .55);
+}
+.purchase-modal__head { padding: 16px 20px; }
+.purchase-modal__foot { padding: 12px 20px; }
+.purchase-modal__body { grid-template-columns: minmax(0, 1fr) 288px; }
+.purchase-modal__main { gap: 0; padding: 4px 20px 20px; }
+.purchase-modal__fields { gap: 14px; }
+
+.om-section { display: flex; flex-direction: column; gap: 12px; padding-top: 18px; }
+.om-section + .om-section { margin-top: 18px; border-top: 1px solid var(--border-soft); }
+.om-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.om-count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Resumen: queda a la vista mientras se recorre el formulario */
+.purchase-modal__aside {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  min-height: 100%;
+  gap: 16px;
+  padding: 20px;
+}
+.om-summary__who { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.om-summary__who .purchase-modal__supplier { font-size: 15px; line-height: 1.3; }
+.om-pill {
+  margin-top: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.om-facts { display: flex; flex-direction: column; margin: 0; }
+.om-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12px;
+}
+.om-facts dt { color: var(--muted); white-space: nowrap; }
+.om-facts dd { margin: 0; color: var(--text-2); text-align: right; overflow-wrap: anywhere; }
+.purchase-modal__aside .purchase-modal__totals { margin: 0; gap: 6px; font-size: 12.5px; }
+.purchase-modal__aside .mono { font-variant-numeric: tabular-nums; }
+.purchase-modal__aside .is-total { align-items: baseline; font-size: 15px; }
+.purchase-modal__aside .is-total dd { font-size: 18px; }
+.om-summary__cta { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+.om-summary__cta .btn { height: 40px; margin-top: 0; font-weight: 600; }
+.om-missing { margin: 0; text-align: center; min-height: 2.6em; }
+
+/* Respuesta al tacto: los botones "se hunden" al pulsar; solo transform/opacity, con curva ease-out fuerte */
+.purchase-modal .btn {
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms ease, border-color 140ms ease, opacity 140ms ease;
+}
+.purchase-modal .btn:active:not(:disabled) { transform: scale(0.97); }
+.purchase-modal .btn:disabled { opacity: .55; cursor: not-allowed; }
+.purchase-modal .field__control { transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease; }
+
+/* Entrada: el modal es de uso ocasional, así que lleva un gesto breve (opacidad + 6px + 2% de escala), nunca desde cero */
+@media (prefers-reduced-motion: no-preference) {
+  .purchase-modal-backdrop { animation: om-fade 160ms ease-out; }
+  .purchase-modal { animation: om-pop 220ms cubic-bezier(0.23, 1, 0.32, 1); }
+}
+@keyframes om-fade { from { opacity: 0; } }
+@keyframes om-pop { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+
+@media (max-width: 720px) {
+  .purchase-modal__body { grid-template-columns: 1fr; }
+  .purchase-modal__aside { position: static; min-height: 0; }
+  .purchase-modal__main { padding: 4px 16px 16px; }
+}
+
+/* Recepción y vista de orden usan tarjetas: conservan su separación y su margen superior */
+.purchase-modal__main:has(> .rcv-card) { gap: 14px; padding-top: 20px; }
+
+/* Tabla de productos dentro del modal: más ancho para el nombre, columnas numéricas compactas */
+.purchase-modal .le-row { grid-template-columns: minmax(0, 1fr) 68px 84px 92px 24px; gap: 8px; }
+.purchase-modal .le-row--head { padding-top: 9px; padding-bottom: 9px; }
+.purchase-modal .le-avail { font-size: 11px; line-height: 1.35; }
+
+.om-facts .om-warn { color: var(--amber); }
+
+/* Ventana de alto fijo: no crece ni se encoge al cambiar de cliente; el contenido se desplaza dentro. */
+.purchase-modal--fixed { height: min(800px, calc(100vh - 48px)); }
+.purchase-modal--fixed .purchase-modal__body { grid-template-rows: minmax(0, 1fr); }
+.purchase-modal--fixed .purchase-modal__main { overflow-y: auto; min-height: 0; }
+.om-summary__cta { margin-top: 8px; }
+
+/* Con el cliente en la columna derecha, esa columna es más ancha y se desplaza si no cabe. */
+.purchase-modal--fixed .purchase-modal__body { grid-template-columns: minmax(0, 1fr) 320px; }
+.purchase-modal--fixed .purchase-modal__aside { overflow-y: auto; min-height: 0; }
+.om-aside-party { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border-soft); }
+.om-aside-party .purchase-modal__label { margin: 0; }
+
+.row-actions__text--primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+.row-actions__text--primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.row-actions__text--danger { color: var(--red); }
+.row-actions__text:disabled { opacity: .55; cursor: default; }
+
+/* Botones con texto en la fila: más específico que `.row-actions > button` (cuadrado de 26 px). */
+.row-actions > .row-actions__text { width: auto; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; margin-right: 4px; }
+.row-actions > .row-actions__text { border: 1px solid var(--border); }
+.row-actions > .row-actions__text--primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+.row-actions > .row-actions__text--primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+.row-actions > .row-actions__text--danger { color: var(--red); }
+.row-actions > .row-actions__text--danger:hover { background: var(--hover); color: var(--red); }

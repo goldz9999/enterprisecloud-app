@@ -1,28 +1,28 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
-import { AppShell } from './components/AppShell';
-import { logout, sessionExpired } from './data/domain/auth';
-import { bootData, domainsForPath, ensureLoaded } from './data/loadAll';
-import { can } from './data/permissions';
-import { useSession, wasSignedOut } from './data/session';
-import { useDB } from './data/store';
-import { FlowListPage } from './features/flowlist/FlowListPage';
-import { RecordsPage } from './features/records/RecordsPage';
-import { AuditoriaPage } from './pages/AuditoriaPage';
-import { ComprasPage } from './pages/ComprasPage';
-import { ConfiguracionPage } from './pages/ConfiguracionPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { DocumentosPage } from './pages/DocumentosPage';
-import { HistorialPage } from './pages/HistorialPage';
-import { KardexPage } from './pages/KardexPage';
-import { LoginPage } from './pages/LoginPage';
-import { PermisosPage } from './pages/PermisosPage';
-import { ReportesPage } from './pages/ReportesPage';
-import { VentasPage } from './pages/VentasPage';
-import { RECORD_PAGES } from './pages/configs';
-import { cotizaciones } from './pages/configs/cotizaciones';
-import { solicitudes } from './pages/configs/solicitudes';
-import { startRealtime, stopRealtime } from './lib/realtime';
+import { AppShell } from '@/shared/components/AppShell';
+import { logout, sessionExpired } from '@/data/domain/auth';
+import { bootData, domainsForPath, ensureLoaded } from '@/data/loadAll';
+import { can } from '@/data/permissions';
+import { useSession, wasSignedOut } from '@/data/session';
+import { useDB } from '@/data/store';
+import { FlowListPage } from '@/shared/components/flow-list/FlowListPage';
+import { RecordsPage } from '@/shared/components/records/RecordsPage';
+import { AuditoriaPage } from '@/features/administracion/submodules/auditoria/workspace';
+import { ComprasPage } from '@/features/compras/workspace';
+import { ConfiguracionPage } from '@/features/configuracion/workspace';
+import { DashboardPage } from '@/features/dashboard/workspace';
+import { DocumentosPage } from '@/features/documentos/workspace';
+import { HistorialPage } from '@/features/historial/workspace';
+import { KardexPage } from '@/features/inventario/submodules/kardex/workspace';
+import { LoginPage } from '@/features/auth/workspace';
+import { PermisosPage } from '@/features/administracion/submodules/permisos/workspace';
+import { ReportesPage } from '@/features/reportes/workspace';
+import { VentasPage } from '@/features/ventas/workspace';
+import { RECORD_PAGES } from '@/shared/lib/configs';
+import { cotizaciones } from '@/shared/lib/configs/cotizaciones';
+import { solicitudes } from '@/shared/lib/configs/solicitudes';
+import { startRealtime, stopRealtime } from '@/shared/lib/realtime';
 
 /** Las órdenes de venta tampoco tienen página propia: se ven y aprueban en un modal de la lista (?ver=). */
 function OrdenVentaRedirect() {
@@ -65,7 +65,6 @@ function Guard({ module, children }: { module: string; children: ReactNode }) {
   const loc = useLocation();
   const login = <Navigate to={wasSignedOut() ? '/login' : `/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   if (!session) return login;
-  // The token expired: revoke it and go back to the login.
   if (sessionExpired())
     return (
       <>
@@ -90,30 +89,25 @@ export function App() {
   const session = useSession();
   const { hash, pathname } = useLocation();
 
-  // On load (and after each sign-in) confirm the token with the backend and pick up role/permission changes.
   const token = session?.token;
   useEffect(() => {
     bootData(token, pathname);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Cada pantalla pide solo los datos de su módulo (lo ya cargado no se vuelve a pedir).
   useEffect(() => {
     if (token) ensureLoaded(domainsForPath(pathname));
   }, [token, pathname]);
 
-  // Actualización automática: el backend avisa por WebSocket cuando otra persona guarda algo.
   useEffect(() => {
     startRealtime(token);
     return stopRealtime;
   }, [token]);
 
-  // Table density preference from Configuración › Apariencia.
   useEffect(() => {
     document.documentElement.dataset.density = String(d.settings.dens ?? 'Cómoda');
   }, [d.settings.dens]);
 
-  // Scroll to #anchors (e.g. /configuracion#datos), otherwise to the top on navigation.
   useEffect(() => {
     if (hash) setTimeout(() => document.querySelector(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     else window.scrollTo(0, 0);
@@ -124,10 +118,8 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       {CUSTOM.map(r => <Route key={r.path} path={r.path} element={<Guard module={r.module}>{r.el}</Guard>} />)}
       {Object.entries(RECORD_PAGES).map(([path, cfg]) => (
-        // key per path so state resets when moving between list screens
         <Route key={path} path={path} element={<Guard module={cfg.module ?? cfg.active}><RecordsPage key={path} cfg={cfg} /></Guard>} />
       ))}
-      {/* Rutas anteriores: crear órdenes ahora es un modal dentro de cada lista; la recepción vive en Kardex. */}
       <Route path="/ventas/ordenes/nueva" element={<Navigate to="/ventas/ordenes?nueva=1" replace />} />
       <Route path="/compras/orden/:code" element={<OrdenCompraRedirect />} />
       <Route path="/compras/ordenes/nueva" element={<Navigate to="/compras/ordenes" replace />} />

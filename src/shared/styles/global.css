@@ -1,0 +1,148 @@
+@import './tokens.css';
+@import './list.css';
+@import './layout.css';
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--blue); text-decoration: none; }
+a:hover { color: var(--blue-hover); }
+
+input::placeholder { color: var(--faint); }
+
+.mono { font-family: var(--font-mono); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-2);
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.btn--primary {
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+.btn--primary:hover { background: var(--accent-hover); }
+.btn--danger-text { color: var(--red); }
+
+.icon-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 0;
+}
+.icon-btn:hover { color: var(--text); border-color: var(--border-strong); }
+
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--faint);
+  border: 1px solid var(--kbd);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---------- Status chip ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.chip__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip--green { background: var(--green-bg); color: var(--green); }
+.chip--amber { background: var(--amber-bg); color: var(--amber); }
+.chip--red { background: var(--red-bg); color: var(--red); }
+.chip--blue { background: var(--blue-bg); color: var(--blue); }
+.chip--muted { background: var(--selected); color: var(--text-2); }
+.btn--block { width: 100%; font-weight: 500; }
+.btn--primary.btn--block { border: 1px solid var(--accent); }
+.btn--sm { height: 30px; }
+.btn--sm:not(.btn--primary) { background: var(--surface); }
+.btn--sm:not(.btn--primary):hover { color: var(--text); border-color: var(--border-strong); }
+.chip--accent { background: var(--accent-bg); color: var(--blue); }
+
+.ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Panels & cards ---------- */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.panel__title { font-weight: 600; font-size: 14px; }
+.panel__hint { color: var(--muted); font-size: 12px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Two-column key/value list; keys are muted. */
+.kv { display: grid; row-gap: 6px; font-size: 12px; }
+.kv > :nth-child(odd) { color: var(--muted); }
+
+/* File-type tag (PDF, XML…); colour via a chip--<tone> class. */
+.filetag {
+  flex-shrink: 0;
+  width: 34px;
+  height: 20px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+/* ---------- Print: only the page content ---------- */
+@media print {
+  .sidebar, .topbar, .no-print, .toast { display: none !important; }
+  .shell { min-width: 0; }
+  .page { padding: 0; max-width: none; }
+  .split { grid-template-columns: 1fr !important; }
+}
