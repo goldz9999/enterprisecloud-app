@@ -1,6 +1,6 @@
 import type { RecordsConfig } from '@/shared/components/records/types';
 import { collectRemote } from '@/data/domain/finance';
-import { formatMoney as fmtM } from '@/lib/format';
+import { formatMoney as fmtM } from '@/shared/lib/format';
 
 export const cuentasPorCobrar: RecordsConfig = {
   active: 'Cuentas por cobrar',

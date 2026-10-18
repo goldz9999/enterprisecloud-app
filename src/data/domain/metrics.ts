@@ -1,5 +1,5 @@
-import { addDays, parseDate } from '../../lib/dates';
-import { formatMoney } from '../../lib/format';
+import { addDays, parseDate } from '@/shared/lib/dates';
+import { formatMoney } from '@/shared/lib/format';
 import type { DB, Order } from '../types';
 import { payableView, receivableView } from './finance';
 import { orderTotal } from './orders';

@@ -1,5 +1,5 @@
-import { fmtDate } from '../../lib/dates';
-import { formatMoney } from '../../lib/format';
+import { fmtDate } from '@/shared/lib/dates';
+import { formatMoney } from '@/shared/lib/format';
 import { currentUser, nextId } from '../store';
 import type { DB, OrderLine, OrderParty } from '../types';
 

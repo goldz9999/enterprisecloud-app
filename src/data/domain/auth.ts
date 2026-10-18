@@ -1,4 +1,4 @@
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError } from '@/shared/lib/api';
 import { getSession, patchSession, setSession, type PermissionMap, type SessionUser } from '../session';
 
 /** Initial password shown by the (still local) Usuarios screen. Real accounts are managed by the backend. */

@@ -1,4 +1,4 @@
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError } from '@/shared/lib/api';
 
 /** Documentos guardados en el servidor (Supabase Storage + tabla `documents`). */
 

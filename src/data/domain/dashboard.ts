@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, ApiError } from '../../lib/api';
-import { formatMoney } from '../../lib/format';
-import { useRealtimeTick } from '../../lib/realtime';
+import { api, ApiError } from '@/shared/lib/api';
+import { formatMoney } from '@/shared/lib/format';
+import { useRealtimeTick } from '@/shared/lib/realtime';
 import { can } from '../permissions';
 import { getSession, useSession } from '../session';
 import type { Alert, Period } from './metrics';

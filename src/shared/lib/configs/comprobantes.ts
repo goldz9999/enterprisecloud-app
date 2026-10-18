@@ -1,7 +1,7 @@
 import type { RecordsConfig } from '@/shared/components/records/types';
 import { setInvoiceTaxStatusRemote, voidInvoiceRemote } from '@/data/domain/invoices';
-import { parseDate } from '@/lib/dates';
-import { formatMoney } from '@/lib/format';
+import { parseDate } from '@/shared/lib/dates';
+import { formatMoney } from '@/shared/lib/format';
 
 export const comprobantes: RecordsConfig = {
   active: 'Comprobantes',

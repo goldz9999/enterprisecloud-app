@@ -1,5 +1,5 @@
-import { api, ApiError } from '../../lib/api';
-import type { FlowItem, FlowRow } from '../../features/flowlist/types';
+import { api, ApiError } from '@/shared/lib/api';
+import type { FlowItem, FlowRow } from '@/shared/components/flow-list/types';
 import { update } from '../store';
 import type { DB } from '../types';
 import { productUuidBySku, supplierUuidByName, warehouseIdByName } from './masters';

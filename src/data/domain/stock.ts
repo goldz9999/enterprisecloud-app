@@ -1,4 +1,4 @@
-import { fmtDayTime } from '../../lib/dates';
+import { fmtDayTime } from '@/shared/lib/dates';
 import { currentUser, nextId } from '../store';
 import type { DB, Row } from '../types';
 

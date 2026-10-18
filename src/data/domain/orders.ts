@@ -1,6 +1,6 @@
-import type { Tone } from '../../components/StatusChip';
-import { addDays, fmtDate, fmtDayMonth, isoDate, parseDate } from '../../lib/dates';
-import { formatMoney } from '../../lib/format';
+import type { Tone } from '@/shared/components/StatusChip';
+import { addDays, fmtDate, fmtDayMonth, isoDate, parseDate } from '@/shared/lib/dates';
+import { formatMoney } from '@/shared/lib/format';
 import { currentUser, nextCode } from '../store';
 import type { DB, Order, OrderLine, OrderParty, Row } from '../types';
 import { audit } from './audit';

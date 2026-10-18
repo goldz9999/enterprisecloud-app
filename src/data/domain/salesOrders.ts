@@ -1,4 +1,4 @@
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError } from '@/shared/lib/api';
 import { update } from '../store';
 import type { DB, Order, OrderLine, OrderParty } from '../types';
 import {

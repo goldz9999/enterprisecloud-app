@@ -1,6 +1,6 @@
-import type { FlowItem, FlowRow } from '../../features/flowlist/types';
-import { displayDate, fmtDate } from '../../lib/dates';
-import { formatMoney } from '../../lib/format';
+import type { FlowItem, FlowRow } from '@/shared/components/flow-list/types';
+import { displayDate, fmtDate } from '@/shared/lib/dates';
+import { formatMoney } from '@/shared/lib/format';
 import { currentUser, nextCode } from '../store';
 import type { DB, OrderLine } from '../types';
 import { audit } from './audit';

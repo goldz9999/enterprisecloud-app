@@ -1,6 +1,6 @@
 import type { RecordsConfig } from '@/shared/components/records/types';
 import { createBankRemote, reconcileRemote } from '@/data/domain/finance';
-import { isoDate } from '@/lib/dates';
+import { isoDate } from '@/shared/lib/dates';
 import type { DB, Row } from '@/data/types';
 
 export const bancos: RecordsConfig = {

@@ -1,5 +1,5 @@
 import type { RecordsConfig } from '@/shared/components/records/types';
-import { parseDate } from '@/lib/dates';
+import { parseDate } from '@/shared/lib/dates';
 
 export const kardex: RecordsConfig = {
   active: 'Movimientos Kardex',

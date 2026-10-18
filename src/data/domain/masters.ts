@@ -1,4 +1,4 @@
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError } from '@/shared/lib/api';
 import { update } from '../store';
 import type { DB, Row, Value } from '../types';
 

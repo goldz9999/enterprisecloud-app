@@ -1,5 +1,5 @@
-import { api, ApiError } from '../../lib/api';
-import { addDays } from '../../lib/dates';
+import { api, ApiError } from '@/shared/lib/api';
+import { addDays } from '@/shared/lib/dates';
 import { update } from '../store';
 import type { DB, Row } from '../types';
 

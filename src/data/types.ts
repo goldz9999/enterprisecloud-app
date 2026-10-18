@@ -1,4 +1,4 @@
-import type { FlowRow } from '../features/flowlist/types';
+import type { FlowRow } from '@/shared/components/flow-list/types';
 
 export type Value = string | number;
 /** A record in a generic collection. `_id` is unique within its collection. */

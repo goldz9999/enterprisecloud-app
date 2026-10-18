@@ -1,5 +1,5 @@
 import type { RecordsConfig } from '@/shared/components/records/types';
-import { formatMoney } from '@/lib/format';
+import { formatMoney } from '@/shared/lib/format';
 
 export const stock: RecordsConfig & { sidePanel: boolean } = {
   active: 'Stock por almacén',

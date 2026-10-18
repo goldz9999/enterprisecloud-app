@@ -1,5 +1,5 @@
-import { api, ApiError } from '../../lib/api';
-import { fmtDayTime, fmtTime } from '../../lib/dates';
+import { api, ApiError } from '@/shared/lib/api';
+import { fmtDayTime, fmtTime } from '@/shared/lib/dates';
 import { MODULES, MODULE_KEYS } from '../permissions';
 import { getDB, update } from '../store';
 import type { AuditEvent, DB, PermMatrix, Row, Settings, Value } from '../types';

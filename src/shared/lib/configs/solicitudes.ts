@@ -1,4 +1,4 @@
-import type { FlowListConfig } from '@/features/flowlist/types';
+import type { FlowListConfig } from '@/shared/components/flow-list/types';
 
 export const solicitudes: FlowListConfig = {
   kind: "solicitud",
