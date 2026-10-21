@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type CSSProperties, type FormEvent } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { login } from '@/data/domain/auth';
 import { useSession } from '@/data/session';
@@ -48,10 +48,27 @@ export function LoginPage() {
 
   return (
     <div className="login">
+      {/* Fondo animado: solo decoración (auroras, rejilla en perspectiva, órbitas y chispas). */}
+      <div className="login__bg" aria-hidden="true">
+        <span className="login__orb login__orb--1" />
+        <span className="login__orb login__orb--2" />
+        <span className="login__orb login__orb--3" />
+        <span className="login__grid" />
+        <span className="login__ring" style={{ '--r': '520px', '--t': '46s' } as CSSProperties} />
+        <span className="login__ring" style={{ '--r': '780px', '--t': '70s', animationDirection: 'reverse' } as CSSProperties} />
+        <span className="login__ring" style={{ '--r': '1060px', '--t': '96s' } as CSSProperties} />
+        {Array.from({ length: 22 }, (_, i) => (
+          <i
+            key={i}
+            className="login__spark"
+            style={{ left: `${(i * 37 + 11) % 100}%`, '--s': `${2 + (i % 3)}px`, '--d': `${9 + ((i * 7) % 10)}s`, '--dl': `${-(i * 1.7)}s`, '--dx': `${((i * 53) % 80) - 40}px` } as CSSProperties}
+          />
+        ))}
+      </div>
       <header className="login__header">
         <div className="sb-logo">E</div>
         <div className="sb-brand__name">EnterpriseCloud</div>
-        <button type="button" className="icon-btn" style={{ marginLeft: 'auto' }} title="Cambiar a modo claro / oscuro" onClick={toggle}>
+        <button type="button" className="icon-btn theme-btn" style={{ marginLeft: 'auto' }} title="Cambiar a modo claro / oscuro" onClick={toggle}>
           {theme === 'dark' ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
           ) : (

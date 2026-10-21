@@ -22,6 +22,7 @@
    18. Efectos globales (tooltips, salidas, chips, esqueletos, transiciones)
    19. Borde neón animado en paneles, tarjetas y ventanas
    20. Marco neón de pantalla completa
+   21. Inicio de sesión: fondo animado
    ========================================================================== */
 
 
@@ -7593,4 +7594,290 @@ html[data-theme="light"]::after {
   html::after {
     display: none;
   }
+}
+
+
+/* ==========================================================================
+   21. INICIO DE SESIÓN: FONDO ANIMADO
+   Auroras que derivan, rejilla en perspectiva que avanza, órbitas con satélites y chispas que suben.
+   Todo es decoración (aria-hidden) y se detiene con "reducir movimiento".
+   ========================================================================== */
+.login__bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Auroras */
+.login__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: .5;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+.login__orb--1 {
+  width: 520px;
+  height: 520px;
+  left: -8%;
+  top: -12%;
+  background: radial-gradient(circle, #3b82f6, transparent 68%);
+  animation: ec-orb-1 19s ease-in-out infinite alternate;
+}
+
+.login__orb--2 {
+  width: 600px;
+  height: 600px;
+  right: -12%;
+  bottom: -18%;
+  background: radial-gradient(circle, #8b5cf6, transparent 68%);
+  animation: ec-orb-2 23s ease-in-out infinite alternate;
+}
+
+.login__orb--3 {
+  width: 420px;
+  height: 420px;
+  left: 38%;
+  top: 30%;
+  background: radial-gradient(circle, #22d3ee, transparent 70%);
+  opacity: .28;
+  animation: ec-orb-3 27s ease-in-out infinite alternate;
+}
+
+html[data-theme="light"] .login__orb {
+  mix-blend-mode: normal;
+  opacity: .34;
+}
+
+html[data-theme="light"] .login__orb--3 {
+  opacity: .22;
+}
+
+@keyframes ec-orb-1 {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(18vw, 10vh) scale(1.2);
+  }
+
+  100% {
+    transform: translate(6vw, 30vh) scale(.95);
+  }
+}
+
+@keyframes ec-orb-2 {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(-20vw, -8vh) scale(1.15);
+  }
+
+  100% {
+    transform: translate(-6vw, -28vh) scale(.9);
+  }
+}
+
+@keyframes ec-orb-3 {
+  0% {
+    transform: translate(-10vw, 0) scale(.9);
+  }
+
+  100% {
+    transform: translate(14vw, -14vh) scale(1.25);
+  }
+}
+
+/* Rejilla en perspectiva que avanza hacia el espectador */
+.login__grid {
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  bottom: -8%;
+  height: 62%;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  transform: perspective(520px) rotateX(64deg);
+  transform-origin: center bottom;
+  -webkit-mask-image: linear-gradient(to top, #000 5%, transparent 80%);
+  mask-image: linear-gradient(to top, #000 5%, transparent 80%);
+}
+
+:root {
+  --grid-line: rgba(96, 165, 250, .26);
+}
+
+html[data-theme="light"] {
+  --grid-line: rgba(37, 99, 235, .16);
+}
+
+/* Órbitas con satélite */
+.login__ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--r);
+  height: var(--r);
+  margin: calc(var(--r) / -2) 0 0 calc(var(--r) / -2);
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--accent) 28%, transparent);
+  -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 72%);
+  mask-image: radial-gradient(circle, #000 55%, transparent 72%);
+}
+
+.login__ring::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: var(--neon-a);
+  box-shadow: 0 0 12px 2px var(--neon-glow);
+}
+
+/* Chispas que suben */
+.login__spark {
+  position: absolute;
+  bottom: -12px;
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background: var(--neon-a);
+  box-shadow: 0 0 10px 1px var(--neon-glow);
+  opacity: 0;
+}
+
+html[data-theme="light"] .login__spark {
+  background: var(--neon-b);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .login__grid {
+    animation: ec-grid-flow 3.2s linear infinite;
+  }
+
+  .login__ring {
+    animation: ec-spin var(--t, 60s) linear infinite;
+  }
+
+  .login__spark {
+    animation: ec-rise var(--d, 12s) linear var(--dl, 0s) infinite;
+  }
+
+  /* Título con destello, botón con barrido y campos que entran en cascada */
+  .login__title {
+    background: linear-gradient(110deg, var(--text) 30%, var(--blue) 46%, var(--neon-c) 54%, var(--text) 70%);
+    background-size: 260% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: ec-shine 7s ease-in-out infinite;
+  }
+
+  .login__card>* {
+    animation: ec-fade-up .5s var(--ease) backwards;
+  }
+
+  .login__card> :nth-child(1) {
+    animation-delay: .10s;
+  }
+
+  .login__card> :nth-child(2) {
+    animation-delay: .18s;
+  }
+
+  .login__card> :nth-child(3) {
+    animation-delay: .26s;
+  }
+
+  .login__card> :nth-child(4) {
+    animation-delay: .34s;
+  }
+
+  .login__card> :nth-child(5) {
+    animation-delay: .42s;
+  }
+
+  .login__card> :nth-child(n+6) {
+    animation-delay: .5s;
+  }
+
+  .login__notice,
+  .login__footer {
+    animation: ec-fade .8s ease-out .5s backwards;
+  }
+}
+
+@keyframes ec-grid-flow {
+  to {
+    background-position: 0 56px;
+  }
+}
+
+@keyframes ec-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ec-shine {
+
+  0%,
+  55% {
+    background-position: 130% 0;
+  }
+
+  100% {
+    background-position: -130% 0;
+  }
+}
+
+@keyframes ec-rise {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+
+  12% {
+    opacity: .9;
+  }
+
+  88% {
+    opacity: .55;
+  }
+
+  100% {
+    transform: translate(var(--dx, 0px), -108vh);
+    opacity: 0;
+  }
+}
+
+.login__submit {
+  position: relative;
+  overflow: hidden;
+}
+
+.login__submit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, .35) 50%, transparent 65%);
+  transform: translateX(-120%);
+  transition: transform .7s var(--ease);
+}
+
+.login__submit:not(:disabled):hover::after {
+  transform: translateX(120%);
 }
