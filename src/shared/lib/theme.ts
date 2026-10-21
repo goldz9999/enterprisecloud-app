@@ -10,7 +10,11 @@ function readTheme(): Theme {
 }
 
 export function setTheme(next: Theme) {
-  document.documentElement.dataset.theme = next;
+  // Transición suave solo durante el cambio (ver .theme-switching en polish.css)
+  const root = document.documentElement;
+  root.classList.add('theme-switching');
+  window.setTimeout(() => root.classList.remove('theme-switching'), 350);
+  root.dataset.theme = next;
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {

@@ -1,0 +1,456 @@
+/* ==========================================================================
+   EnterpriseCloud — capa de diseño empresarial (v2)
+   Solo CSS: no toca componentes ni lógica. Se carga al final (ver main.tsx),
+   así que si algo no te gusta basta con borrar su bloque.
+   Todo usa las variables del tema, por eso funciona igual en claro y oscuro.
+   ========================================================================== */
+
+/* ---------- 1. Tokens de profundidad ---------- */
+:root {
+    --card-radius: 12px;
+    --hairline: inset 0 1px 0 rgba(255, 255, 255, .045);
+    --elev-1: 0 1px 2px rgba(0, 0, 0, .30), 0 6px 18px -8px rgba(0, 0, 0, .50);
+    --elev-2: 0 2px 4px rgba(0, 0, 0, .30), 0 16px 34px -12px rgba(0, 0, 0, .65);
+}
+
+html[data-theme="light"] {
+    --hairline: inset 0 1px 0 rgba(255, 255, 255, .95);
+    --elev-1: 0 1px 2px rgba(15, 23, 42, .05), 0 8px 20px -10px rgba(30, 58, 138, .20);
+    --elev-2: 0 2px 4px rgba(15, 23, 42, .05), 0 18px 36px -14px rgba(30, 58, 138, .32);
+}
+
+/* ---------- 2. Superficies: paneles, tarjetas, filtros, tablas ---------- */
+.panel,
+.card,
+.kpi,
+.table,
+.filters,
+.lines-editor {
+    border-radius: var(--card-radius);
+    box-shadow: var(--hairline), var(--elev-1);
+}
+
+.kpi:hover,
+.dash-kpi:hover,
+.dash-stat:hover,
+a.dash-kpi:hover,
+a.dash-stat:hover {
+    box-shadow: var(--hairline), var(--elev-2);
+}
+
+.panel__head {
+    padding: 14px 18px;
+}
+
+.panel__title {
+    letter-spacing: -.012em;
+}
+
+/* ---------- 3. Barra superior ---------- */
+.topbar::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent) 18%, color-mix(in srgb, var(--accent-2) 55%, transparent) 82%, transparent);
+    opacity: .6;
+    pointer-events: none;
+}
+
+.crumbs__current {
+    font-weight: 600;
+    letter-spacing: -.005em;
+}
+
+.clock__time {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
+}
+
+/* ---------- 4. Cabecera de página ---------- */
+.page__title {
+    font-size: 26px;
+    letter-spacing: -.03em;
+}
+
+.page__subtitle {
+    max-width: 78ch;
+    line-height: 1.55;
+}
+
+.page a:not([class]) {
+    text-decoration-line: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
+    transition: text-decoration-color .2s ease;
+}
+
+.page a:not([class]):hover {
+    text-decoration-color: currentColor;
+}
+
+.page-tabs__tab {
+    position: relative;
+    border-radius: 8px 8px 0 0;
+    transition: color .15s ease, background-color .15s ease;
+}
+
+.page-tabs__tab:hover {
+    background-color: var(--hover);
+}
+
+.page-tabs__tab.is-on {
+    border-bottom-color: transparent;
+    background-image: var(--grad);
+    background-repeat: no-repeat;
+    background-size: 100% 2px;
+    background-position: bottom;
+}
+
+.page-tabs__tab.is-on:hover {
+    background-color: var(--accent-bg);
+}
+
+/* ---------- 5. Barra lateral ---------- */
+.sb-brand {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent);
+}
+
+.sb-logo {
+    position: relative;
+    overflow: hidden;
+}
+
+.sb-logo::after {
+    /* brillo que cruza el logo de vez en cuando */
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, .55) 50%, transparent 62%);
+    transform: translateX(-130%);
+}
+
+.sb-brand__name {
+    letter-spacing: -.015em;
+}
+
+.sb-section {
+    letter-spacing: .09em;
+    font-size: 10px;
+    color: var(--faint);
+}
+
+.sb-item {
+    height: 36px;
+    border-radius: 10px;
+}
+
+.sb-item.is-active {
+    background: linear-gradient(90deg, var(--accent-bg), transparent 96%);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.sb-item.is-active .sb-item__icon {
+    stroke: var(--blue);
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent));
+}
+
+.sb-user {
+    border: 1px solid transparent;
+    padding: 6px;
+}
+
+.sb-user:hover,
+.sb-user.is-open {
+    border-color: var(--border);
+}
+
+.sb-avatar {
+    position: relative;
+}
+
+.sb-avatar::after {
+    /* indicador de sesión activa */
+    content: "";
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* ---------- 6. Tablas y listas ---------- */
+.table__head,
+.vrow--head,
+.audit-row--head,
+.perm-row--head,
+.sales-row--head,
+.rtable--head,
+.le-row--head {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    background: linear-gradient(180deg, var(--head-bg), color-mix(in srgb, var(--head-bg) 60%, var(--surface)));
+}
+
+.table__body-row.is-selected,
+.vrow.is-selected {
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.pager__num {
+    border-radius: 8px;
+}
+
+.pager__num.is-on {
+    background: var(--grad);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 12px -4px rgba(59, 130, 246, .6);
+}
+
+.pager__nav {
+    border-radius: 8px;
+}
+
+/* Chips de estado: punto que "respira" en estados pendientes */
+.chip {
+    height: 24px;
+    padding: 0 10px;
+}
+
+.chip--blue .chip__dot,
+.chip--amber .chip__dot {
+    animation: ec-dot 2.2s ease-in-out infinite;
+}
+
+@keyframes ec-dot {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 24%, transparent);
+    }
+
+    50% {
+        box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 6%, transparent);
+    }
+}
+
+/* ---------- 7. Formularios y botones ---------- */
+.btn {
+    border-radius: 9px;
+    letter-spacing: .005em;
+}
+
+.btn--primary {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .24), 0 1px 2px rgba(37, 99, 235, .45), 0 8px 18px -8px rgba(59, 130, 246, .7);
+}
+
+.btn--primary:hover {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 1px 2px rgba(37, 99, 235, .5), 0 12px 24px -8px rgba(59, 130, 246, .8);
+}
+
+.field__label {
+    font-weight: 600;
+    letter-spacing: .06em;
+    font-size: 10.5px;
+}
+
+.field__control {
+    border-radius: 9px;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: var(--accent);
+}
+
+.row-actions>button {
+    transition: background-color .15s ease, color .15s ease, box-shadow .15s ease, transform .14s var(--ease);
+}
+
+.row-actions>button:hover {
+    box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* ---------- 8. KPIs y dashboard ---------- */
+.kpi {
+    padding: 16px 18px;
+}
+
+.kpi__label {
+    font-weight: 500;
+    letter-spacing: .01em;
+}
+
+.kpi__value {
+    font-size: 24px;
+    letter-spacing: -.03em;
+}
+
+.dash-kpi__icon {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent);
+    transition: transform .3s var(--ease-spring);
+}
+
+.dash-kpi:hover .dash-kpi__icon {
+    transform: rotate(-6deg) scale(1.1);
+}
+
+.dash-kpi__value {
+    letter-spacing: -.035em;
+}
+
+.meter {
+    height: 6px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .15);
+}
+
+.meter>div {
+    position: relative;
+    overflow: hidden;
+}
+
+.meter>div::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent);
+    transform: translateX(-100%);
+}
+
+/* ---------- 9. Paneles laterales y avisos ---------- */
+.drawer {
+    box-shadow: -24px 0 60px -12px rgba(0, 0, 0, .45);
+}
+
+.drawer__head {
+    background: linear-gradient(180deg, var(--head-bg), transparent);
+}
+
+.drawer__title {
+    font-weight: 600;
+    letter-spacing: -.012em;
+}
+
+.drawer__close {
+    transition: background-color .15s ease, color .15s ease, transform .25s var(--ease);
+}
+
+.drawer__close:hover {
+    transform: rotate(90deg);
+}
+
+.toast {
+    border-radius: 12px;
+    border-left: 3px solid var(--accent);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--elev-2);
+}
+
+/* ---------- 10. Inicio de sesión ---------- */
+@property --ec-angle {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
+.login__card {
+    position: relative;
+    border-radius: 16px;
+    padding: 28px;
+}
+
+.login__card::before {
+    /* borde de luz que recorre la tarjeta */
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: conic-gradient(from var(--ec-angle), transparent 0 62%, var(--accent) 82%, var(--accent-2) 94%, transparent);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    opacity: .85;
+}
+
+.login__title {
+    letter-spacing: -.035em;
+}
+
+/* ---------- 11. Movimiento (solo si el sistema lo permite) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+    .sb-logo::after {
+        animation: ec-sheen 6s ease-in-out 1.2s infinite;
+    }
+
+    .meter>div::after {
+        animation: ec-sheen-bar 2.6s ease-in-out infinite;
+    }
+
+    .login__card::before {
+        animation: ec-angle 7s linear infinite;
+    }
+
+    .sb-avatar::after {
+        animation: ec-online 2.4s ease-in-out infinite;
+    }
+}
+
+@keyframes ec-sheen {
+
+    0%,
+    70% {
+        transform: translateX(-130%);
+    }
+
+    100% {
+        transform: translateX(130%);
+    }
+}
+
+@keyframes ec-sheen-bar {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes ec-angle {
+    to {
+        --ec-angle: 360deg;
+    }
+}
+
+@keyframes ec-online {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 2px var(--surface), 0 0 0 2px color-mix(in srgb, var(--green) 0%, transparent);
+    }
+
+    50% {
+        box-shadow: 0 0 0 2px var(--surface), 0 0 0 5px color-mix(in srgb, var(--green) 22%, transparent);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .chip__dot,
+    .meter>div::after,
+    .sb-logo::after,
+    .sb-avatar::after {
+        animation: none !important;
+    }
+}

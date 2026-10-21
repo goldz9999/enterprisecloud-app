@@ -15,6 +15,7 @@ import { downloadCsv, openPrintable } from '@/shared/lib/csv';
 import { formatMoney } from '@/shared/lib/format';
 import { OrderCreateModal } from '@/shared/components/OrderCreateModal';
 import { OrderViewModal } from '@/shared/components/OrderViewModal';
+import { DatePicker } from '@/shared/components/DatePicker';
 
 type SaleStatus = 'Por aprobar' | 'Pagado' | 'Pendiente' | 'Vencido' | 'Anulado';
 const TONE: Record<SaleStatus, Tone> = { 'Por aprobar': 'blue', Pagado: 'green', Pendiente: 'amber', Vencido: 'red', Anulado: 'muted' };
@@ -178,7 +179,7 @@ export function VentasPage() {
         <div className="filters__group">
           <span className="field__label">Fecha</span>
           <div className="daterange mono" style={{ opacity: OPEN.includes(status) ? 0.5 : 1 }} title={OPEN.includes(status) ? 'Este estado muestra todas las órdenes, sin importar la fecha' : undefined}>
-            <input type="date" aria-label="Fecha" value={day} onChange={e => refilter(() => setDay(e.target.value || todayIso))} />
+            <DatePicker value={day} onChange={v => refilter(() => setDay(v || todayIso))} />
           </div>
         </div>
         <div className="filters__group">
@@ -270,7 +271,7 @@ export function VentasPage() {
                       <button type="button" role="menuitem" onClick={() => { setMenu(null); setViewing(r.id); }}>Abrir orden</button>
                       <button type="button" role="menuitem" onClick={() => { setMenu(null); navigate(`/documentos?q=${r.id}`); }}>Ver documentos</button>
                       <button type="button" role="menuitem" onClick={() => { setMenu(null); printList([r]); }}>Imprimir resumen</button>
-                                          </div>
+                    </div>
                   )}
                 </div>
               </div>

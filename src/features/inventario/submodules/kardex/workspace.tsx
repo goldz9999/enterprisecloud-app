@@ -20,7 +20,7 @@ import { formatMoney } from '@/shared/lib/format';
 type Tab = 'Por recibir' | 'Recibidas' | 'Todas';
 const TABS: Tab[] = ['Por recibir', 'Recibidas', 'Todas'];
 const TONE: Record<string, Tone> = { 'Por aprobar': 'amber', 'Por recibir': 'blue', Recibida: 'green', Facturada: 'amber', Pagada: 'green', Anulada: 'muted' };
-const COLS = '110px minmax(0, 1.3fr) minmax(0, 1.2fr) 120px 104px 112px 150px';
+const COLS = '110px minmax(0, 1.3fr) minmax(0, 1.2fr) 120px 104px 112px 168px';
 
 const DOC_TYPES = ['Factura', 'Boleta de venta', 'Nota de crédito', 'Nota de débito', 'Recibo por honorarios', 'Otro'];
 
@@ -84,7 +84,7 @@ function ReceiptModal({ order, onClose, onDone }: { order: Order; onClose: () =>
       await Promise.all([loadInventory(), loadPayables(), loadCash(), loadGoodsReceipts()]);
       onDone(
         `${order.code}: recepción aprobada y ${docType.toLowerCase()} ${docNumber.trim()} registrada` +
-          (res.order.done >= 5 ? ` · egreso de ${formatMoney(total)} registrado en caja` : ' · queda como cuenta por pagar'),
+        (res.order.done >= 5 ? ` · egreso de ${formatMoney(total)} registrado en caja` : ' · queda como cuenta por pagar'),
       );
     } catch (e) {
       if (docId) await deleteDocument(docId).catch(() => undefined);

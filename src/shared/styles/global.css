@@ -16,6 +16,9 @@
        permisos, auditoría
    13. Densidad, impresión y movimiento reducido
    14. Acabados comunes y ajustes del tema claro
+   15. Acabado visual y animaciones (modales, calendario, botones)
+   16. Capa de diseño empresarial (profundidad, sidebar, tablas, login)
+   17. Selectores (desplegables) y animaciones adicionales
    ========================================================================== */
 
 
@@ -5326,4 +5329,1514 @@ html[data-theme="light"] .sidebar {
   --shadow-md: 0 14px 34px -8px rgba(0, 0, 0, .65);
   background: linear-gradient(180deg, #0F1D3A 0%, #0A1326 100%);
   border-right-color: #14223F;
+}
+
+
+/* ==========================================================================
+   15. ACABADO VISUAL Y ANIMACIONES
+   ========================================================================== */
+/* ==========================================================================
+   EnterpriseCloud — acabado visual y animaciones
+   Se importa DESPUÉS de global.css (ver main.tsx), por eso solo "suma" encima.
+   ========================================================================== */
+
+/* ---------- Tokens extra ---------- */
+:root {
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --modal-line: color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+/* Selección de texto y foco de teclado coherentes con la marca */
+::selection {
+  background: var(--accent-bg);
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.field__control:focus-visible,
+input:focus-visible {
+  outline: none;
+}
+
+/* ---------- Modales (perfil, contraseña y todos los que usan <Modal>) ---------- */
+.modal {
+  position: relative;
+  width: 440px;
+  overflow: hidden;
+  /* la barra de acento respeta las esquinas */
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.modal::before {
+  /* misma barra de acento que drawer y purchase-modal */
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--grad);
+  pointer-events: none;
+}
+
+.modal__head {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--modal-line);
+}
+
+.modal__head .panel__title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--text);
+}
+
+.modal__body {
+  padding: 20px;
+  gap: 16px;
+}
+
+.modal__foot {
+  padding: 14px 20px;
+  background: var(--head-bg);
+  border-top: 1px solid var(--modal-line);
+  border-radius: 0;
+}
+
+.modal__foot .btn {
+  height: 34px;
+  padding: 0 16px;
+}
+
+.modal__close {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, transform .25s var(--ease);
+}
+
+.modal__close:hover {
+  background: var(--hover);
+  color: var(--text);
+  transform: rotate(90deg);
+}
+
+/* Campos dentro de modales: una sola altura y buen contraste en ambos temas */
+.modal .field__control {
+  height: 38px;
+  padding: 0 12px;
+  font-size: 13.5px;
+}
+
+.modal .field__control:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  background: var(--surface-2);
+}
+
+.modal input.field__control::placeholder {
+  color: var(--faint);
+}
+
+/* Datos del perfil (Correo, Rol, Área…) */
+.modal .kv {
+  display: grid;
+  gap: 0;
+  padding: 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: 13px;
+}
+
+.modal .kv>span {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.modal .kv>span:nth-last-child(-n+2) {
+  border-bottom: 0;
+}
+
+.modal .kv>span:nth-child(odd) {
+  color: var(--muted);
+}
+
+.modal .kv>span:nth-child(even) {
+  color: var(--text);
+  font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+}
+
+.modal .success,
+.modal .drawer-error {
+  border-radius: var(--r-md);
+}
+
+/* Entrada: el fondo aparece y la ventana "asienta" con un pequeño rebote */
+@media (prefers-reduced-motion: no-preference) {
+  .modal-backdrop {
+    animation: ec-fade .22s ease-out;
+  }
+
+  .modal {
+    animation: ec-modal-in .34s var(--ease-spring);
+  }
+
+  .modal__body>* {
+    animation: ec-fade-up .35s var(--ease) backwards;
+  }
+
+  .modal__body> :nth-child(1) {
+    animation-delay: 60ms;
+  }
+
+  .modal__body> :nth-child(2) {
+    animation-delay: 110ms;
+  }
+
+  .modal__body> :nth-child(3) {
+    animation-delay: 160ms;
+  }
+
+  .modal__body> :nth-child(n+4) {
+    animation-delay: 200ms;
+  }
+}
+
+@keyframes ec-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(.96);
+  }
+}
+
+/* Z-index por encima de sidebar, topbar y drawers */
+.modal-backdrop {
+  z-index: 60;
+}
+
+/* ---------- Selector de fecha (calendario de Órdenes de venta) ---------- */
+.daterange {
+  position: relative;
+  height: 34px;
+  padding: 0 4px 0 10px;
+  gap: 6px;
+  background: var(--ctl-bg);
+  border: 1px solid var(--ctl-border);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  transition: border-color .15s ease, box-shadow .2s ease, background-color .15s ease;
+}
+
+.daterange:hover {
+  border-color: var(--accent);
+}
+
+.daterange:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.daterange::before {
+  /* icono de calendario, visible en ambos temas */
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex: none;
+  background: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16' rx='2.5'/%3E%3Cpath d='M3 9.5h18M8 2.5v4M16 2.5v4'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16' rx='2.5'/%3E%3Cpath d='M3 9.5h18M8 2.5v4M16 2.5v4'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.daterange input[type="date"] {
+  height: 100%;
+  min-width: 118px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  color-scheme: inherit;
+}
+
+.daterange input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+
+.daterange input[type="date"]::-webkit-datetime-edit-day-field:focus,
+.daterange input[type="date"]::-webkit-datetime-edit-month-field:focus,
+.daterange input[type="date"]::-webkit-datetime-edit-year-field:focus {
+  background: var(--accent-bg);
+  color: var(--blue);
+  border-radius: 3px;
+  outline: none;
+}
+
+.daterange input[type="date"]::-webkit-calendar-picker-indicator {
+  width: 22px;
+  height: 22px;
+  padding: 4px;
+  margin: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  opacity: .55;
+  transition: opacity .15s ease, background-color .15s ease;
+}
+
+html[data-theme="light"] .daterange input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: .75;
+}
+
+.daterange input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background: var(--accent-bg);
+}
+
+/* En el tema oscuro el icono nativo es negro: se invierte para que se vea */
+html[data-theme="dark"] .daterange input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+/* Todos los <input type="date|month|time"> sueltos del sistema heredan colores del tema */
+input[type="date"],
+input[type="month"],
+input[type="time"] {
+  color: var(--text);
+  font-family: inherit;
+}
+
+/* ---------- Acabado general ---------- */
+/* Botones: elevación suave al pasar el cursor */
+.btn {
+  transition-duration: .18s;
+}
+
+.btn:not(:disabled):not(.btn--primary):hover {
+  transform: translateY(-1px);
+}
+
+.btn--primary:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.btn:not(:disabled):active {
+  transform: translateY(0) scale(.97);
+}
+
+/* Barra lateral: indicador que se desliza y el icono reacciona */
+.sb-item {
+  transition: background-color .18s ease, color .18s ease, transform .2s var(--ease);
+}
+
+.sb-item:hover {
+  transform: translateX(2px);
+}
+
+.sb-item__icon {
+  transition: transform .25s var(--ease-spring), color .18s ease;
+}
+
+.sb-item:hover .sb-item__icon {
+  transform: scale(1.12);
+}
+
+/* Tarjetas KPI y paneles: respuesta al cursor sin exagerar */
+.kpi,
+.dash-kpi,
+.dash-stat {
+  transition: transform .25s var(--ease), box-shadow .25s ease, border-color .2s ease;
+}
+
+.kpi:hover,
+.dash-kpi:hover,
+.dash-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Filas de tabla: acento izquierdo al pasar el cursor */
+.sales-row--body,
+.vrow:not(.vrow--head),
+.table__body-row {
+  transition: background-color .15s ease, box-shadow .2s ease;
+}
+
+.sales-row--body:hover,
+.vrow:not(.vrow--head):hover,
+.table__body-row:hover {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Chips de filtro: el estado activo "salta" al activarse */
+.filter-chip {
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .2s ease, transform .2s var(--ease-spring);
+}
+
+.filter-chip:active {
+  transform: scale(.94);
+}
+
+.filter-chip.is-on {
+  animation: ec-chip-on .3s var(--ease-spring);
+}
+
+@keyframes ec-chip-on {
+  0% {
+    transform: scale(.92);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Barra superior con ligera sombra para separar del contenido al hacer scroll */
+.topbar {
+  transition: box-shadow .25s ease, background-color .25s ease;
+}
+
+/* Cambio de tema suave (se aplica solo mientras cambia, ver theme.ts) */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: background-color .3s ease, border-color .3s ease, color .3s ease, box-shadow .3s ease !important;
+}
+
+/* Skeleton / carga reutilizable: <div className="skeleton" style={{height:16}} /> */
+.skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--hover) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: ec-shimmer 1.3s linear infinite;
+}
+
+@keyframes ec-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- Respeto a "reducir movimiento" ---------- */
+@media (prefers-reduced-motion: reduce) {
+
+  .btn,
+  .kpi,
+  .dash-kpi,
+  .dash-stat,
+  .sb-item,
+  .sb-item__icon,
+  .modal__close,
+  .filter-chip {
+    transition: none !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
+/* ---------- Calendario propio (DatePicker) ---------- */
+.dp-trigger {
+  height: 100%;
+  padding: 0 8px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dp-trigger__chev {
+  color: var(--muted);
+  transition: transform .2s var(--ease);
+}
+
+.dp-trigger[aria-expanded="true"] .dp-trigger__chev {
+  transform: rotate(180deg);
+}
+
+.dp {
+  position: fixed;
+  z-index: 70;
+  width: 280px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  /* borde + sombra marcada: se distingue sobre fondo blanco y oscuro */
+  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+  transform-origin: top left;
+}
+
+.dp__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 10px;
+}
+
+.dp__title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -.01em;
+}
+
+.dp__nav {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease, transform .14s var(--ease);
+}
+
+.dp__nav:hover {
+  background: var(--accent-bg);
+  color: var(--blue);
+  border-color: var(--accent);
+}
+
+.dp__nav:active {
+  transform: scale(.92);
+}
+
+.dp__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dp__dow {
+  margin-bottom: 4px;
+}
+
+.dp__dow span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 4px 0;
+}
+
+.dp__day {
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease, transform .14s var(--ease), border-color .12s ease;
+}
+
+.dp__day:hover {
+  background: var(--accent-bg);
+  color: var(--blue);
+}
+
+.dp__day:active {
+  transform: scale(.9);
+}
+
+.dp__day.is-out {
+  color: var(--faint);
+}
+
+.dp__day.is-today {
+  border-color: var(--accent);
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.dp__day.is-sel,
+.dp__day.is-sel:hover {
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 12px -3px rgba(59, 130, 246, .6);
+}
+
+.dp__foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.dp__link {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--r-sm);
+  transition: background-color .15s ease, color .15s ease;
+}
+
+.dp__link:hover {
+  background: var(--accent-bg);
+  color: var(--blue);
+}
+
+.dp__link--strong {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dp {
+    animation: ec-menu .2s var(--ease);
+  }
+
+  .dp__title {
+    animation: ec-fade .25s ease-out;
+  }
+
+  .dp__grid:not(.dp__dow) {
+    animation: ec-fade-up .22s var(--ease);
+  }
+}
+
+/* ---------- Botones con texto dentro de .row-actions ----------
+   global.css fuerza `.row-actions>button` a 28x28 (pensado para iconos), lo que aplastaba
+   el botón "Aprobar recepción" de Kardex. Los .btn recuperan su tamaño y su color. */
+.row-actions>.btn {
+  width: auto;
+  height: 30px;
+  padding: 0 14px;
+  display: inline-flex;
+  white-space: nowrap;
+  border: 1px solid var(--ctl-border);
+  background: var(--ctl-bg);
+  color: var(--text-2);
+  border-radius: var(--r-md);
+}
+
+.row-actions>.btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.row-actions>.btn--primary {
+  border: 0;
+  background: var(--grad);
+  color: #fff;
+}
+
+.row-actions>.btn--primary:hover {
+  background: var(--grad);
+  color: #fff;
+}
+
+html[data-theme="light"] .row-actions>.btn:not(.btn--primary):hover {
+  background: #fff;
+  color: var(--blue);
+  border-color: var(--accent);
+}
+
+
+/* ==========================================================================
+   16. CAPA DE DISEÑO EMPRESARIAL
+   ========================================================================== */
+/* ---------- 1. Tokens de profundidad ---------- */
+:root {
+  --card-radius: 12px;
+  --hairline: inset 0 1px 0 rgba(255, 255, 255, .045);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, .30), 0 6px 18px -8px rgba(0, 0, 0, .50);
+  --elev-2: 0 2px 4px rgba(0, 0, 0, .30), 0 16px 34px -12px rgba(0, 0, 0, .65);
+}
+
+html[data-theme="light"] {
+  --hairline: inset 0 1px 0 rgba(255, 255, 255, .95);
+  --elev-1: 0 1px 2px rgba(15, 23, 42, .05), 0 8px 20px -10px rgba(30, 58, 138, .20);
+  --elev-2: 0 2px 4px rgba(15, 23, 42, .05), 0 18px 36px -14px rgba(30, 58, 138, .32);
+}
+
+/* ---------- 2. Superficies: paneles, tarjetas, filtros, tablas ---------- */
+.panel,
+.card,
+.kpi,
+.table,
+.filters,
+.lines-editor {
+  border-radius: var(--card-radius);
+  box-shadow: var(--hairline), var(--elev-1);
+}
+
+.kpi:hover,
+.dash-kpi:hover,
+.dash-stat:hover,
+a.dash-kpi:hover,
+a.dash-stat:hover {
+  box-shadow: var(--hairline), var(--elev-2);
+}
+
+.panel__head {
+  padding: 14px 18px;
+}
+
+.panel__title {
+  letter-spacing: -.012em;
+}
+
+/* ---------- 3. Barra superior ---------- */
+.topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent) 18%, color-mix(in srgb, var(--accent-2) 55%, transparent) 82%, transparent);
+  opacity: .6;
+  pointer-events: none;
+}
+
+.crumbs__current {
+  font-weight: 600;
+  letter-spacing: -.005em;
+}
+
+.clock__time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+/* ---------- 4. Cabecera de página ---------- */
+.page__title {
+  font-size: 26px;
+  letter-spacing: -.03em;
+}
+
+.page__subtitle {
+  max-width: 78ch;
+  line-height: 1.55;
+}
+
+.page a:not([class]) {
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color .2s ease;
+}
+
+.page a:not([class]):hover {
+  text-decoration-color: currentColor;
+}
+
+.page-tabs__tab {
+  position: relative;
+  border-radius: 8px 8px 0 0;
+  transition: color .15s ease, background-color .15s ease;
+}
+
+.page-tabs__tab:hover {
+  background-color: var(--hover);
+}
+
+.page-tabs__tab.is-on {
+  border-bottom-color: transparent;
+  background-image: var(--grad);
+  background-repeat: no-repeat;
+  background-size: 100% 2px;
+  background-position: bottom;
+}
+
+.page-tabs__tab.is-on:hover {
+  background-color: var(--accent-bg);
+}
+
+/* ---------- 5. Barra lateral ---------- */
+.sb-brand {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent);
+}
+
+.sb-logo {
+  position: relative;
+  overflow: hidden;
+}
+
+.sb-logo::after {
+  /* brillo que cruza el logo de vez en cuando */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, .55) 50%, transparent 62%);
+  transform: translateX(-130%);
+}
+
+.sb-brand__name {
+  letter-spacing: -.015em;
+}
+
+.sb-section {
+  letter-spacing: .09em;
+  font-size: 10px;
+  color: var(--faint);
+}
+
+.sb-item {
+  height: 36px;
+  border-radius: 10px;
+}
+
+.sb-item.is-active {
+  background: linear-gradient(90deg, var(--accent-bg), transparent 96%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.sb-item.is-active .sb-item__icon {
+  stroke: var(--blue);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent));
+}
+
+.sb-user {
+  border: 1px solid transparent;
+  padding: 6px;
+}
+
+.sb-user:hover,
+.sb-user.is-open {
+  border-color: var(--border);
+}
+
+.sb-avatar {
+  position: relative;
+}
+
+.sb-avatar::after {
+  /* indicador de sesión activa */
+  content: "";
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* ---------- 6. Tablas y listas ---------- */
+.table__head,
+.vrow--head,
+.audit-row--head,
+.perm-row--head,
+.sales-row--head,
+.rtable--head,
+.le-row--head {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  background: linear-gradient(180deg, var(--head-bg), color-mix(in srgb, var(--head-bg) 60%, var(--surface)));
+}
+
+.table__body-row.is-selected,
+.vrow.is-selected {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.pager__num {
+  border-radius: 8px;
+}
+
+.pager__num.is-on {
+  background: var(--grad);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 12px -4px rgba(59, 130, 246, .6);
+}
+
+.pager__nav {
+  border-radius: 8px;
+}
+
+/* Chips de estado: punto que "respira" en estados pendientes */
+.chip {
+  height: 24px;
+  padding: 0 10px;
+}
+
+.chip--blue .chip__dot,
+.chip--amber .chip__dot {
+  animation: ec-dot 2.2s ease-in-out infinite;
+}
+
+@keyframes ec-dot {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 24%, transparent);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 6%, transparent);
+  }
+}
+
+/* ---------- 7. Formularios y botones ---------- */
+.btn {
+  border-radius: 9px;
+  letter-spacing: .005em;
+}
+
+.btn--primary {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .24), 0 1px 2px rgba(37, 99, 235, .45), 0 8px 18px -8px rgba(59, 130, 246, .7);
+}
+
+.btn--primary:hover {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 1px 2px rgba(37, 99, 235, .5), 0 12px 24px -8px rgba(59, 130, 246, .8);
+}
+
+.field__label {
+  font-weight: 600;
+  letter-spacing: .06em;
+  font-size: 10.5px;
+}
+
+.field__control {
+  border-radius: 9px;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+.row-actions>button {
+  transition: background-color .15s ease, color .15s ease, box-shadow .15s ease, transform .14s var(--ease);
+}
+
+.row-actions>button:hover {
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* ---------- 8. KPIs y dashboard ---------- */
+.kpi {
+  padding: 16px 18px;
+}
+
+.kpi__label {
+  font-weight: 500;
+  letter-spacing: .01em;
+}
+
+.kpi__value {
+  font-size: 24px;
+  letter-spacing: -.03em;
+}
+
+.dash-kpi__icon {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent);
+  transition: transform .3s var(--ease-spring);
+}
+
+.dash-kpi:hover .dash-kpi__icon {
+  transform: rotate(-6deg) scale(1.1);
+}
+
+.dash-kpi__value {
+  letter-spacing: -.035em;
+}
+
+.meter {
+  height: 6px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .15);
+}
+
+.meter>div {
+  position: relative;
+  overflow: hidden;
+}
+
+.meter>div::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent);
+  transform: translateX(-100%);
+}
+
+/* ---------- 9. Paneles laterales y avisos ---------- */
+.drawer {
+  box-shadow: -24px 0 60px -12px rgba(0, 0, 0, .45);
+}
+
+.drawer__head {
+  background: linear-gradient(180deg, var(--head-bg), transparent);
+}
+
+.drawer__title {
+  font-weight: 600;
+  letter-spacing: -.012em;
+}
+
+.drawer__close {
+  transition: background-color .15s ease, color .15s ease, transform .25s var(--ease);
+}
+
+.drawer__close:hover {
+  transform: rotate(90deg);
+}
+
+.toast {
+  border-radius: 12px;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--elev-2);
+}
+
+/* ---------- 10. Inicio de sesión ---------- */
+@property --ec-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.login__card {
+  position: relative;
+  border-radius: 16px;
+  padding: 28px;
+}
+
+.login__card::before {
+  /* borde de luz que recorre la tarjeta */
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(from var(--ec-angle), transparent 0 62%, var(--accent) 82%, var(--accent-2) 94%, transparent);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: .85;
+}
+
+.login__title {
+  letter-spacing: -.035em;
+}
+
+/* ---------- 11. Movimiento (solo si el sistema lo permite) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .sb-logo::after {
+    animation: ec-sheen 6s ease-in-out 1.2s infinite;
+  }
+
+  .meter>div::after {
+    animation: ec-sheen-bar 2.6s ease-in-out infinite;
+  }
+
+  .login__card::before {
+    animation: ec-angle 7s linear infinite;
+  }
+
+  .sb-avatar::after {
+    animation: ec-online 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes ec-sheen {
+
+  0%,
+  70% {
+    transform: translateX(-130%);
+  }
+
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+@keyframes ec-sheen-bar {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes ec-angle {
+  to {
+    --ec-angle: 360deg;
+  }
+}
+
+@keyframes ec-online {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 2px color-mix(in srgb, var(--green) 0%, transparent);
+  }
+
+  50% {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 5px color-mix(in srgb, var(--green) 22%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .chip__dot,
+  .meter>div::after,
+  .sb-logo::after,
+  .sb-avatar::after {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   17. SELECTORES (desplegables) Y ANIMACIONES ADICIONALES
+   ========================================================================== */
+
+/* ---------- Selectores: todos los <select> del sistema (Usuarios, Kardex, Reportes…) ---------- */
+select.field__control,
+.report-bar__select {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 500;
+  transition: border-color .15s ease, box-shadow .2s ease, background-color .15s ease;
+}
+
+select.field__control:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+  background: var(--surface-2);
+}
+
+select.field__control:hover:not(:disabled),
+.report-bar__select:hover {
+  border-color: var(--accent);
+}
+
+.report-bar__select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.field:focus-within>.field__label {
+  color: var(--blue);
+  transition: color .15s ease;
+}
+
+/* Navegadores sin personalización de <select>: flecha propia en lugar de la nativa */
+@supports not (appearance: base-select) {
+
+  select.field__control,
+  .report-bar__select {
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0 34px 0 12px;
+    line-height: normal;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A92A5' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 11px center;
+    background-size: 12px;
+  }
+
+  html[data-theme="light"] select.field__control,
+  html[data-theme="light"] .report-bar__select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23556278' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  }
+
+  select.field__control:focus {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233B82F6' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  }
+
+  select option {
+    background: var(--surface);
+    color: var(--text);
+  }
+}
+
+/* Chrome / Edge recientes: además de la caja, la LISTA desplegable usa los colores del tema */
+@supports (appearance: base-select) {
+
+  select.field__control,
+  .report-bar__select,
+  select.field__control::picker(select),
+  .report-bar__select::picker(select) {
+    appearance: base-select;
+  }
+
+  select.field__control,
+  .report-bar__select {
+    padding: 0 10px 0 12px;
+    display: inline-flex;
+    align-items: center;
+    /* texto y flecha centrados en vertical */
+    line-height: 1.2;
+  }
+
+  select.field__control selectedcontent,
+  .report-bar__select selectedcontent {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+    line-height: 1.2;
+  }
+
+  select.field__control::picker-icon,
+  .report-bar__select::picker-icon {
+    display: block;
+    line-height: 1;
+  }
+
+  select.field__control::picker-icon,
+  .report-bar__select::picker-icon {
+    color: var(--muted);
+    transition: transform .25s var(--ease), color .15s ease;
+  }
+
+  select.field__control:open::picker-icon,
+  .report-bar__select:open::picker-icon {
+    transform: rotate(180deg);
+    color: var(--accent);
+  }
+
+  select.field__control::picker(select),
+  .report-bar__select::picker(select) {
+    margin-block: 6px;
+    padding: 6px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+    font: inherit;
+    opacity: 0;
+    transform: translateY(-6px) scale(.98);
+    transform-origin: top center;
+    transition: opacity .18s ease, transform .24s var(--ease), overlay .24s allow-discrete, display .24s allow-discrete;
+  }
+
+  select.field__control:open::picker(select),
+  .report-bar__select:open::picker(select) {
+    opacity: 1;
+    transform: none;
+  }
+
+  @starting-style {
+
+    select.field__control:open::picker(select),
+    .report-bar__select:open::picker(select) {
+      opacity: 0;
+      transform: translateY(-6px) scale(.98);
+    }
+  }
+
+  select.field__control option,
+  .report-bar__select option {
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: background-color .12s ease, color .12s ease, padding-left .18s var(--ease);
+  }
+
+  select.field__control option:hover,
+  select.field__control option:focus-visible,
+  .report-bar__select option:hover {
+    background: var(--accent-bg);
+    color: var(--blue);
+    padding-left: 14px;
+  }
+
+  select.field__control option:checked,
+  .report-bar__select option:checked {
+    background: var(--selected);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  select.field__control option::checkmark,
+  .report-bar__select option::checkmark {
+    color: var(--accent);
+  }
+}
+
+/* ---------- Animaciones adicionales (solo si el sistema permite movimiento) ---------- */
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes ec-shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes ec-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes ec-ping {
+  0% {
+    transform: scale(1);
+    opacity: .55;
+  }
+
+  80%,
+  100% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+
+@keyframes ec-check-pop {
+  0% {
+    transform: scale(.85);
+  }
+
+  60% {
+    transform: scale(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* Cabecera de página: la barra y la línea se "dibujan" al entrar */
+  .page__title::before {
+    animation: ec-grow-y .55s var(--ease) backwards;
+    transform-origin: bottom;
+  }
+
+  .page-head::after {
+    animation: ec-grow-x .9s var(--ease) .1s backwards;
+    transform-origin: left;
+  }
+
+  /* Formularios en paneles y ventanas: los campos entran en cascada */
+  .drawer__body>*,
+  .settings__fields>*,
+  .purchase-modal__fields>* {
+    animation: ec-fade-up .38s var(--ease) backwards;
+  }
+
+  .drawer__body> :nth-child(1),
+  .settings__fields> :nth-child(1),
+  .purchase-modal__fields> :nth-child(1) {
+    animation-delay: 40ms;
+  }
+
+  .drawer__body> :nth-child(2),
+  .settings__fields> :nth-child(2),
+  .purchase-modal__fields> :nth-child(2) {
+    animation-delay: 80ms;
+  }
+
+  .drawer__body> :nth-child(3),
+  .settings__fields> :nth-child(3),
+  .purchase-modal__fields> :nth-child(3) {
+    animation-delay: 120ms;
+  }
+
+  .drawer__body> :nth-child(4),
+  .settings__fields> :nth-child(4),
+  .purchase-modal__fields> :nth-child(4) {
+    animation-delay: 160ms;
+  }
+
+  .drawer__body> :nth-child(5),
+  .settings__fields> :nth-child(5),
+  .purchase-modal__fields> :nth-child(5) {
+    animation-delay: 200ms;
+  }
+
+  .drawer__body> :nth-child(6),
+  .settings__fields> :nth-child(6),
+  .purchase-modal__fields> :nth-child(6) {
+    animation-delay: 240ms;
+  }
+
+  .drawer__body> :nth-child(n+7),
+  .settings__fields> :nth-child(n+7),
+  .purchase-modal__fields> :nth-child(n+7) {
+    animation-delay: 280ms;
+  }
+
+  /* Avisos de error y éxito */
+  .field__control.is-invalid {
+    animation: ec-shake .38s ease-in-out;
+  }
+
+  .drawer-error,
+  .login__alert,
+  .field__error {
+    animation: ec-slide-down .3s var(--ease);
+  }
+
+  .success,
+  .info-banner {
+    animation: ec-check-pop .4s var(--ease-spring);
+  }
+
+  /* Submenús del sidebar y menús de usuario */
+  .sb-children {
+    animation: ec-slide-down .22s var(--ease);
+    transform-origin: top;
+  }
+
+  .sb-child {
+    animation: ec-fade .3s ease-out backwards;
+  }
+
+  .sb-menu__item {
+    transition: background-color .15s ease, color .15s ease, transform .18s var(--ease);
+  }
+
+  .sb-menu__item:hover {
+    transform: translateX(3px);
+  }
+
+  .notif-menu__list>* {
+    animation: ec-fade-up .3s var(--ease) backwards;
+  }
+
+  .notif-menu__list> :nth-child(2) {
+    animation-delay: 40ms;
+  }
+
+  .notif-menu__list> :nth-child(3) {
+    animation-delay: 80ms;
+  }
+
+  .notif-menu__list> :nth-child(n+4) {
+    animation-delay: 120ms;
+  }
+
+  /* Campana de notificaciones: onda alrededor de la insignia */
+  .notif-badge {
+    position: relative;
+  }
+
+  .notif-badge::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--badge);
+    pointer-events: none;
+    animation: ec-ping 2.4s cubic-bezier(0, 0, .2, 1) 1s infinite;
+  }
+
+  /* Botones de icono, interruptores y enlaces de ruta */
+  .icon-btn {
+    transition: background-color .15s ease, color .15s ease, transform .2s var(--ease-spring);
+  }
+
+  .icon-btn:hover {
+    transform: translateY(-1px) scale(1.06);
+  }
+
+  .icon-btn:active {
+    transform: scale(.92);
+  }
+
+  .switch>span {
+    transition: transform .25s var(--ease-spring), background-color .2s ease;
+  }
+
+  .crumbs__link {
+    position: relative;
+  }
+
+  .crumbs__link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .25s var(--ease);
+  }
+
+  .crumbs__link:hover::after {
+    transform: scaleX(1);
+  }
+
+  /* Listas y tablas: la primera columna reacciona al cursor */
+  .vrow:not(.vrow--head):hover> :first-child,
+  .sales-row--body:hover> :first-child,
+  .table__body-row:hover> :first-child {
+    transform: translateX(3px);
+  }
+
+  .vrow> :first-child,
+  .sales-row--body> :first-child,
+  .table__body-row> :first-child {
+    transition: transform .22s var(--ease);
+  }
+
+  /* Tarjetas del login y pantallas de acceso */
+  .login__input:focus {
+    transform: translateY(-1px);
+  }
+
+  .login__input {
+    transition: border-color .15s ease, box-shadow .2s ease, transform .2s var(--ease);
+  }
+
+  /* Barras de progreso: crecen al aparecer */
+  .meter>div {
+    animation: ec-grow-x .8s var(--ease) backwards;
+    transform-origin: left;
+  }
 }
