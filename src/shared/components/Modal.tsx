@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import './Modal.css';
 
 interface ModalProps {
   title: string;

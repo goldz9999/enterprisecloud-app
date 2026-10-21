@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '@/shared/components/AppShell';
-import '../../components/KpiCard.css';
 import { StatusChip, toneColor } from '@/shared/components/StatusChip';
 import { Toast, useToast } from '@/shared/components/Toast';
 import { audit, diff } from '@/data/domain/audit';

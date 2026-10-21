@@ -8,7 +8,6 @@ import { useDB } from '@/data/store';
 import type { Settings } from '@/data/types';
 import { api } from '@/shared/lib/api';
 import { useTheme } from '@/shared/lib/theme';
-import './workspace.css';
 
 // Map section titles to anchor ids
 const sectionId = (title: string) => title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');

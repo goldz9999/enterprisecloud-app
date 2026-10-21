@@ -9,7 +9,6 @@ import type { AuditEvent } from '@/data/types';
 import { mutate, useDB } from '@/data/store';
 import { downloadCsv } from '@/shared/lib/csv';
 import { useRealtimeTick } from '@/shared/lib/realtime';
-import './workspace.css';
 
 type Result = 'Exitoso' | 'Fallido' | 'Denegado';
 

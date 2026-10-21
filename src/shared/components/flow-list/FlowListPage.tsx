@@ -28,7 +28,6 @@ import { formatMoney } from '@/shared/lib/format';
 import { QuoteModal } from '@/shared/components/QuoteModal';
 import { FlowEditor } from './FlowEditor';
 import type { FlowListConfig, FlowRow } from './types';
-import './FlowListPage.css';
 
 const COLS = '104px minmax(0, 1fr) 96px 132px';
 

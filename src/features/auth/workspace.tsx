@@ -3,7 +3,6 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { login } from '@/data/domain/auth';
 import { useSession } from '@/data/session';
 import { useTheme } from '@/shared/lib/theme';
-import './workspace.css';
 
 function validate(email: string, pass: string) {
   return {

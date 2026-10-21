@@ -7,7 +7,6 @@ import type { AuditEvent } from '@/data/types';
 import { downloadCsv } from '@/shared/lib/csv';
 import { fmtDayTime } from '@/shared/lib/dates';
 import { useRealtimeTick } from '@/shared/lib/realtime';
-import '@/shared/styles/audit-list.css';
 
 const RESULT_TONE: Record<AuditEvent['result'], Tone> = { Exitoso: 'green', Fallido: 'red', Denegado: 'amber' };
 const ACTION_COLOR: Record<string, string> = { Crear: 'var(--green)', Editar: 'var(--blue)', Eliminar: 'var(--red)', Exportar: 'var(--amber)', Descargar: 'var(--amber)', Ingreso: 'var(--faint)' };

@@ -15,7 +15,6 @@ import { downloadCsv, openPrintable } from '@/shared/lib/csv';
 import { formatMoney } from '@/shared/lib/format';
 import { OrderCreateModal } from '@/shared/components/OrderCreateModal';
 import { OrderViewModal } from '@/shared/components/OrderViewModal';
-import './workspace.css';
 
 type SaleStatus = 'Por aprobar' | 'Pagado' | 'Pendiente' | 'Vencido' | 'Anulado';
 const TONE: Record<SaleStatus, Tone> = { 'Por aprobar': 'blue', Pagado: 'green', Pendiente: 'amber', Vencido: 'red', Anulado: 'muted' };

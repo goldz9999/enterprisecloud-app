@@ -8,7 +8,6 @@ import { can } from '@/data/permissions';
 import { currentUser, mutate, useDB } from '@/data/store';
 import { fmtDayMonth, fmtTime, MES } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
-import './workspace.css';
 
 const SALE_TONE: Record<string, Tone> = { Pagado: 'green', Pendiente: 'amber', Vencido: 'red', Anulado: 'muted' };
 const SALE_LABEL: Record<SaleStatus, string> = { PAID: 'Pagado', PENDING: 'Pendiente', OVERDUE: 'Vencido', CANCELLED: 'Anulado' };

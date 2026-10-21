@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import './Toast.css';
 
 /** Transient confirmation message; each call replaces the previous one and restarts the timer. */
 export function useToast(duration = 2600) {

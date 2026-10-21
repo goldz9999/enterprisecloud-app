@@ -5,7 +5,6 @@ import { useDB } from '@/data/store';
 import { ALL_DOMAINS, ensureLoaded } from '@/data/loadAll';
 import type { DB } from '@/data/types';
 import { NAV } from './nav';
-import './GlobalSearch.css';
 
 interface Hit {
   kind: string;

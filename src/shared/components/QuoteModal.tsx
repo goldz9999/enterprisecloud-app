@@ -8,7 +8,6 @@ import type { FlowItem, FlowRow } from '@/shared/components/flow-list/types';
 import { addDays, displayDate, isoDate, parseDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
 import { linesError } from '@/shared/lib/lines';
-import '@/shared/styles/order-modal.css';
 
 interface Props {
   /** Cotización a editar; sin ella se crea una nueva. */

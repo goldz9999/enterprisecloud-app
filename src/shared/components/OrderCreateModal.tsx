@@ -12,7 +12,6 @@ import type { Order, OrderLine, Row } from '@/data/types';
 import { addDays, displayDate, isoDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
 import { linesError } from '@/shared/lib/lines';
-import '@/shared/styles/order-modal.css';
 
 interface Props {
   kind: Order['kind'];

@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatMoney } from '@/shared/lib/format';
-import './LinesEditor.css';
-import './PartyPicker.css';
 
 export interface PartyOption {
   id: number | string;

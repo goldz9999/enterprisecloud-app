@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import './Drawer.css';
 
 interface DrawerProps {
   kicker: string;

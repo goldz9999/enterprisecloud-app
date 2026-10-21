@@ -13,7 +13,6 @@ import { fmtDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
 import { OrderCreateModal } from '@/shared/components/OrderCreateModal';
 import { OrderViewModal } from '@/shared/components/OrderViewModal';
-import './workspace.css';
 
 const TONE: Record<string, Tone> = { 'Por recibir': 'blue', Recibida: 'blue', Facturada: 'amber', Pagada: 'green', Anulada: 'muted' };
 const STATUSES = ['Todos', 'Por recibir', 'Recibida', 'Facturada', 'Pagada', 'Anulada'] as const;

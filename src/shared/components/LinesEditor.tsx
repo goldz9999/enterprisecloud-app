@@ -4,7 +4,6 @@ import { useDB } from '@/data/store';
 import type { OrderLine } from '@/data/types';
 import { formatMoney } from '@/shared/lib/format';
 import { ProductSearch, type ProductOption } from './ProductSearch';
-import './LinesEditor.css';
 
 interface LinesEditorProps {
   lines: OrderLine[];

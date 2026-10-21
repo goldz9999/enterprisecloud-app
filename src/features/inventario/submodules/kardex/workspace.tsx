@@ -16,8 +16,6 @@ import { useDB } from '@/data/store';
 import type { Order } from '@/data/types';
 import { fmtDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
-import '@/shared/styles/order-list.css';
-import '@/shared/styles/order-modal.css';
 
 type Tab = 'Por recibir' | 'Recibidas' | 'Todas';
 const TABS: Tab[] = ['Por recibir', 'Recibidas', 'Todas'];

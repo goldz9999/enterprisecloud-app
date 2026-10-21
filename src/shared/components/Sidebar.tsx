@@ -9,7 +9,6 @@ import { audit } from '@/data/domain/audit';
 import { isLoaded } from '@/data/loadAll';
 import { Modal } from './Modal';
 import { NAV, type NavEntry, type NavItem } from './nav';
-import './Sidebar.css';
 
 interface SidebarProps {
   /** Label of the active screen (top-level item or child). */

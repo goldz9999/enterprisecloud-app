@@ -6,7 +6,6 @@ import { loadAdmin, saveRolePermissions } from '@/data/domain/admin';
 import { ACTIONS, can, MODULES } from '@/data/permissions';
 import { useDB } from '@/data/store';
 import type { PermMatrix } from '@/data/types';
-import './workspace.css';
 
 type Matrix = PermMatrix;
 const clone = (m: Matrix): Matrix => JSON.parse(JSON.stringify(m));

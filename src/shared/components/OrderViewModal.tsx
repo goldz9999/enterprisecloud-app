@@ -10,7 +10,6 @@ import { mutate, useDB } from '@/data/store';
 import type { Order } from '@/data/types';
 import { displayDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
-import '@/shared/styles/order-modal.css';
 
 /**
  * Vista de una orden (compra o venta) sin salir de la lista.

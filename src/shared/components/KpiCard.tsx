@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import type { Tone } from './StatusChip';
-import './KpiCard.css';
 
 interface KpiCardProps {
   label: string;

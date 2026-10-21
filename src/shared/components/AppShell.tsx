@@ -9,7 +9,6 @@ import { GlobalSearch } from './GlobalSearch';
 import { NotificationsMenu } from './NotificationsMenu';
 import { Sidebar } from './Sidebar';
 import { Toast, useToast } from './Toast';
-import './AppShell.css';
 
 export interface Crumb {
   label: string;

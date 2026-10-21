@@ -14,7 +14,6 @@ import { mutate, useDB } from '@/data/store';
 import type { DocFile } from '@/data/types';
 import { downloadBlob, openPrintable } from '@/shared/lib/csv';
 import { displayDate, fmtDayMonth } from '@/shared/lib/dates';
-import './workspace.css';
 
 const CATEGORIES = [...DOC_CATEGORIES];
 const EXT_TONE: Record<string, Tone> = { PDF: 'red', XML: 'amber', XLSX: 'green', DOCX: 'blue' };

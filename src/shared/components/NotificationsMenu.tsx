@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { alertsFrom, useDashboard } from '@/data/domain/dashboard';
 import { mutate, useDB } from '@/data/store';
-import './NotificationsMenu.css';
 
 const GROUP: Record<string, { label: string; color: string }> = {
   stock: { label: 'Stock bajo mínimo', color: 'var(--red)' },
