@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AppShell } from '@/shared/components/AppShell';
 import { logout, sessionExpired } from '@/data/domain/auth';
@@ -22,6 +22,7 @@ import { VentasPage } from '@/features/ventas/workspace';
 import { RECORD_PAGES } from '@/shared/lib/configs';
 import { cotizaciones } from '@/shared/lib/configs/cotizaciones';
 import { solicitudes } from '@/shared/lib/configs/solicitudes';
+import { notifyRouteRendered } from '@/shared/lib/effects';
 import { startRealtime, stopRealtime } from '@/shared/lib/realtime';
 
 /** Las órdenes de venta tampoco tienen página propia: se ven y aprueban en un modal de la lista (?ver=). */
@@ -90,6 +91,10 @@ export function App() {
   const { hash, pathname } = useLocation();
 
   const token = session?.token;
+  // La transición entre páginas espera a que la nueva ruta esté pintada.
+  useLayoutEffect(() => {
+    notifyRouteRendered();
+  }, [pathname]);
   useEffect(() => {
     bootData(token, pathname);
     // eslint-disable-next-line react-hooks/exhaustive-deps

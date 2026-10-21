@@ -36,6 +36,47 @@ function buildIndex(d: DB): Hit[] {
   return hits;
 }
 
+/** Resalta en el texto las palabras buscadas (sin distinguir tildes ni mayúsculas). */
+function Hl({ text, terms }: { text: string; terms: string[] }) {
+  if (!terms.length) return <>{text}</>;
+  let plain = '';
+  const map: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const n = norm(text[i]);
+    for (let k = 0; k < n.length; k++) {
+      plain += n[k];
+      map.push(i);
+    }
+  }
+  const ranges: [number, number][] = [];
+  for (const t of terms) {
+    let from = 0;
+    for (; ;) {
+      const at = plain.indexOf(t, from);
+      if (at < 0) break;
+      ranges.push([map[at], map[at + t.length - 1] + 1]);
+      from = at + t.length;
+    }
+  }
+  if (!ranges.length) return <>{text}</>;
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const r of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else merged.push([r[0], r[1]]);
+  }
+  const out: React.ReactNode[] = [];
+  let pos = 0;
+  merged.forEach(([a, b], i) => {
+    if (a > pos) out.push(text.slice(pos, a));
+    out.push(<mark key={i}>{text.slice(a, b)}</mark>);
+    pos = b;
+  });
+  if (pos < text.length) out.push(text.slice(pos));
+  return <>{out}</>;
+}
+
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Topbar search across screens and records. ⌘K / Ctrl+K focuses it. */
@@ -111,8 +152,8 @@ export function GlobalSearch({ placeholder }: { placeholder: string }) {
               onClick={() => go(h)}
             >
               <span className="gsearch__kind">{h.kind}</span>
-              <span className="gsearch__title ellipsis">{h.title}</span>
-              <span className="gsearch__sub ellipsis">{h.sub}</span>
+              <span className="gsearch__title ellipsis"><Hl text={h.title} terms={terms} /></span>
+              <span className="gsearch__sub ellipsis"><Hl text={h.sub} terms={terms} /></span>
             </button>
           ))}
         </div>

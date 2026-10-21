@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AnimatedValue } from '@/shared/components/AnimatedValue';
 import { AppShell } from '@/shared/components/AppShell';
 import { StatusChip, type Tone } from '@/shared/components/StatusChip';
 import { alertsFrom, useDashboard, type SaleStatus } from '@/data/domain/dashboard';
@@ -105,7 +106,7 @@ export function DashboardPage() {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={`var(--${k.tone})`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={k.icon} /></svg>
               </span>
             </div>
-            <div className="dash-kpi__value">{k.value}</div>
+            <div className="dash-kpi__value"><AnimatedValue text={k.value} /></div>
             <div className="dash-kpi__foot">
               <span className={'dash-kpi__badge chip--' + k.tone}>{k.badge}</span>
               <span style={{ color: 'var(--muted)' }}>{k.note}</span>
@@ -121,7 +122,7 @@ export function DashboardPage() {
               <div style={{ color: 'var(--muted)' }}>{s.label}</div>
               <div style={{ fontSize: 12, color: 'var(--faint)', marginTop: 2 }}>{s.note}</div>
             </div>
-            <div className="dash-stat__value">{s.value}</div>
+            <div className="dash-stat__value"><AnimatedValue text={s.value} /></div>
           </Link>
         ))}
       </section>
@@ -161,7 +162,7 @@ export function DashboardPage() {
             })}
           </div>
           {rows.length === 0 && (
-            <div className="table__empty" style={{ padding: '32px 16px' }}>
+            <div className={'table__empty' + (loading && !data ? ' is-loading' : '')} style={{ padding: '32px 16px' }}>
               {latest.length ? 'Sin ventas con este estado.' : <>Aún no hay ventas. <Link to="/ventas/ordenes?nueva=1">Registrar una venta</Link></>}
             </div>
           )}
@@ -182,7 +183,7 @@ export function DashboardPage() {
             )}
           </div>
 
-          {all.length === 0 && <div className="table__empty" style={{ padding: '32px 16px' }}>Sin alertas. Todo en orden.</div>}
+          {all.length === 0 && <div className={'table__empty' + (loading && !data ? ' is-loading' : '')} style={{ padding: '32px 16px' }}>Sin alertas. Todo en orden.</div>}
 
           {stockAlerts.length > 0 && (
             <>

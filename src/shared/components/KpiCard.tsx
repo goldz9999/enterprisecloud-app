@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Tone } from './StatusChip';
+import { AnimatedValue } from './AnimatedValue';
 
 interface KpiCardProps {
   label: string;
@@ -14,7 +15,7 @@ export function KpiCard({ label, value, note, tone }: KpiCardProps) {
   return (
     <div className="kpi">
       <div className="kpi__label">{label}</div>
-      <div className="kpi__value" style={{ color }}>{value}</div>
+      <div className="kpi__value" style={{ color }}><AnimatedValue text={value} /></div>
       {note && <div className="kpi__note">{note}</div>}
     </div>
   );

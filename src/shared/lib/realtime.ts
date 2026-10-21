@@ -86,6 +86,7 @@ const flush = () => {
 const schedule = (jobs: Job[]) => {
   tick++;
   listeners.forEach(fn => fn());
+  window.dispatchEvent(new Event('ec:realtime')); // solo presentación: resalta filas que cambian (ver effects.ts)
   if (!jobs.length) return;
   jobs.forEach(j => pending.add(j));
   firstPendingAt ||= Date.now();

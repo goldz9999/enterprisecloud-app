@@ -78,6 +78,9 @@ export function domainsForPath(path: string): Domain[] {
 }
 
 const loaded = new Set<Domain>();
+/** Lecturas en curso. Solo alimenta la clase `ec-loading` de <html>, que CSS usa para mostrar esqueletos. */
+const inflight = new Set<Domain>();
+const markLoading = () => document.documentElement.classList.toggle('ec-loading', inflight.size > 0);
 export const isLoaded = (...ds: Domain[]) => ds.every(d => loaded.has(d));
 
 /** Pide lo que falte de estos módulos (lo ya cargado no se vuelve a pedir). */
@@ -85,7 +88,13 @@ export function ensureLoaded(ds: Domain[]) {
   for (const d of ds) {
     if (loaded.has(d)) continue;
     loaded.add(d);
-    void LOAD[d]();
+    inflight.add(d);
+    markLoading();
+    const done = () => {
+      inflight.delete(d);
+      markLoading();
+    };
+    Promise.resolve(LOAD[d]()).then(done, done);
   }
 }
 
