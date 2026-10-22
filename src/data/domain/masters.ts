@@ -436,3 +436,156 @@ export async function deactivateMaster(c: MasterCollection, localRowId: number, 
         return { ok: false, error: explain(e) };
     }
 }
+// ---------- importación desde archivo ----------
+
+/** `fields`: campos de la API con error (los manda el servidor) · `keys`: campos del formulario con error (para pintar la celda). */
+export interface ImportRowResult { row: number; action: 'create' | 'update' | 'error'; errors: string[]; fields?: string[]; keys?: string[] }
+export interface ImportResult { results: ImportRowResult[]; summary: { create: number; update: number; error: number }; saved: boolean }
+
+const loose = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/**
+ * Busca un registro relacionado escrito a mano en el archivo: sin importar mayúsculas ni tildes,
+ * y aceptando también su código, RUC/DNI o SKU. Devuelve el nombre exacto que espera el formulario.
+ */
+function refLabel(c: MasterCollection, value: string, label: (r: Raw) => string, ...alt: string[]): string | null {
+    const v = loose(value);
+    const r = raw[c].find(x => loose(label(x)) === v || alt.some(f => x[f] != null && loose(x[f]) === v));
+    return r ? label(r) : null;
+}
+
+const OWN_WORDS = /^(|movilidad propia|propia|propio|empresa|nuestra|nuestro|si|interno)$/;
+
+/** Referencias de cada pantalla: campo → cómo encontrarlo y qué decir si no existe. */
+const REFS: Partial<Record<MasterCollection, Record<string, (v: string) => string | null>>> = {
+    productos: {
+        cat: v => refLabel('categorias', v, r => r.name, 'code'),
+        prov: v => refLabel('proveedores', v, r => r.legal_name, 'tax_id', 'code'),
+    },
+    categorias: { padre: v => refLabel('categorias', v, r => r.name, 'code') },
+    conductores: { empresa: v => (OWN_WORDS.test(loose(v)) ? OWN : refLabel('proveedores', v, r => r.legal_name, 'tax_id', 'code')) },
+    vehiculos: {
+        empresa: v => (OWN_WORDS.test(loose(v)) ? OWN : refLabel('proveedores', v, r => r.legal_name, 'tax_id', 'code')),
+        conductor: v => refLabel('conductores', v, driverLabel, 'full_name', 'national_id', 'code'),
+    },
+    preciosProv: {
+        prov: v => refLabel('proveedores', v, r => r.legal_name, 'tax_id', 'code'),
+        prod: v => refLabel('productos', v, r => r.name, 'sku'),
+    },
+};
+const REF_NAMES: Record<string, string> = { cat: 'la categoría', prov: 'el proveedor', padre: 'la categoría padre', empresa: 'el transportista', conductor: 'el conductor', prod: 'el producto' };
+const USER_FIELDS: Partial<Record<MasterCollection, string>> = { clientes: 'vend', almacenes: 'resp' };
+
+/**
+ * Convierte una fila ya emparejada (claves del formulario) al cuerpo de la API, con las MISMAS reglas que el formulario.
+ * Devuelve el problema de esa fila en vez de lanzarlo, para mostrarlo en la revisión.
+ */
+export function importBody(c: MasterCollection, vals: Record<string, string>, pending?: PendingRows): { body?: Record<string, unknown>; error?: string; keys?: string[] } {
+    if (pending) return withPending(pending, () => importBody(c, vals));
+    const v: Vals = { ...vals };
+    if (c === 'clientes' && !text(v.tdoc) && text(v.ndoc)) {
+        return { error: `El documento «${text(v.ndoc)}» no tiene 11 dígitos (RUC) ni 8 (DNI). Si es un DNI al que Excel le quitó el 0 inicial, agrega la columna «Tipo de documento» con DNI.`, keys: ['ndoc'] };
+    }
+    for (const [k, find] of Object.entries(REFS[c] ?? {})) {
+        const given = text(v[k]);
+        if (!given || given === NONE) continue;
+        const hit = find(given);
+        if (!hit) return { error: `No existe ${REF_NAMES[k] ?? k} «${given}». Cárgalo primero en Mantenimiento o corrige el nombre.`, keys: [k] };
+        v[k] = hit;
+    }
+    const uf = USER_FIELDS[c];
+    if (uf && text(v[uf])) {
+        const u = users.find(x => loose(x.name) === loose(v[uf]));
+        if (!u) return { error: `No existe el usuario «${text(v[uf])}».`, keys: [uf] };
+        v[uf] = u.name;
+    }
+    try {
+        return { body: SPECS[c].body(v) };
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return { error: msg, keys: MSG_KEYS.filter(([re]) => re.test(msg)).map(([, k]) => k).filter(k => k in vals).slice(0, 1) };
+    }
+}
+
+/** Qué campo del formulario corresponde a cada mensaje de validación del formulario (para pintar la celda). */
+const MSG_KEYS: [RegExp, string][] = [
+    [/RUC|DNI/, 'ndoc'], [/RUC/, 'ruc'], [/[Cc]apacidad/, 'capacidad'], [/margen/i, 'margen'],
+    [/transportista/, 'empresa'], [/proveedor/, 'prov'], [/producto/, 'prod'], [/precio de compra/, 'costo'],
+];
+
+/** Campos de la API (snake_case o camelCase) → campos del formulario, para marcar la celda con error. */
+export function apiToFormKeys(c: MasterCollection, fields: string[]): string[] {
+    const camel = (s: string) => s.replace(/_([a-z])/g, (_, ch: string) => ch.toUpperCase());
+    const wanted = new Set(fields.map(camel));
+    return Object.entries(FIELD_API[c]).filter(([, api]) => api.some(a => wanted.has(a))).map(([k]) => k);
+}
+
+/** Envía el lote al backend. `dryRun` solo valida; si no, guarda (todo o nada) y recarga los maestros. */
+export async function importMaster(c: MasterCollection, bodies: Record<string, unknown>[], dryRun: boolean, fields: string[]): Promise<ImportResult> {
+    try {
+        const res = await api<ImportResult>(`${SPECS[c].path}/import`, { method: 'POST', body: { rows: bodies, dryRun, fields } });
+        if (res.saved) await loadMasters();
+        return res;
+    } catch (e) {
+        throw new Error(explain(e));
+    }
+}
+
+/** Campo del formulario → campos de la API que llena. Al ACTUALIZAR por importación solo se tocan los que trae el archivo. */
+const FIELD_API: Record<MasterCollection, Record<string, string[]>> = {
+    clientes: { tdoc: ['documentType'], ndoc: ['documentNumber'], razon: ['legalName'], dir: ['fiscalAddress'], contacto: ['contactName'], tel: ['phone'], correo: ['billingEmail'], cond: ['paymentTermsDays'], linea: ['creditLimit'], vend: ['salespersonUserId'], estado: ['status'] },
+    proveedores: { ruc: ['taxId'], rubro: ['businessCategory'], razon: ['legalName'], dir: ['address'], contacto: ['contactName'], tel: ['phone'], correo: ['email'], cond: ['paymentTermsDays'], cuenta: ['bankDetailsLabel'], estado: ['status'] },
+    productos: { sku: ['sku'], nombre: ['name'], cat: ['categoryId'], unidad: ['unit'], igv: ['taxable'], precio: ['salePrice'], min: ['minimumStock'], prov: ['primarySupplierId'], estado: ['status'] },
+    categorias: { nombre: ['name'], padre: ['parentCategoryId'], desc: ['description'], margen: ['targetMarginPct'], estado: ['status'] },
+    almacenes: { nombre: ['name'], tipo: ['warehouseType'], dir: ['address'], distrito: ['district'], resp: ['managerUserId'], estado: ['status'] },
+    conductores: { nombre: ['fullName'], dni: ['nationalId'], tel: ['phone'], licencia: ['licenseNumber'], categoria: ['licenseCategory'], empresa: ['isCompanyDriver', 'carrierSupplierId'], estado: ['status'] },
+    vehiculos: { placa: ['plate'], tipo: ['vehicleType'], marca: ['brand'], modelo: ['model'], capacidad: ['capacity', 'capacityUnit'], empresa: ['isCompanyVehicle', 'carrierSupplierId'], conductor: ['defaultDriverId'], estado: ['status'] },
+    preciosProv: { prov: ['supplierId'], prod: ['productId'], costo: ['unitCost'], notas: ['notes'], estado: ['status'] },
+};
+
+/** Campos de la API que vienen en el archivo (según las columnas emparejadas). */
+export function importFields(c: MasterCollection, mappedKeys: string[]): string[] {
+    return [...new Set(mappedKeys.flatMap(k => FIELD_API[c][k] ?? []))];
+}
+
+// ---------- importación general (varias hojas en un mismo archivo) ----------
+
+/**
+ * Ids provisionales de registros que vienen en otra hoja del mismo archivo y aún no se guardaron.
+ * Cada registro tiene el SUYO: si todos compartieran uno, el servidor vería «proveedor + producto» repetidos.
+ */
+const PENDING_PREFIX = '00000000-0000-4000-8000-';
+let pendingSeq = 0;
+const nextPendingId = () => PENDING_PREFIX + (++pendingSeq).toString(16).padStart(12, '0');
+/** Registros que vienen en el archivo, por tabla, con los campos que usan las referencias. */
+export type PendingRows = Partial<Record<MasterCollection, Raw[]>>;
+
+/** Registro provisional (solo para resolver referencias) a partir de una fila ya limpia del archivo. */
+export function pendingRow(c: MasterCollection, v: Record<string, string>): Raw | null {
+    const id = nextPendingId();
+    switch (c) {
+        case 'categorias': return v.nombre ? { id, name: v.nombre } : null;
+        case 'proveedores': return v.razon || v.ruc ? { id, legal_name: v.razon, tax_id: v.ruc } : null;
+        case 'productos': return v.nombre || v.sku ? { id, name: v.nombre, sku: v.sku } : null;
+        case 'conductores': return v.nombre || v.dni ? { id, full_name: v.nombre, national_id: v.dni } : null;
+        default: return null;
+    }
+}
+
+/** Ejecuta `fn` como si los registros pendientes ya existieran (se quitan al terminar). */
+function withPending<T>(pending: PendingRows, fn: () => T): T {
+    const added: [MasterCollection, number][] = [];
+    for (const [c, rows] of Object.entries(pending) as [MasterCollection, Raw[]][]) {
+        // Lo que ya existe en el servidor tiene prioridad: el provisional va al final.
+        raw[c].push(...rows);
+        added.push([c, rows.length]);
+    }
+    try {
+        return fn();
+    } finally {
+        for (const [c, n] of added) raw[c].splice(raw[c].length - n, n);
+    }
+}
+
+/** true si la fila apunta a algo que todavía no está guardado (se importa en una segunda pasada). */
+export const usesPending = (body: Record<string, unknown> | undefined) => !!body && JSON.stringify(body).includes(PENDING_PREFIX);

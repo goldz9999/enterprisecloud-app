@@ -1,0 +1,433 @@
+/* Pantalla general «Importar datos» (Mantenimiento) */
+.imp__steps {
+    margin: 4px 0 0;
+}
+
+.imp__card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+}
+
+.imp__drop {
+    padding: 48px 20px;
+}
+
+.imp__how {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 24px;
+    font-size: 13px;
+    color: var(--text-2);
+}
+
+.imp__how ol {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.imp__how-side {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.imp__how-side small {
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.imp__file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.imp__file b {
+    color: var(--text);
+}
+
+.imp__file .link-btn {
+    margin-left: auto;
+}
+
+/* Lista de hojas: una línea de pasos (orden de carga) con el estado de cada hoja por color. */
+.imp__sheets {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.imp__sheet {
+    --c: var(--green);
+    --c-bg: var(--green-bg);
+    position: relative;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--c);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    transition: border-color .2s var(--ease), opacity .2s var(--ease);
+}
+
+.imp__sheet.is-warn {
+    --c: var(--amber);
+    --c-bg: var(--amber-bg);
+}
+
+.imp__sheet.is-err {
+    --c: var(--red);
+    --c-bg: var(--red-bg);
+}
+
+.imp__sheet.is-off {
+    --c: var(--border-strong);
+    --c-bg: var(--surface-2);
+    opacity: .6;
+}
+
+/* Tramo de la línea que une un paso con el siguiente */
+.imp__sheet+.imp__sheet::before {
+    content: "";
+    position: absolute;
+    left: 25px;
+    top: -11px;
+    height: 10px;
+    border-left: 2px solid var(--border-strong);
+}
+
+.imp__sheet-head {
+    display: grid;
+    grid-template-columns: 28px minmax(150px, 210px) 16px 220px minmax(0, 1fr) 132px;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px 10px 10px;
+}
+
+.imp__order {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--c);
+    color: var(--surface);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.imp__sheet.is-off .imp__order {
+    color: var(--muted);
+}
+
+.imp__sheet-name {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+
+.imp__sheet-name>span:last-child {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.imp__sheet-name b {
+    font-size: 13.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.imp__sheet-name small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.imp__xl {
+    flex: none;
+    display: grid;
+    color: #1D7044;
+}
+
+.imp__sheet.is-off .imp__xl {
+    color: var(--faint);
+}
+
+.imp__arrow {
+    color: var(--faint);
+}
+
+.imp__tbl {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--ctl-border);
+    border-radius: var(--r-md);
+    background: var(--ctl-bg);
+    cursor: pointer;
+}
+
+.imp__tbl:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--ring);
+}
+
+.imp__tbl-ico {
+    display: grid;
+    color: var(--blue);
+}
+
+.imp__tbl select {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.imp__tbl select option {
+    background: var(--surface);
+    color: var(--text);
+}
+
+/* Columnas del archivo como fichas: azul = reconocida, gris tachada = se ignora, roja punteada = falta */
+.imp__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-width: 0;
+    padding: 4px;
+    margin: -4px;
+    border: 0;
+    border-radius: var(--r-md);
+    background: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.imp__chips:hover:not(:disabled) {
+    background: var(--hover);
+}
+
+.imp__chips:disabled {
+    cursor: default;
+}
+
+.imp__chip {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    background: var(--blue-bg);
+    color: var(--blue);
+    white-space: nowrap;
+}
+
+.imp__chip.is-off {
+    background: var(--surface-2);
+    color: var(--faint);
+    text-decoration: line-through;
+}
+
+.imp__chip.is-miss {
+    background: var(--red-bg);
+    color: var(--red);
+    outline: 1px dashed var(--red);
+    outline-offset: -1px;
+}
+
+.imp__state {
+    justify-self: end;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    width: 100%;
+}
+
+.imp__badge {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--c);
+    color: var(--surface);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.imp__nums {
+    display: flex;
+    gap: 8px;
+    font-size: 12.5px;
+    font-family: var(--font-mono);
+}
+
+.imp__nums .is-new {
+    color: var(--green);
+}
+
+.imp__nums .is-upd {
+    color: var(--blue);
+}
+
+.imp__nums .is-err {
+    color: var(--red);
+}
+
+.imp__bar {
+    display: flex;
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--surface-2);
+    gap: 2px;
+}
+
+.imp__bar i {
+    display: block;
+    min-width: 0;
+}
+
+.imp__bar .is-new {
+    background: var(--green);
+}
+
+.imp__bar .is-upd {
+    background: var(--blue);
+}
+
+.imp__bar .is-err {
+    background: var(--red);
+}
+
+.imp__problem {
+    margin: 0 14px 10px 52px;
+    padding: 7px 10px;
+    border-radius: var(--r-md);
+    background: var(--c-bg);
+    color: var(--c);
+    font-size: 12.5px;
+}
+
+.imp__sheet-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 2px 14px 14px 52px;
+}
+
+.imp__legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.imp__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.imp__legend i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+
+.imp__legend .is-ok,
+.imp__legend .is-new {
+    background: var(--green);
+}
+
+.imp__legend .is-warn {
+    background: var(--amber);
+}
+
+.imp__legend .is-off {
+    background: var(--border-strong);
+}
+
+.imp__legend .is-upd {
+    background: var(--blue);
+}
+
+.imp__legend .is-err {
+    background: var(--red);
+}
+
+.imp__foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+}
+
+.imp__summary {
+    font-size: 13px;
+    color: var(--text-2);
+    font-weight: 500;
+}
+
+.imp__summary-err {
+    font-size: 13px;
+    color: var(--red);
+    max-width: 520px;
+}
+
+@media (max-width: 1100px) {
+    .imp__sheet-head {
+        grid-template-columns: 28px minmax(0, 1fr) 16px 200px 110px;
+    }
+
+    .imp__chips {
+        grid-column: 2 / -1;
+        grid-row: 2;
+    }
+}
+
+@media (max-width: 720px) {
+    .imp__how {
+        grid-template-columns: 1fr;
+    }
+
+    .imp__sheet-head {
+        grid-template-columns: 28px minmax(0, 1fr) 90px;
+    }
+
+    .imp__arrow {
+        display: none;
+    }
+
+    .imp__tbl {
+        grid-column: 2 / -1;
+    }
+}

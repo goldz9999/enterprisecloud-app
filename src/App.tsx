@@ -20,6 +20,7 @@ import { PermisosPage } from '@/features/administracion/submodules/permisos/work
 import { ReportesPage } from '@/features/reportes/workspace';
 import { VentasPage } from '@/features/ventas/workspace';
 import { RECORD_PAGES } from '@/shared/lib/configs';
+import { ImportarDatosPage } from '@/features/mantenimiento/importar/workspace';
 import { cotizaciones } from '@/shared/lib/configs/cotizaciones';
 import { solicitudes } from '@/shared/lib/configs/solicitudes';
 import { notifyRouteRendered } from '@/shared/lib/effects';
@@ -52,6 +53,8 @@ const CUSTOM: { path: string; module: string; el: ReactNode }[] = [
   { path: '/admin/permisos', module: 'Permisos', el: <PermisosPage /> },
   { path: '/admin/auditoria', module: 'Auditoría', el: <AuditoriaPage /> },
   { path: '/configuracion', module: 'Configuración', el: <ConfiguracionPage /> },
+  // Importación general: cada hoja exige además permiso de crear y editar en su propia tabla.
+  { path: '/mantenimiento/importar', module: 'Importar datos', el: <ImportarDatosPage /> },
 ];
 
 function SignOut() {

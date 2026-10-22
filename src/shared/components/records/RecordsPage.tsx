@@ -11,6 +11,8 @@ import type { DB } from '@/data/types';
 import { downloadCsv } from '@/shared/lib/csv';
 import { formatValue } from '@/shared/lib/format';
 import { RecordDrawer, type DrawerMode } from './RecordDrawer';
+import { ImportWizard } from './ImportWizard';
+import { isMaster } from '@/data/domain/masters';
 import type { Action, Column, RecordsConfig, Row, Value } from './types';
 
 function Cell({ col, row, first }: { col: Column; row: Row; first: boolean }) {
@@ -105,6 +107,9 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
   const canCreate = can(d, mod, 'Crear') && !!cfg.collection;
   const canEdit = can(d, mod, 'Editar');
   const canRemove = can(d, mod, 'Eliminar');
+  // Importar desde un archivo: solo en Mantenimiento y con permiso de crear y editar (puede actualizar existentes).
+  const canImport = isMaster(cfg.collection) && canCreate && canEdit;
+  const [importing, setImporting] = useState(false);
 
   const rows = useMemo(() => rawRows(cfg, d).map(r => (cfg.view ? cfg.view(r, d) : r)), [cfg, d]);
   const q = query.trim().toLowerCase();
@@ -364,6 +369,12 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar…" aria-label={'Buscar en ' + cfg.title} />
         </label>
+        {canImport && (
+          <button type="button" className="btn btn--sm" title="Cargar datos desde un Excel o CSV" onClick={() => setImporting(true)} style={{ height: 30 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" /></svg>
+            Importar
+          </button>
+        )}
         <button type="button" className="icon-btn" title="Exportar a CSV" aria-label="Exportar a CSV" onClick={exportCsv} style={{ width: 30, height: 30 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></svg>
         </button>
@@ -407,6 +418,8 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
           startWithAction={auto || !!cfg.openWithAction}
         />
       )}
+
+      {importing && <ImportWizard cfg={cfg} onClose={() => setImporting(false)} onDone={msg => toast.flash(msg)} />}
 
       <Toast message={toast.message} />
     </AppShell>

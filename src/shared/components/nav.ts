@@ -75,6 +75,7 @@ export const NAV: NavEntry[] = [
       { label: 'Almacenes', to: '/mantenimiento/almacenes' },
       { label: 'Conductores', to: '/mantenimiento/conductores' },
       { label: 'Vehículos', to: '/mantenimiento/vehiculos' },
+      { label: 'Importar datos', to: '/mantenimiento/importar' },
     ],
   },
   { kind: 'section', label: 'Sistema' },

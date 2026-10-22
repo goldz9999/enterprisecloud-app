@@ -1,0 +1,526 @@
+/* Asistente «Importar» de Mantenimiento */
+.purchase-modal.iw {
+    width: 760px;
+    height: auto;
+    max-height: calc(100vh - 48px);
+}
+
+.iw__steps {
+    display: flex;
+    gap: 14px;
+    margin: 0 0 0 20px;
+    padding: 0;
+    list-style: none;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.iw__steps li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.iw__steps li span {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.iw__steps .is-on {
+    color: var(--blue);
+    font-weight: 600;
+}
+
+.iw__steps .is-on span {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+}
+
+.iw__steps .is-done span {
+    background: rgba(59, 130, 246, .12);
+    border-color: transparent;
+    color: var(--blue);
+}
+
+.iw__body {
+    padding: 18px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+}
+
+.iw__drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 36px 20px;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--blue);
+}
+
+.iw__drop:hover {
+    border-color: var(--blue);
+    background: rgba(59, 130, 246, .04);
+}
+
+.iw__drop input {
+    display: none;
+}
+
+.iw__drop strong {
+    color: var(--text);
+    font-size: 14px;
+}
+
+.iw__drop small {
+    color: var(--muted);
+    max-width: 460px;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.iw__note {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(245, 158, 11, .1);
+    color: var(--amber);
+    font-size: 12.5px;
+}
+
+.iw__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.iw__table {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: auto;
+    max-height: 52vh;
+}
+
+.iw__map {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.iw__map th {
+    position: sticky;
+    top: 0;
+    background: var(--surface-2);
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.iw__map td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-soft);
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.iw__map td:last-child {
+    width: 290px;
+}
+
+.iw__map tr:last-child td {
+    border-bottom: 0;
+}
+
+.iw__map tr.is-off td:not(:last-child) {
+    color: var(--faint);
+}
+
+.iw__map .field__control {
+    width: 100%;
+    height: 32px;
+    font-size: 13px;
+}
+
+.iw__summary {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.iw__summary span {
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.iw__summary .is-new {
+    background: rgba(16, 185, 129, .12);
+    color: var(--green);
+}
+
+.iw__summary .is-upd {
+    background: rgba(59, 130, 246, .12);
+    color: var(--blue);
+}
+
+.iw__summary .is-err {
+    background: rgba(239, 68, 68, .12);
+    color: var(--red);
+}
+
+.iw__summary .is-zero {
+    background: var(--surface-2);
+    color: var(--muted);
+}
+
+.iw__ok {
+    margin: 0;
+    color: var(--green);
+    font-weight: 500;
+}
+
+.iw__errors {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12.5px;
+    max-height: 44vh;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.iw__errors li {
+    display: flex;
+    gap: 12px;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.iw__errors li:last-child {
+    border-bottom: 0;
+}
+
+.iw__errors b {
+    flex: none;
+    width: 56px;
+    color: var(--red);
+    font-weight: 600;
+}
+
+.iw__foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.iw__privacy {
+    margin-right: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* Vista tipo Excel de la hoja (ColumnMapper): cabecera con el campo de cada columna y todas las filas */
+.cm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.cm__filter {
+    display: inline-flex;
+    align-self: flex-start;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+}
+
+.cm__filter button {
+    border: 0;
+    background: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.cm__filter button b {
+    margin-left: 4px;
+    font-weight: 600;
+}
+
+.cm__filter button.is-on {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+}
+
+.cm__filter button.is-err b {
+    color: var(--red);
+}
+
+.cm__scroll {
+    overflow: auto;
+    max-height: 420px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+}
+
+.cm__grid {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12.5px;
+    min-width: 100%;
+}
+
+.cm__grid th,
+.cm__grid td {
+    border-bottom: 1px solid var(--border-soft);
+    border-right: 1px solid var(--border-soft);
+}
+
+.cm__grid thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--head-bg, var(--surface-2));
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+    min-width: 150px;
+    border-bottom: 1px solid var(--border);
+}
+
+.cm__head {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cm__select {
+    width: 100%;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--ctl-border);
+    border-radius: var(--r-sm);
+    background: var(--ctl-bg);
+    color: var(--blue);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.cm__select option {
+    color: var(--text);
+    background: var(--surface);
+}
+
+.cm__grid thead th.is-off .cm__select {
+    color: var(--faint);
+}
+
+.cm__grid td {
+    padding: 6px 10px;
+    max-width: 240px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-2);
+}
+
+.cm__grid td.is-off {
+    color: var(--faint);
+    background: var(--surface-2);
+}
+
+/* Número de fila de Excel, fijo a la izquierda */
+.cm__num {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    width: 44px;
+    min-width: 44px !important;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--faint);
+    background: var(--surface-2) !important;
+}
+
+.cm__grid thead .cm__num {
+    z-index: 3;
+}
+
+.cm__grid tr.is-err-row td,
+.cm__grid td.is-bad {
+    background: var(--red-bg);
+}
+
+.cm__grid td.is-bad {
+    box-shadow: inset 0 0 0 1.5px var(--red);
+    color: var(--red);
+}
+
+.cm__grid tr.is-upd td.cm__num {
+    color: var(--blue);
+    font-weight: 600;
+    background: var(--blue-bg) !important;
+    box-shadow: inset 3px 0 0 var(--blue);
+}
+
+.cm__filter button.is-upd b {
+    color: var(--blue);
+}
+
+.cm__grid tr.is-err td.cm__num {
+    color: var(--red);
+    font-weight: 600;
+    background: var(--red-bg) !important;
+    box-shadow: inset 3px 0 0 var(--red);
+}
+
+.cm__problem-h {
+    min-width: 260px !important;
+    position: sticky;
+    right: 0;
+    z-index: 3 !important;
+}
+
+.cm__problem {
+    color: var(--red) !important;
+    white-space: normal !important;
+    min-width: 260px;
+    max-width: 320px !important;
+    position: sticky;
+    right: 0;
+    background: var(--surface);
+    box-shadow: -1px 0 0 var(--border);
+}
+
+.cm__grid tr.is-err td.cm__problem {
+    background: color-mix(in srgb, var(--red) 10%, var(--surface));
+}
+
+/* Paginado y edición en la vista tipo Excel */
+.cm__bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 0;
+}
+
+.cm__bar:empty {
+    display: none;
+}
+
+.cm__pager {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+}
+
+.cm__pager button {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.cm__pager button:disabled {
+    opacity: .4;
+    cursor: default;
+}
+
+.cm__grid td:has(.cm__cell) {
+    padding: 0;
+}
+
+.cm__cell {
+    display: block;
+    width: 100%;
+    min-width: 120px;
+    height: 32px;
+    padding: 0 10px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12.5px;
+}
+
+.cm__cell:hover {
+    background: var(--hover);
+}
+
+.cm__cell:focus {
+    background: var(--surface);
+    box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.cm__grid tr.is-edited td {
+    background: var(--amber-bg);
+}
+
+.cm__grid tr.is-edited td.cm__num {
+    color: var(--amber);
+    font-weight: 600;
+    background: var(--amber-bg) !important;
+    box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.cm__grid tr.is-edited td.cm__problem {
+    background: color-mix(in srgb, var(--amber) 10%, var(--surface));
+}
+
+.cm__fixed {
+    color: var(--amber);
+    font-weight: 600;
+}
