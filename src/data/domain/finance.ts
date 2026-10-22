@@ -76,11 +76,34 @@ export async function loadReceivables(): Promise<void> {
   }
 }
 
+// ---- Cuentas bancarias de la empresa (para elegir a cuál transfirió el cliente) ----
+let bankAccountList: { id: string; label: string }[] = [];
+let bankAccountsLoading = false;
+/** Nombres de las cuentas bancarias activas; la primera vez las pide al servidor y vuelve a pintar al llegar. */
+export function bankAccountLabels(): string[] {
+  if (!bankAccountList.length && !bankAccountsLoading) {
+    bankAccountsLoading = true;
+    void api<{ items: Raw[] }>('/bank-accounts')
+      .then(res => {
+        bankAccountList = (res.items || []).map(a => ({
+          id: String(a.id),
+          label: [a.bankName || a.label, a.accountReference].filter(Boolean).join(' · ') || String(a.label),
+        }));
+        update(() => undefined);
+      })
+      .catch(() => undefined)
+      .finally(() => { bankAccountsLoading = false; });
+  }
+  return bankAccountList.map(a => a.label);
+}
+const bankAccountId = (label?: string) => bankAccountList.find(a => a.label === label)?.id;
+
 export async function collectRemote(
   id: string,
   amount: number,
   channel: string,
   reference?: string,
+  bankAccount?: string,
 ): Promise<FinResult> {
   try {
     await api(`/receivables/${encodeURIComponent(id)}/collect`, {
@@ -89,6 +112,7 @@ export async function collectRemote(
         amount,
         channel: channel === 'Bancos' || channel === 'BANK' ? 'BANK' : 'CASH',
         reference,
+        bankAccountId: bankAccountId(bankAccount) ?? null,
       },
     });
     await loadReceivables();

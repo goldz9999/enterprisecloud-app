@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LinesEditor } from '@/shared/components/LinesEditor';
 import { PartyPicker, type PartyOption } from '@/shared/components/PartyPicker';
+import { SearchSelect } from '@/shared/components/SearchSelect';
+import { TransportPicker } from '@/shared/components/TransportPicker';
+import './OrderCreateModal.css';
 import { OWN_FLEET } from '@/data/domain/carriers';
 import { supplierCost } from '@/data/domain/masters';
 import { igvRate, orderSubtotal, orderTotal, partyFromClient, partyFromSupplier, payTermOptions, warehouses } from '@/data/domain/orders';
@@ -9,9 +12,13 @@ import { createPurchaseOrderRemote } from '@/data/domain/purchaseOrders';
 import { createSaleOrderRemote } from '@/data/domain/salesOrders';
 import { currentUser, useDB } from '@/data/store';
 import type { Order, OrderLine, Row } from '@/data/types';
-import { addDays, displayDate, isoDate } from '@/shared/lib/dates';
+import { addDays, isoDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
 import { linesError } from '@/shared/lib/lines';
+
+/** Tipos de comprobante que puede emitir una orden de venta. */
+/** Factura exige RUC (11 dígitos); con DNI u otro documento solo se emite boleta. La nota de crédito se emite después, al anular un comprobante. */
+const DOC_TYPES = ['Factura', 'Boleta'] as const;
 
 interface Props {
   kind: Order['kind'];
@@ -36,10 +43,11 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   const [pickedParty, setPickedParty] = useState<number | ''>('');
   const [pickedWarehouse, setPickedWarehouse] = useState('');
   // Transporte: «Nuestras movilidades» (flota de la empresa, con conductor y vehículo) o «Movilidad propia» (la lleva el cliente).
-  const [transport, setTransport] = useState<'fleet' | 'client'>('fleet');
+  const [transport, setTransport] = useState<'' | 'fleet' | 'client'>('');
   const [pickedDriver, setPickedDriver] = useState('');
   const [pickedPlate, setPickedPlate] = useState('');
   const [pickedTerms, setPickedTerms] = useState('');
+  const [pickedDocType, setPickedDocType] = useState<'' | 'Factura' | 'Boleta'>('');
   const [deliveryDate, setDeliveryDate] = useState(() => isoDate(addDays(new Date(), 3)));
   // Al contado: fecha límite de pago; si no se aprueba y paga hasta ese día, la orden se anula sola.
   const [payDeadline, setPayDeadline] = useState(() => isoDate(addDays(new Date(), 1)));
@@ -47,26 +55,25 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const partyId = parties.some(p => p._id === pickedParty) ? pickedParty : (parties[0]?._id ?? '');
+  // Sin cliente/proveedor preseleccionado: el usuario debe elegirlo.
+  const partyId = parties.some(p => p._id === pickedParty) ? pickedParty : '';
   const party = parties.find(p => p._id === partyId);
   const partyName = String(party?.razon ?? '');
   const defaultWarehouse = d.settings.almdef && whs.includes(String(d.settings.almdef)) ? String(d.settings.almdef) : whs[0];
-  const warehouse = whs.includes(pickedWarehouse) ? pickedWarehouse : defaultWarehouse;
+  // Venta: almacén por defecto. Compra: sin preselección, el usuario elige a qué almacén ingresa.
+  const warehouse = whs.includes(pickedWarehouse) ? pickedWarehouse : sale ? defaultWarehouse : '';
   // Flota propia: conductores y vehículos activos de la empresa. Elegir uno trae al otro (el vehículo guarda su conductor habitual).
   const fleetDrivers = d.records.conductores.filter(c => c.estado === 'Activo' && c.empresa === OWN_FLEET);
   const fleetVehicles = d.records.vehiculos.filter(v => v.estado === 'Activo' && v.empresa === OWN_FLEET);
   const driverOf = (v: Row | undefined) => String(v?.conductor ?? '').split(' · ')[0];
   const driver = pickedDriver && fleetDrivers.some(c => c.nombre === pickedDriver) ? pickedDriver : '';
   const plate = pickedPlate && fleetVehicles.some(v => v.placa === pickedPlate) ? pickedPlate : '';
-  const pickDriver = (name: string) => {
-    setPickedDriver(name);
-    const v = fleetVehicles.find(x => name && driverOf(x) === name);
-    if (v) setPickedPlate(String(v.placa));
-  };
+  // Elegir un vehículo trae a su conductor habitual; el conductor se puede cambiar aparte.
   const pickPlate = (p: string) => {
+    setTransport('fleet');
     setPickedPlate(p);
     const name = driverOf(fleetVehicles.find(x => x.placa === p));
-    if (name && fleetDrivers.some(c => c.nombre === name)) setPickedDriver(name);
+    setPickedDriver(name && fleetDrivers.some(c => c.nombre === name) ? name : '');
   };
   const needsFleet = transport === 'fleet' && fleetDrivers.length > 0 && fleetVehicles.length > 0;
   const carrier = transport === 'fleet' ? OWN_FLEET : 'Retira el cliente';
@@ -74,6 +81,10 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   const terms = pickedTerms || String(party?.cond || 'Contado');
   const creditDays = Number(/(\d+)/.exec(terms)?.[1] ?? 0);
   const cash = creditDays === 0;
+  // Comprobante: si no lo eligió, Factura para RUC (11 dígitos) y Boleta para el resto.
+  const partyDoc = String(party?.ndoc ?? party?.ruc ?? '').replace(/\D/g, '');
+  const hasRuc = partyDoc.length === 11;
+  const docType: 'Factura' | 'Boleta' = party && !hasRuc ? 'Boleta' : pickedDocType || (party ? 'Factura' : 'Boleta');
   // La dirección de entrega es la del cliente (Mantenimiento › Clientes); no se vuelve a pedir aquí.
   const address = String(party?.dir ?? '').trim();
   const options: PartyOption[] = parties.map(p => ({
@@ -107,7 +118,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
         : '';
   const units = lines.reduce((a, l) => a + l.qty, 0);
   // Qué falta para poder guardar: se muestra en el resumen en vez de dejar un botón que "no hace nada".
-  const missing = !party ? 'Elige un ' + (sale ? 'cliente' : 'proveedor') : !lines.length ? 'Agrega al menos un producto' : creditError ? creditError : sale && needsFleet && (!driver || !plate) ? 'Elige conductor y vehículo' : '';
+  const missing = !party ? 'Elige un ' + (sale ? 'cliente' : 'proveedor') : sale && !transport ? 'Elige la movilidad' : !sale && !warehouse ? 'Elige el almacén destino' : !lines.length ? 'Agrega al menos un producto' : creditError ? creditError : sale && needsFleet && (!driver || !plate) ? 'Elige conductor y vehículo' : '';
 
   // Esc cierra el modal, salvo mientras se guarda.
   useEffect(() => {
@@ -119,6 +130,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   const pickParty = (id: number) => {
     setPickedParty(id);
     setPickedTerms('');
+    setPickedDocType('');
     if (sale) return;
     // Compras: al cambiar de proveedor las líneas toman el costo pactado con ese proveedor (si lo tiene registrado).
     const name = String(parties.find(p => p._id === id)?.razon ?? '');
@@ -127,6 +139,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
 
   const save = async () => {
     if (!party) return setError(sale ? 'Elige un cliente.' : 'Elige un proveedor.');
+    if (!warehouse) return setError('Elige el almacén destino.');
     if (creditError) return setError(creditError + '.');
     if (sale && !deliveryDate) return setError('Indica la fecha de entrega.');
     if (sale && cash && !payDeadline) return setError('Indica la fecha límite de pago.');
@@ -138,25 +151,26 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
     try {
       const res = sale
         ? await createSaleOrderRemote({
-            party: { ...partyFromClient(party), terms },
-            lines,
-            warehouse,
-            seller,
-            customerLocalId: Number(party._id),
-            carrier,
-            driver: transport === 'fleet' ? driver : undefined,
-            vehiclePlate: transport === 'fleet' ? plate : undefined,
-            deliveryDate,
-            deliveryAddress: address,
-            payDeadline: cash ? payDeadline : undefined,
-          })
+          party: { ...partyFromClient(party), terms },
+          lines,
+          warehouse,
+          seller,
+          customerLocalId: Number(party._id),
+          carrier,
+          driver: transport === 'fleet' ? driver : undefined,
+          vehiclePlate: transport === 'fleet' ? plate : undefined,
+          deliveryDate,
+          deliveryAddress: address,
+          payDeadline: cash ? payDeadline : undefined,
+          documentType: docType,
+        })
         : await createPurchaseOrderRemote({
-            party: partyFromSupplier(party),
-            lines,
-            warehouse,
-            seller: currentUser(d).name,
-            supplierLocalId: Number(party._id),
-          });
+          party: partyFromSupplier(party),
+          lines,
+          warehouse,
+          seller,
+          supplierLocalId: Number(party._id),
+        });
       if (!res.ok) return setError(res.error);
       onCreated(res.order);
     } finally {
@@ -174,7 +188,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
 
   return (
     <div className="purchase-modal-backdrop" onClick={() => !saving && onClose()}>
-      <div className="purchase-modal purchase-modal--fixed" role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
+      <div className={'purchase-modal purchase-modal--fixed om--sale' + (sale ? '' : ' om--purchase')} role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()}>
         <div className="purchase-modal__head">
           <div className="panel__title">{title}</div>
           <button type="button" className="drawer__close" style={{ marginLeft: 'auto', fontSize: 16 }} title="Cerrar" aria-label="Cerrar" disabled={saving} onClick={onClose}>×</button>
@@ -187,85 +201,56 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
         ) : (
           <div className="purchase-modal__body">
             <div className="purchase-modal__main">
-              <section className="om-section">
-                <h3 className="om-section__title">{sale ? 'Pago y entrega' : 'Destino'}</h3>
-                <div className="purchase-modal__fields">
-                  {sale ? (
-                    <>
-                      <label className="field">
-                        <span className="field__label">Condición de pago</span>
-                        <select className="field__control" value={terms} onChange={e => setPickedTerms(e.target.value)}>
-                          {[...new Set([terms, ...payTermOptions(d)])].map(t => <option key={t}>{t}</option>)}
-                        </select>
-                      </label>
-                      {cash ? (
+              {sale && (
+                <section className="om-section">
+                  <h3 className="om-section__title">Pago y entrega</h3>
+                  <div className="purchase-modal__fields">
+                    {sale ? (
+                      <>
                         <label className="field">
-                          <span className="field__label">Pagar hasta *</span>
-                          <input className="field__control" type="date" min={isoDate(new Date())} value={payDeadline} onChange={e => setPayDeadline(e.target.value)} />
+                          <span className="field__label">Condición de pago</span>
+                          <select className="field__control" value={terms} onChange={e => setPickedTerms(e.target.value)}>
+                            {[...new Set([terms, ...payTermOptions(d)])].map(t => <option key={t}>{t}</option>)}
+                          </select>
                         </label>
-                      ) : (
+                        {cash ? (
+                          <label className="field">
+                            <span className="field__label">Pagar hasta *</span>
+                            <input className="field__control" type="date" min={isoDate(new Date())} value={payDeadline} onChange={e => setPayDeadline(e.target.value)} />
+                          </label>
+                        ) : (
+                          <label className="field">
+                            <span className="field__label">Fecha de pago ({creditDays} días)</span>
+                            <input className="field__control" type="date" value={isoDate(addDays(new Date(), creditDays))} readOnly disabled title="Se calcula sola según la condición de pago" />
+                          </label>
+                        )}
+                        <label className="field">
+                          <span className="field__label">Tipo de comprobante</span>
+                          <select className="field__control" value={docType} onChange={e => setPickedDocType(e.target.value as 'Factura' | 'Boleta')}>
+                            {DOC_TYPES.map(t => <option key={t} disabled={t === 'Factura' && !!party && !hasRuc}>{t}{t === 'Factura' && party && !hasRuc ? ' (requiere RUC)' : ''}</option>)}
+                          </select>
+                        </label>
                         <div className="field">
-                          <span className="field__label">Vencimiento del cobro</span>
-                          <div className="purchase-modal__hint" style={{ lineHeight: '36px' }}>{creditDays} días desde el comprobante</div>
+                          <span className="field__label">Almacén de despacho</span>
+                          <SearchSelect
+                            ariaLabel="Almacén de despacho"
+                            value={warehouse}
+                            options={whs.map(w => ({ value: w, label: w }))}
+                            onChange={setPickedWarehouse}
+                            placeholder="Busca un almacén…"
+                          />
                         </div>
-                      )}
-                      <label className="field">
-                        <span className="field__label">Fecha de entrega *</span>
-                        <input className="field__control" type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
-                      </label>
-                      <p className="purchase-modal__hint purchase-modal__wide">
-                        {cash
-                          ? 'Al contado: si la orden no se aprueba y paga hasta esa fecha, se anula sola.'
-                          : creditLimit > 0
-                            ? `Crédito ${creditDays} días. Disponible ${formatMoney(Math.max(creditAvailable, 0))} de una línea de ${formatMoney(creditLimit)}. Si no paga queda «Vencido» en Cuentas por cobrar (no se anula).`
-                            : 'Este cliente no tiene línea de crédito: solo se le puede vender al contado.'}
-                      </p>
-                      <label className="field">
-                        <span className="field__label">Almacén de despacho</span>
-                        <select className="field__control" value={warehouse} onChange={e => setPickedWarehouse(e.target.value)}>
-                          {whs.map(w => <option key={w}>{w}</option>)}
-                        </select>
-                      </label>
-                      <label className="field purchase-modal__wide">
-                        <span className="field__label">Método de transporte</span>
-                        <select className="field__control" value={transport} onChange={e => setTransport(e.target.value as 'fleet' | 'client')}>
-                          <option value="fleet">Nuestras movilidades</option>
-                          <option value="client">Movilidad propia (la lleva el cliente)</option>
-                        </select>
-                      </label>
-                      {transport === 'fleet' && (fleetDrivers.length > 0 || fleetVehicles.length > 0 ? (
-                        <>
-                          <label className="field">
-                            <span className="field__label">Conductor *</span>
-                            <select className="field__control" value={driver} onChange={e => pickDriver(e.target.value)}>
-                              <option value="">Elige un conductor…</option>
-                              {fleetDrivers.map(c => <option key={String(c.nombre)} value={String(c.nombre)}>{String(c.nombre)}</option>)}
-                            </select>
-                          </label>
-                          <label className="field">
-                            <span className="field__label">Vehículo (placa) *</span>
-                            <select className="field__control mono" value={plate} onChange={e => pickPlate(e.target.value)}>
-                              <option value="">Elige un vehículo…</option>
-                              {fleetVehicles.map(v => <option key={String(v.placa)} value={String(v.placa)}>{String(v.placa)}{v.tipo ? ` · ${String(v.tipo)}` : ''}</option>)}
-                            </select>
-                          </label>
-                        </>
-                      ) : (
-                        <p className="purchase-modal__hint purchase-modal__wide">No hay conductores ni vehículos propios registrados. Regístralos en <Link to="/mantenimiento/conductores">Mantenimiento</Link>; también puedes indicarlos al despachar.</p>
-                      ))}
-                    </>
-                  ) : (
-                    <label className="field">
-                      <span className="field__label">Almacén destino</span>
-                      <select className="field__control" value={warehouse} onChange={e => setPickedWarehouse(e.target.value)}>
-                        {whs.map(w => <option key={w}>{w}</option>)}
-                      </select>
-                    </label>
-                  )}
-                </div>
-              </section>
+                        <label className="field">
+                          <span className="field__label">Fecha de entrega *</span>
+                          <input className="field__control" type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
+                        </label>
+                      </>
+                    ) : null}
+                  </div>
+                </section>
+              )}
 
-              <section className="om-section">
+              <section className="om-section om-section--lines">
                 <h3 className="om-section__title">
                   Productos
                   {lines.length > 0 && <span className="om-count">{lines.length}</span>}
@@ -292,11 +277,43 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
                 <PartyPicker compact noun={sale ? 'Cliente' : 'Proveedor'} options={options} value={partyId} onChange={id => pickParty(Number(id))} />
               </section>
 
+              {!sale && (
+                <section className="om-transport" aria-label="Almacén destino">
+                  <h3 className="purchase-modal__label">Almacén destino</h3>
+                  <SearchSelect
+                    ariaLabel="Almacén destino"
+                    value={warehouse}
+                    options={whs.map(w => ({ value: w, label: w }))}
+                    onChange={setPickedWarehouse}
+                    placeholder="Elige un almacén…"
+                  />
+                </section>
+              )}
+
+              {sale && (
+                <section className="om-transport" aria-label="Transporte">
+                  <h3 className="purchase-modal__label">Transporte</h3>
+                  <TransportPicker
+                    mode={transport}
+                    plate={plate}
+                    driver={driver}
+                    vehicles={fleetVehicles.map(v => ({
+                      plate: String(v.placa),
+                      type: String(v.tipo ?? ''),
+                      brand: [v.marca, v.modelo].filter(Boolean).join(' '),
+                      capacity: String(v.capacidad ?? ''),
+                      driver: driverOf(v),
+                    }))}
+                    drivers={fleetDrivers.map(c => ({ name: String(c.nombre), dni: String(c.dni ?? ''), license: String(c.licencia ?? ''), phone: String(c.tel ?? '') }))}
+                    onPickVehicle={pickPlate}
+                    onPickClient={() => { setTransport('client'); setPickedPlate(''); setPickedDriver(''); }}
+                    onPickDriver={setPickedDriver}
+                  />
+                </section>
+              )}
+
               <div className="purchase-modal__label">Resumen</div>
               <dl className="om-facts">
-                {sale && <div><dt>Entrega</dt><dd>{deliveryDate ? displayDate(deliveryDate) : '—'}</dd></div>}
-                <div><dt>{sale ? 'Despacho desde' : 'Ingresa a'}</dt><dd>{warehouse || '—'}</dd></div>
-                {sale && <div><dt>Transporte</dt><dd>{transport === 'client' ? 'Lo lleva el cliente' : [driver, plate].filter(Boolean).join(' · ') || 'Nuestras movilidades'}</dd></div>}
                 <div><dt>Productos</dt><dd>{lines.length ? `${lines.length} · ${units.toLocaleString('en-US')} und.` : '—'}</dd></div>
                 {sale && !cash && <div><dt>Crédito disponible</dt><dd className={creditError ? 'om-warn' : undefined}>{formatMoney(Math.max(creditAvailable, 0))}</dd></div>}
               </dl>

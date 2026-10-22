@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatMoney } from '@/shared/lib/format';
+import './PartyPicker.css';
 
 export interface PartyOption {
   id: number | string;
@@ -44,42 +45,70 @@ export function PartyPicker({ noun, options, value, onChange, compact }: Props) 
     trigger.current?.focus();
   };
 
-  return (
-    <div className={'pp' + (compact ? ' pp--compact' : '')}>
-      <button ref={trigger} type="button" className="pp__trigger" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={`${noun}: ${current?.name ?? 'sin elegir'}. Cambiar`}>
-        <span className="pp__avatar" aria-hidden="true">{current ? initials(current.name) : '?'}</span>
-        <span className="pp__who">
-          <strong className="ellipsis">{current?.name ?? `Elegir ${noun.toLowerCase()}`}</strong>
-          <small className="mono ellipsis">{current ? [current.doc, current.code].filter(Boolean).join(' · ') : `Busca por nombre o documento`}</small>
-        </span>
-        <span className="pp__change">Cambiar</span>
-      </button>
+  const facts: { icon: keyof typeof ICONS; label: string; value?: string; mono?: boolean; warn?: string }[] = [
+    { icon: 'user', label: 'Contacto', value: current?.contact },
+    { icon: 'phone', label: 'Teléfono', value: current?.phone, mono: true },
+    { icon: 'mail', label: 'Correo', value: current?.email },
+    { icon: 'pin', label: 'Dirección', value: current?.address, warn: `Sin dirección: complétala en Mantenimiento › ${noun}s` },
+  ];
 
-      {current && (
-        <dl className="pp__facts">
-          <Fact label="Contacto" value={current.contact} />
-          <Fact label="Teléfono" value={current.phone} mono />
-          <Fact label="Correo" value={current.email} />
-          <Fact label="Condición" value={current.credit && current.credit > 0 ? `${current.terms} · línea ${formatMoney(current.credit)}` : current.terms} />
-          <Fact wide label="Dirección" value={current.address} warn={`Sin dirección registrada: complétala en Mantenimiento › ${noun}s`} />
-        </dl>
+  return (
+    <div className={'pp' + (compact ? ' pp--compact' : '') + (current ? '' : ' pp--empty')}>
+      {current ? (
+        <div className="pp__box">
+          <button ref={trigger} type="button" className="pp__trigger" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={`${noun}: ${current.name}. Cambiar`}>
+            <span className="pp__avatar" aria-hidden="true">{initials(current.name)}</span>
+            <span className="pp__who">
+              <strong className="ellipsis">{current.name}</strong>
+              <small className="mono ellipsis">{[current.doc, current.code].filter(Boolean).join(' · ')}</small>
+            </span>
+            <span className="pp__swap">Cambiar</span>
+          </button>
+          <ul className="pp__card">
+            {facts.map(f => {
+              const text = f.value || f.warn || '—';
+              return (
+                <li key={f.label} title={text} className={f.icon === 'mail' || (f.icon === 'pin' && !current.credit) ? 'is-wide' : undefined}>
+                  <span className="pp__ico" aria-hidden="true">{ICONS[f.icon]}</span>
+                  <span className="pp__fact">
+                    <small>{f.label}</small>
+                    <span className={(f.mono && f.value ? 'mono ' : '') + (!f.value && f.warn ? 'is-warn' : '')}>{text}</span>
+                  </span>
+                </li>
+              );
+            })}
+            {current?.credit ? (
+              <li className="pp__credit">
+                <span className="pp__ico" aria-hidden="true">{ICONS.card}</span>
+                <span className="pp__fact"><small>Línea de crédito</small><span className="mono">{formatMoney(current.credit)}</span></span>
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      ) : (
+        <button ref={trigger} type="button" className="pp__trigger pp__trigger--empty" onClick={() => setOpen(true)} aria-haspopup="dialog">
+          <span className="pp__plus" aria-hidden="true">+</span>
+          <strong>Elegir {noun.toLowerCase()}</strong>
+          <small>Busca por nombre, DNI, RUC o código</small>
+        </button>
       )}
+
 
       {open && <PartyDialog noun={noun} options={options} currentId={current?.id} onPick={id => { onChange(id); close(); }} onClose={close} />}
     </div>
   );
 }
 
-/** Siempre una sola línea (con puntos suspensivos y el valor completo al pasar el cursor) para que la altura no cambie. */
-function Fact({ label, value, mono, wide, warn }: { label: string; value: string; mono?: boolean; wide?: boolean; warn?: string }) {
-  const text = value || warn || '—';
-  return (
-    <div className={wide ? 'pp__wide' : undefined}>
-      <dt>{label}</dt>
-      <dd className={(mono ? 'mono ' : '') + (!value && warn ? 'is-warn' : '')} title={text}>{text}</dd>
-    </div>
-  );
-}
+const svg = (d: React.ReactNode) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+);
+const ICONS = {
+  user: svg(<><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></>),
+  phone: svg(<path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2z" />),
+  mail: svg(<><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></>),
+  pin: svg(<><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></>),
+  card: svg(<><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>),
+};
 
 function PartyDialog({ noun, options, currentId, onPick, onClose }: { noun: string; options: PartyOption[]; currentId?: number | string; onPick: (id: number | string) => void; onClose: () => void }) {
   const [q, setQ] = useState('');

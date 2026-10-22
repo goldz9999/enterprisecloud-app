@@ -83,38 +83,40 @@ export function LinesEditor({ lines, onChange, priceFrom, warehouse, igvRate, pr
       <div className="le-row le-row--head">
         <span>Producto</span><span className="t-right">Cant.</span><span className="t-right">{priceLabel}</span><span className="t-right">Subtotal</span><span />
       </div>
-      {lines.map((l, i) => {
-        const supplierPrice = costFor?.(l.sku) ?? null;
-        // El precio es fijo si viene de Mantenimiento: el de venta del producto, o el que ese proveedor tiene registrado.
-        const locked = lockPrice || supplierPrice != null;
-        const avail = warehouse ? available(d, l.sku, warehouse) : null;
-        return (
-          <div key={i} className="le-row">
-            <div style={{ minWidth: 0 }}>
-              <button type="button" className="field__control le-pick" onClick={() => openPicker(i)} aria-haspopup="listbox" aria-label={`Producto ${i + 1}: ${l.name}. Cambiar`} title="Buscar otro producto">
-                <span className="ellipsis">{l.name}</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-              </button>
-              {costFor && (
-                <div className="le-avail">{supplierPrice != null ? 'Precio del proveedor (se cambia en Proveedores › Precios por proveedor)' : 'El proveedor no tiene precio registrado: costo promedio, puedes ajustarlo'}</div>
+      <div className="le-body">
+        {lines.map((l, i) => {
+          const supplierPrice = costFor?.(l.sku) ?? null;
+          // El precio es fijo si viene de Mantenimiento: el de venta del producto, o el que ese proveedor tiene registrado.
+          const locked = lockPrice || supplierPrice != null;
+          const avail = warehouse ? available(d, l.sku, warehouse) : null;
+          return (
+            <div key={i} className="le-row">
+              <div style={{ minWidth: 0 }}>
+                <button type="button" className="field__control le-pick" onClick={() => openPicker(i)} aria-haspopup="listbox" aria-label={`Producto ${i + 1}: ${l.name}. Cambiar`} title="Buscar otro producto">
+                  <span className="ellipsis">{l.name}</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+                {costFor && (
+                  <div className="le-avail">{supplierPrice != null ? 'Precio del proveedor (se cambia en Proveedores › Precios por proveedor)' : 'El proveedor no tiene precio registrado: costo promedio, puedes ajustarlo'}</div>
+                )}
+                {avail != null && (
+                  <div className={'le-avail' + (avail < l.qty ? ' is-short' : '')}>
+                    Disponible en {warehouse}: {avail.toLocaleString('en-US')} {l.unit}
+                  </div>
+                )}
+              </div>
+              <input className="field__control t-right" type="number" min="0" step="any" value={l.qty} onChange={e => set(i, { qty: Math.max(0, Number(e.target.value)) })} aria-label={`Cantidad ${i + 1}`} />
+              {locked ? (
+                <span className="mono t-right le-price" title={supplierPrice != null ? 'Precio registrado para este proveedor en Proveedores › Precios por proveedor' : 'El precio de venta se define en Mantenimiento › Productos'} aria-label={`Precio ${i + 1}`}>{formatMoney(l.price)}</span>
+              ) : (
+                <input className="field__control t-right" type="number" min="0" step="any" value={l.price} onChange={e => set(i, { price: Math.max(0, Number(e.target.value)) })} aria-label={`Precio ${i + 1}`} />
               )}
-              {avail != null && (
-                <div className={'le-avail' + (avail < l.qty ? ' is-short' : '')}>
-                  Disponible en {warehouse}: {avail.toLocaleString('en-US')} {l.unit}
-                </div>
-              )}
+              <span className="mono t-right le-sub">{formatMoney(l.qty * l.price)}</span>
+              <button type="button" className="le-del" title="Quitar línea" aria-label={`Quitar línea ${i + 1}`} onClick={() => onChange(lines.filter((_, j) => j !== i))}>×</button>
             </div>
-            <input className="field__control t-right" type="number" min="0" step="any" value={l.qty} onChange={e => set(i, { qty: Math.max(0, Number(e.target.value)) })} aria-label={`Cantidad ${i + 1}`} />
-            {locked ? (
-              <span className="mono t-right le-price" title={supplierPrice != null ? 'Precio registrado para este proveedor en Proveedores › Precios por proveedor' : 'El precio de venta se define en Mantenimiento › Productos'} aria-label={`Precio ${i + 1}`}>{formatMoney(l.price)}</span>
-            ) : (
-              <input className="field__control t-right" type="number" min="0" step="any" value={l.price} onChange={e => set(i, { price: Math.max(0, Number(e.target.value)) })} aria-label={`Precio ${i + 1}`} />
-            )}
-            <span className="mono t-right le-sub">{formatMoney(l.qty * l.price)}</span>
-            <button type="button" className="le-del" title="Quitar línea" aria-label={`Quitar línea ${i + 1}`} onClick={() => onChange(lines.filter((_, j) => j !== i))}>×</button>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
       <div className="le-foot">
         <button type="button" className="btn btn--sm" onClick={() => openPicker(null)}>+ Agregar producto</button>
         {showTotals && (

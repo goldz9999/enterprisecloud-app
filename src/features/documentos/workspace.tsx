@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '@/shared/components/AppShell';
 import { Modal } from '@/shared/components/Modal';
 import type { Tone } from '@/shared/components/StatusChip';
@@ -36,7 +36,7 @@ interface Item {
 
 const extOf = (name: string) => (name.split('.').pop() ?? '').toUpperCase();
 const humanSize = (n: number) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
-const COLS = 'minmax(0, 1.6fr) minmax(0, 1.2fr) 64px 76px 32px';
+const COLS = 'minmax(0, 1.6fr) minmax(0, 1.2fr) 64px 76px 60px';
 
 const fromRemote = (x: RemoteDoc): Item => ({ key: x.id, remote: x, name: x.name, cat: x.cat, ref: x.ref, entity: x.entity, size: humanSize(x.bytes), date: x.date, by: x.by, version: x.version });
 const fromLocal = (x: DocFile): Item => ({ key: 'local-' + x.id, local: x, name: x.name, cat: x.cat, ref: x.ref, entity: x.entity, size: x.size, date: x.date, by: x.by, version: x.version });
@@ -117,6 +117,7 @@ function UploadModal({ onClose, onUpload, defaultRelation, busy }: { onClose: ()
 export function DocumentosPage() {
   const d = useDB();
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const [cat, setCat] = useState('Todos');
   const [query, setQuery] = useState(params.get('q') ?? '');
   // Follow ?q= when arriving from the global search or a link while already on this screen.
@@ -321,6 +322,11 @@ export function DocumentosPage() {
               <span className="mono t-right" style={{ fontSize: 12, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{x.size}</span>
               <span className="mono t-right" style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{fmtDayMonth(new Date(x.date))}</span>
               <div className="row-actions">
+                {/^O[VC]-/.test(x.ref) && (
+                  <button type="button" title={`Ver la orden ${x.ref}`} aria-label={`Ver la orden ${x.ref}`} onClick={e => { e.stopPropagation(); navigate(`/${x.ref.startsWith('OV') ? 'ventas' : 'compras'}/orden/${x.ref}`); }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+                  </button>
+                )}
                 <button type="button" title="Descargar" onClick={e => { e.stopPropagation(); download(x); }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></svg>
                 </button>

@@ -126,7 +126,22 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
     setError('');
     setDrawer({ mode, id });
   };
-  const close = () => setDrawer(null);
+  const close = () => {
+    setDrawer(null);
+    if (auto) setAuto(false);
+  };
+  // Enlace directo (p. ej. «Cobrar» desde Órdenes de venta): abre ese registro con su primera acción lista.
+  const [auto, setAuto] = useState(false);
+  useEffect(() => {
+    const ao = cfg.autoOpen;
+    const v = ao ? params.get(ao.param) : null;
+    if (!ao || !v) return;
+    const r = rows.find(x => String(x[ao.key]) === v);
+    if (!r) return;
+    setAuto(true);
+    setDrawer({ mode: 'view', id: r._id as number });
+    navigate({ search: '' }, { replace: true });
+  }, [cfg.autoOpen, params, rows, navigate]);
   const labels = Object.fromEntries(cfg.fields.map(f => [f.k, f.label]));
 
   /** Guarda un registro en el backend y refleja el resultado en el store local. */
@@ -378,7 +393,7 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
 
       {!sidePanel && drawer && (drawer.mode === 'new' || current) && (
         <RecordDrawer
-          key={drawer.mode + (drawer.id ?? 'new')}
+          key={drawer.mode + (drawer.id ?? 'new') + (auto ? '-auto' : '')}
           cfg={cfg}
           mode={drawer.mode}
           row={current}
@@ -389,6 +404,7 @@ export function RecordsPage({ cfg }: { cfg: RecordsConfig }) {
           onSave={save}
           onDelete={remove}
           onAction={runAction}
+          startWithAction={auto || !!cfg.openWithAction}
         />
       )}
 

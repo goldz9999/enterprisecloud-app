@@ -1,0 +1,70 @@
+.ss {
+    position: relative;
+}
+
+.ss__input {
+    width: 100%;
+    padding-right: 32px;
+    cursor: pointer;
+}
+
+.ss.is-open .ss__input {
+    cursor: text;
+}
+
+.ss__caret {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.ss__list {
+    position: absolute;
+    z-index: 50;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    max-height: 240px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #d6dbe4);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+}
+
+.ss__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.ss__item small {
+    opacity: 0.65;
+    font-size: 12px;
+}
+
+.ss__item.is-active {
+    background: var(--hover, rgba(59, 130, 246, 0.1));
+}
+
+.ss__item.is-current {
+    font-weight: 600;
+}
+
+.ss__empty {
+    padding: 10px;
+    font-size: 13px;
+    opacity: 0.7;
+}

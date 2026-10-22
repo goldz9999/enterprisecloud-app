@@ -1,0 +1,187 @@
+/* Columna derecha del modal de órdenes más compacta para que entre sin barra de desplazamiento. */
+.purchase-modal--fixed .purchase-modal__aside {
+    gap: 10px;
+    padding: 14px 18px;
+}
+
+.purchase-modal--fixed .om-aside-party {
+    padding-bottom: 10px;
+    gap: 6px;
+}
+
+.purchase-modal--fixed .om-facts>div {
+    padding: 4px 0;
+}
+
+.purchase-modal--fixed .purchase-modal__totals {
+    gap: 3px;
+}
+
+.purchase-modal--fixed .purchase-modal__totals .is-total {
+    padding-top: 6px;
+}
+
+.purchase-modal--fixed .om-summary__cta {
+    padding-top: 6px;
+    gap: 6px;
+}
+
+.purchase-modal--fixed .om-missing {
+    min-height: 0;
+}
+
+/* Productos: la sección ocupa el alto que queda y la lista hace scroll por dentro (cabecera y «+ Agregar» quedan fijos). */
+.purchase-modal--fixed .purchase-modal__main {
+    display: flex;
+    flex-direction: column;
+}
+
+.purchase-modal--fixed .om-section--lines {
+    flex: 1 1 0;
+    min-height: 220px;
+}
+
+.purchase-modal--fixed .om-section--lines .lines-editor:not(.lines-editor--empty) {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.purchase-modal--fixed .om-section--lines .le-body {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.purchase-modal--fixed .om-section--lines .le-row--head,
+.purchase-modal--fixed .om-section--lines .le-foot {
+    flex: none;
+}
+
+/* Venta: modal más grande; el transporte va en la columna derecha, debajo del cliente. */
+.purchase-modal.om--sale {
+    width: 1040px;
+    height: min(900px, calc(100vh - 32px));
+    max-height: calc(100vh - 32px);
+}
+
+.om--sale .purchase-modal__body {
+    grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+.om-transport {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.om-transport .purchase-modal__label {
+    margin: 0;
+}
+
+/* Enlace «Cambiar conductor» dentro de la tarjeta de movilidad */
+.tp__link {
+    flex: none;
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
+    color: var(--blue);
+    cursor: pointer;
+}
+
+.tp__link:hover {
+    text-decoration: underline;
+}
+
+/* Vista de una orden de venta: mismo esquema que el modal de creación, pero de solo lectura. */
+.om--view .pp__trigger {
+    cursor: default;
+}
+
+.om--view .pp__trigger:hover {
+    transform: none;
+}
+
+.om--view .om-section .rcv-facts {
+    padding-top: 2px;
+}
+
+.om--view .purchase-modal__main {
+    overflow-y: auto;
+}
+
+.purchase-modal.om--view {
+    height: auto;
+    max-height: min(900px, calc(100vh - 32px));
+}
+
+/* Columna derecha a todo el alto (antes el fondo se cortaba a la mitad). */
+.purchase-modal--fixed .purchase-modal__aside {
+    align-self: stretch;
+    height: 100%;
+}
+
+/* Productos vacío: el recuadro ocupa todo el espacio disponible, centrado. */
+.purchase-modal--fixed .om-section--lines .lines-editor--empty {
+    flex: 1 1 0;
+    min-height: 0;
+    justify-content: center;
+}
+
+/* Campo de solo lectura con el mismo alto que los demás */
+.om-readonly {
+    display: flex;
+    padding: 0 12px;
+    min-height: 36px;
+    align-items: center;
+    background: var(--surface-2, #f5f7fb);
+    color: var(--text-2);
+    cursor: default;
+}
+
+/* «Emitida …» a la derecha del título Productos en la vista de la orden */
+.om-emitted {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+}
+
+/* Compra: tiene menos campos que la venta, así que el modal es más bajo y angosto. */
+.purchase-modal.purchase-modal--fixed.om--purchase {
+    height: auto;
+    max-height: calc(100vh - 32px);
+}
+
+.om--purchase .purchase-modal__body {
+    grid-template-rows: auto;
+}
+
+.om--purchase .purchase-modal__main {
+    overflow: visible;
+}
+
+.purchase-modal--fixed.om--purchase .om-section--lines {
+    flex: none;
+    min-height: 0;
+}
+
+.purchase-modal--fixed.om--purchase .om-section--lines .lines-editor--empty {
+    flex: none;
+    padding: 48px 16px;
+}
+
+.purchase-modal--fixed.om--purchase .om-section--lines .lines-editor:not(.lines-editor--empty) {
+    flex: none;
+}
+
+.purchase-modal--fixed.om--purchase .om-section--lines .le-body {
+    flex: none;
+    max-height: 300px;
+}

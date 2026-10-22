@@ -194,12 +194,13 @@ const SALE_STEPS: StepDef[] = [
     intro: 'Emite el comprobante electrónico. Se envía a SUNAT y al correo del cliente, y se crea la cuenta por cobrar.',
     submit: 'Emitir comprobante',
     fields: (o, d, v) => {
-      const isBoleta = (v.tipo ?? (o.party.ruc.length === 11 ? 'Factura electrónica' : 'Boleta de venta electrónica')) === 'Boleta de venta electrónica';
+      const isBoleta = (v.tipo ?? (o.forms[0]?.tdc === 'Boleta' || (o.forms[0]?.tdc !== 'Factura' && o.party.ruc.length !== 11) ? 'Boleta de venta electrónica' : 'Factura electrónica')) === 'Boleta de venta electrónica';
       return [
-        { k: 'tipo', label: 'Tipo de comprobante', type: 'select', options: ['Factura electrónica', 'Boleta de venta electrónica'], value: o.party.ruc.length === 11 ? 'Factura electrónica' : 'Boleta de venta electrónica' },
+        { k: 'tipo', label: 'Tipo de comprobante', type: 'select', options: ['Factura electrónica', 'Boleta de venta electrónica'], value: o.forms[0]?.tdc === 'Boleta' || (o.forms[0]?.tdc !== 'Factura' && o.party.ruc.length !== 11) ? 'Boleta de venta electrónica' : 'Factura electrónica' },
         { k: 'ser', label: 'Serie', type: 'select', options: isBoleta ? [String(d.settings.sb || 'B001')] : [String(d.settings.sf || 'F001')], value: isBoleta ? String(d.settings.sb || 'B001') : String(d.settings.sf || 'F001') },
         { k: 'fe', label: 'Fecha de emisión', type: 'date', value: today(), required: true },
-        { k: 'fv', label: 'Fecha de vencimiento', type: 'date', value: isoDate(dueFromTerm(o.party.terms)), required: true },
+        // Al contado vence en la fecha límite elegida al crear la orden; a crédito, según los días de la condición.
+        { k: 'fv', label: 'Fecha de vencimiento', type: 'date', value: o.forms[0]?.lim || isoDate(dueFromTerm(o.party.terms)), required: true },
         { k: 'fp', label: 'Forma de pago', type: 'select', options: [...new Set([o.party.terms || 'Contado', 'Contado'])], value: o.party.terms || 'Contado' },
         { k: 'mail', label: 'Enviar a', value: o.party.email ?? '', required: true },
       ];

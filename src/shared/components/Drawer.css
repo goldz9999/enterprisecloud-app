@@ -1,0 +1,31 @@
+/* Variante centrada del panel de detalle (p. ej. Cuentas por cobrar): ventana en medio de la pantalla. */
+.drawer-backdrop--center {
+    display: grid;
+    place-items: center;
+    padding: 16px;
+}
+
+.drawer.drawer--center {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.drawer--center .drawer__body {
+    overflow-y: auto;
+}
+
+.drawer--center .drawer__foot {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}

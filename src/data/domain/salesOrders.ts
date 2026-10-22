@@ -121,6 +121,8 @@ export async function createSaleOrderRemote(input: {
     deliveryAddress?: string;
     /** Venta al contado: fecha límite de pago (yyyy-mm-dd). */
     payDeadline?: string;
+    /** Comprobante que se emitirá al facturar: Factura (requiere RUC) o Boleta. */
+    documentType?: 'Factura' | 'Boleta';
 }): Promise<OrderResult> {
     try {
         const customerId =
@@ -149,6 +151,7 @@ export async function createSaleOrderRemote(input: {
             deliveryDate: input.deliveryDate || null,
             deliveryAddress: input.deliveryAddress || null,
             payDeadline: input.payDeadline || null,
+            documentType: input.documentType || null,
             lines: input.lines.map(l => ({
                 productId: productUuidBySku(l.sku),
                 sku: l.sku,

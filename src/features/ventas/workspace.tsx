@@ -257,6 +257,9 @@ export function VentasPage() {
                   {canEdit && r.status === 'Por aprobar' && (
                     <button type="button" className="row-actions__text row-actions__text--primary" disabled={busyCode === r.id} onClick={() => void approve(r.id)}>{busyCode === r.id ? 'Aprobando…' : 'Aprobar'}</button>
                   )}
+                  {(r.status === 'Pendiente' || r.status === 'Vencido') && can(d, 'Cuentas por cobrar', 'Editar') && (
+                    <button type="button" className="row-actions__text row-actions__text--primary" onClick={() => navigate(`/finanzas/cxc?cobrar=${encodeURIComponent(r.id)}`)}>Cobrar</button>
+                  )}
                   {canEdit && canCancel(r.order) && r.status !== 'Anulado' && (
                     <button type="button" className="row-actions__text row-actions__text--danger" disabled={busyCode === r.id} onClick={() => void cancelMany([r.id])}>Anular</button>
                   )}
@@ -309,7 +312,9 @@ export function VentasPage() {
           onClose={closeCreate}
           onCreated={o => {
             closeCreate();
-            toast.flash(`${o.code} creada · apruébala desde la lista para despachar y facturar`);
+            // Al crearla se aprueba sola (despacho + comprobante): queda «Pendiente» de cobro.
+            toast.flash(`${o.code} creada · despachando y emitiendo el comprobante…`);
+            void approve(o.code);
           }}
         />
       )}

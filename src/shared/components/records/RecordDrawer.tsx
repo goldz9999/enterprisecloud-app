@@ -24,6 +24,8 @@ interface RecordDrawerProps {
   onSave: (values: Record<string, Value>) => void;
   onDelete: () => void;
   onAction: (a: Action, values: Record<string, string>) => void;
+  /** Abre directamente el formulario de la primera acción (p. ej. «Registrar cobro»). */
+  startWithAction?: boolean;
 }
 
 function optionsOf(f: Field, d: DB): string[] {
@@ -54,7 +56,7 @@ function initialForm(fields: Field[], d: DB, row: Row | null): Record<string, st
 function FieldGrid({ fields, form, setForm, showErrors, d }: { fields: Field[]; form: Record<string, string>; setForm: (fn: (f: Record<string, string>) => Record<string, string>) => void; showErrors: boolean; d: DB }) {
   return (
     <div className="form-grid">
-      {fields.map(f => {
+      {fields.filter(f => !f.showIf || f.showIf(form)).map(f => {
         const invalid = showErrors && !!f.required && !String(form[f.k] ?? '').trim();
         const set = (value: string) => setForm(s => ({ ...s, [f.k]: value }));
         const cls = 'field__control' + (invalid ? ' is-invalid' : '');
@@ -96,7 +98,7 @@ function FieldGrid({ fields, form, setForm, showErrors, d }: { fields: Field[]; 
   );
 }
 
-export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClose, onSave, onDelete, onAction }: RecordDrawerProps) {
+export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClose, onSave, onDelete, onAction, startWithAction }: RecordDrawerProps) {
   const navigate = useNavigate();
   const d = useDB();
   const isNew = mode === 'new';
@@ -109,7 +111,12 @@ export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClos
   const [showErrors, setShowErrors] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // An action that needs input before running.
-  const [pending, setPending] = useState<{ action: Action; fields: Field[]; form: Record<string, string> } | null>(null);
+  const actionForm = (fields: Field[]) => Object.fromEntries(fields.map(f => [f.k, defaultOf(f, d, row ?? undefined)]));
+  const [pending, setPending] = useState<{ action: Action; fields: Field[]; form: Record<string, string> } | null>(() => {
+    const a = startWithAction && row ? actions.find(x => !x.href && !x.danger) : undefined;
+    const fs = a ? (typeof a.fields === 'function' ? a.fields(row!, d) : a.fields) : undefined;
+    return a && fs?.length ? { action: a, fields: fs, form: actionForm(fs) } : null;
+  });
 
   const status = row ? String(row[cfg.statusKey]) : '';
   const note = (row && cfg.notes?.[status]) || cfg.note;
@@ -129,13 +136,13 @@ export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClos
     const fields = typeof a.fields === 'function' ? a.fields(row!, d) : a.fields;
     if (fields?.length) {
       setShowErrors(false);
-      setPending({ action: a, fields, form: initialForm(fields, d, null) });
+      setPending({ action: a, fields, form: actionForm(fields) });
     } else onAction(a, {});
   };
 
   const confirmAction = () => {
     if (!pending) return;
-    if (pending.fields.some(f => f.required && !String(pending.form[f.k] ?? '').trim())) {
+    if (pending.fields.some(f => f.required && (!f.showIf || f.showIf(pending.form)) && !String(pending.form[f.k] ?? '').trim())) {
       setShowErrors(true);
       return;
     }
@@ -161,7 +168,8 @@ export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClos
   const viewFooter = pending ? (
     <div className="drawer-actions">
       <span className="drawer-actions__spacer" />
-      <button type="button" className="btn" onClick={() => setPending(null)}>Cancelar</button>
+      {/* Si el formulario se abrió solo (p. ej. cobro), Cancelar cierra la ventana en vez de volver al detalle. */}
+      <button type="button" className="btn" onClick={() => (startWithAction ? onClose() : setPending(null))}>Cancelar</button>
       <button type="button" className={'btn ' + (pending.action.danger ? 'btn--danger-text' : 'btn--primary')} style={{ padding: '0 16px' }} onClick={confirmAction}>
         {pending.action.label.replace(' →', '')}
       </button>
@@ -187,6 +195,8 @@ export function RecordDrawer({ cfg, mode, row, error, canDelete, actions, onClos
       title={isNew ? cfg.newTitle ?? 'Nuevo registro' : String(row?.[cfg.titleKey] ?? '')}
       subtitle={isNew ? 'Completa los campos obligatorios (*)' : cfg.subKey && row ? String(row[cfg.subKey] ?? '') : undefined}
       badge={row && <StatusChip label={status} tone={cfg.statuses[status] ?? 'muted'} dot={false} />}
+      centered={cfg.centered}
+      width={cfg.centered ? 560 : undefined}
       onClose={onClose}
       footer={
         <>

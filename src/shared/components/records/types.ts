@@ -41,6 +41,8 @@ export interface Field {
   mono?: boolean;
   /** Default value for new records (defaults to the first option or ''). */
   value?: string | ((d: DB, row?: Row) => string);
+  /** Muestra el campo solo si se cumple (según lo que ya se llenó en el formulario). */
+  showIf?: (form: Record<string, string>) => boolean;
 }
 
 export interface Action {
@@ -73,6 +75,12 @@ export interface Kpi {
 }
 
 export interface RecordsConfig {
+  /** Muestra el detalle como ventana centrada en lugar del panel lateral. */
+  centered?: boolean;
+  /** Al abrir un registro, muestra de una vez el formulario de su primera acción (p. ej. «Registrar cobro»). */
+  openWithAction?: boolean;
+  /** Parámetro de la URL (p. ej. «cobrar») que abre el registro cuyo campo `autoOpen.key` coincide y lanza la primera acción. */
+  autoOpen?: { param: string; key: string };
   /** Sidebar label to highlight; also the permission module unless `module` says otherwise. */
   active: string;
   /** Permission module when it differs from the sidebar label. */

@@ -1,0 +1,156 @@
+/* Bloque de cliente/proveedor del modal de órdenes: tarjeta elegida + datos agrupados. */
+.pp {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pp__swap {
+    flex: none;
+    font-size: 12px;
+    color: var(--blue);
+    font-weight: 500;
+}
+
+/* Sin elegir: espacio reservado punteado y clicable */
+.pp__trigger--empty {
+    flex-direction: column !important;
+    justify-content: center;
+    text-align: center !important;
+    gap: 3px !important;
+    min-height: 96px;
+    padding: 14px 16px !important;
+    border: 1.5px dashed var(--border, #cbd5e1) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.pp__trigger--empty:hover {
+    border-color: var(--blue) !important;
+    background: rgba(59, 130, 246, 0.04) !important;
+}
+
+.pp__trigger--empty strong {
+    color: var(--blue);
+    font-size: 15px;
+}
+
+.pp__trigger--empty small {
+    font-size: 12px;
+    color: var(--muted);
+    max-width: 220px;
+}
+
+.pp__plus {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    margin-bottom: 2px;
+    font-size: 18px;
+    border: 1.5px dashed var(--blue);
+    color: var(--blue);
+    font-size: 20px;
+    line-height: 1;
+}
+
+/* Datos del cliente: 2 columnas compactas (Correo, y Dirección si no hay crédito, ocupan todo el ancho) */
+.pp__card {
+    list-style: none;
+    margin: 0;
+    padding: 4px 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 12px;
+    border: 1px solid var(--border-soft, #e5e9f0);
+    border-radius: 10px;
+    background: var(--surface, #fff);
+}
+
+.pp__card li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    min-width: 0;
+    border-top: 1px solid var(--border-soft, #eef1f5);
+}
+
+.pp__card li:nth-child(-n + 2) {
+    border-top: 0;
+}
+
+.pp__card li.is-wide {
+    grid-column: 1 / -1;
+}
+
+.pp__ico {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--blue);
+}
+
+.pp__ico svg {
+    width: 12px;
+    height: 12px;
+}
+
+.pp__fact {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+    gap: 0;
+}
+
+.pp__fact small {
+    font-size: 10.5px;
+    color: var(--muted);
+    line-height: 1.3;
+}
+
+.pp__fact>span {
+    font-size: 12.5px;
+    color: var(--text-2);
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pp__fact .is-warn {
+    color: var(--amber);
+}
+
+/* Cliente elegido: cabecera y datos en una sola tarjeta */
+.pp__box {
+    border: 1px solid var(--border-soft, #e5e9f0);
+    border-radius: 12px;
+    background: var(--surface, #fff);
+    overflow: hidden;
+}
+
+.pp__box .pp__trigger {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid var(--border-soft, #eef1f5) !important;
+}
+
+.pp__box .pp__trigger:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: -2px;
+}
+
+.pp__box .pp__card {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
