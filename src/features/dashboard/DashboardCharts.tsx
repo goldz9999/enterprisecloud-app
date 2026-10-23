@@ -113,14 +113,26 @@ export function DailySalesChart({ data, rangeLabel }: { data: DailySale[]; range
     );
 }
 
-/* ------------------------------------------------------------------ Pastel: ventas por categoría */
+/* ------------------------------------------------------------------ Pastel 3D: ventas por categoría */
 const COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#8B5CF6', '#EF4444', '#06B6D4', '#EC4899', '#84CC16'];
 const MAX_SLICES = 7;
-const CX = 100;
-const CY = 100;
-const R = 92;
+// Disco inclinado: elipse de radios RX × RY y un canto de DEPTH unidades.
+const CX = 120;
+const CY = 62;
+const RX = 112;
+const RY = 58;
+const DEPTH = 22;
+const TAU = Math.PI * 2;
+const START = -Math.PI / 2; // la primera porción empieza arriba (atrás del disco) y avanza en sentido horario
 
-const polar = (a: number) => [CX + R * Math.sin(a), CY - R * Math.cos(a)] as const;
+const pt = (a: number, dy = 0) => `${(CX + RX * Math.cos(a)).toFixed(2)} ${(CY + RY * Math.sin(a) + dy).toFixed(2)}`;
+
+/** Oscurece un color hex (para el canto de cada porción). */
+function shade(hex: string, f: number) {
+    const n = parseInt(hex.slice(1), 16);
+    const c = (v: number) => Math.round(v * f).toString(16).padStart(2, '0');
+    return `#${c((n >> 16) & 255)}${c((n >> 8) & 255)}${c(n & 255)}`;
+}
 
 export function CategorySalesChart({ data, rangeLabel }: { data: CategorySale[]; rangeLabel: string }) {
     const [hover, setHover] = useState<number | null>(null);
@@ -131,21 +143,29 @@ export function CategorySalesChart({ data, rangeLabel }: { data: CategorySale[];
     const rest = sorted.slice(MAX_SLICES);
     const slices = rest.length ? [...head, { category: 'Otras', total: rest.reduce((a, c) => a + c.total, 0), units: rest.reduce((a, c) => a + c.units, 0) }] : head;
     const total = slices.reduce((a, c) => a + c.total, 0);
+    const single = slices.length === 1;
 
     let acc = 0;
     const arcs = slices.map((c, i) => {
         const frac = c.total / total;
-        const a0 = acc * 2 * Math.PI;
+        const a0 = START + acc * TAU;
         acc += frac;
-        const a1 = acc * 2 * Math.PI;
-        const [x0, y0] = polar(a0);
-        const [x1, y1] = polar(a1);
-        const large = frac > 0.5 ? 1 : 0;
+        const a1 = START + acc * TAU;
+        const color = COLORS[i % COLORS.length];
+        const top = single
+            ? `M${CX - RX} ${CY} A${RX} ${RY} 0 1 1 ${CX + RX} ${CY} A${RX} ${RY} 0 1 1 ${CX - RX} ${CY} Z`
+            : `M${CX} ${CY} L${pt(a0)} A${RX} ${RY} 0 ${frac > 0.5 ? 1 : 0} 1 ${pt(a1)} Z`;
+        // Canto: solo se ve la mitad delantera del disco (ángulos 0…π). Cada porción pinta su tramo visible.
+        const s0 = Math.max(a0, 0);
+        const s1 = Math.min(a1, Math.PI);
+        const side = s1 > s0 ? `M${pt(s0)} A${RX} ${RY} 0 0 1 ${pt(s1)} L${pt(s1, DEPTH)} A${RX} ${RY} 0 0 0 ${pt(s0, DEPTH)} Z` : '';
         const mid = (a0 + a1) / 2;
-        const lx = CX + R * 0.62 * Math.sin(mid);
-        const ly = CY - R * 0.62 * Math.cos(mid);
-        return { ...c, i, frac, d: `M${CX} ${CY} L${x0.toFixed(2)} ${y0.toFixed(2)} A${R} ${R} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`, lx, ly, color: COLORS[i % COLORS.length] };
+        const lx = single ? CX : CX + RX * 0.6 * Math.cos(mid);
+        const ly = single ? CY : CY + RY * 0.6 * Math.sin(mid);
+        return { ...c, i, frac, top, side, lx, ly, color, sideColor: shade(color, 0.68) };
     });
+    const cls = (i: number) => 'pie3d__slice' + (hover === i ? ' is-hover' : '');
+    const on = (i: number) => ({ onMouseEnter: () => setHover(i), onMouseLeave: () => setHover(null) });
 
     return (
         <div className="panel">
@@ -158,25 +178,41 @@ export function CategorySalesChart({ data, rangeLabel }: { data: CategorySale[];
                     <div className="chart-empty">Aún no hay ventas facturadas en este periodo.</div>
                 ) : (
                     <div className="pie-wrap">
-                        <svg className={'pie-chart' + (hover !== null ? ' has-hover' : '')} viewBox="0 0 200 200" role="img" aria-label={`Ventas por categoría, ${rangeLabel}`}>
-                            {arcs.length === 1 ? (
-                                <circle className="pie-chart__slice" cx={CX} cy={CY} r={R} fill={arcs[0].color} />
-                            ) : (
-                                arcs.map(a => (
-                                    <path key={a.category} d={a.d} fill={a.color} className={'pie-chart__slice' + (hover === a.i ? ' is-hover' : '')} onMouseEnter={() => setHover(a.i)} onMouseLeave={() => setHover(null)}>
-                                        <title>{`${a.category}: ${S(a.total)} (${(a.frac * 100).toFixed(1)}%)`}</title>
-                                    </path>
-                                ))
-                            )}
-                            {arcs.map(a => (a.frac >= 0.06 || arcs.length === 1) && (
-                                <text key={'t' + a.category} className="pie-chart__pct" x={arcs.length === 1 ? CX : a.lx} y={arcs.length === 1 ? CY + 4 : a.ly + 4} textAnchor="middle">
+                        <svg className={'pie3d' + (hover !== null ? ' has-hover' : '')} viewBox={`0 0 ${CX * 2} ${CY * 2 + DEPTH + 4}`} role="img" aria-label={`Ventas por categoría, ${rangeLabel}`}>
+                            <defs>
+                                {/* Sombra del canto: más oscuro hacia los lados, como un cilindro */}
+                                <linearGradient id="pie3d-wall" x1="0" x2="1" y1="0" y2="0">
+                                    <stop offset="0" stopColor="#000" stopOpacity=".35" />
+                                    <stop offset=".35" stopColor="#000" stopOpacity="0" />
+                                    <stop offset=".65" stopColor="#000" stopOpacity="0" />
+                                    <stop offset="1" stopColor="#000" stopOpacity=".35" />
+                                </linearGradient>
+                                {/* Brillo suave sobre la cara superior */}
+                                <radialGradient id="pie3d-gloss" cx=".45" cy=".3" r=".75">
+                                    <stop offset="0" stopColor="#fff" stopOpacity=".22" />
+                                    <stop offset="1" stopColor="#fff" stopOpacity="0" />
+                                </radialGradient>
+                            </defs>
+                            <ellipse className="pie3d__shadow" cx={CX} cy={CY + DEPTH + 2} rx={RX * 0.96} ry={RY * 0.9} />
+                            {arcs.map(a => a.side && (
+                                <path key={'s' + a.category} d={a.side} fill={a.sideColor} className={cls(a.i)} {...on(a.i)} />
+                            ))}
+                            <path className="pie3d__fx" d={`M${pt(0)} A${RX} ${RY} 0 0 1 ${pt(Math.PI)} L${pt(Math.PI, DEPTH)} A${RX} ${RY} 0 0 0 ${pt(0, DEPTH)} Z`} fill="url(#pie3d-wall)" />
+                            {arcs.map(a => (
+                                <path key={a.category} d={a.top} fill={a.color} className={cls(a.i)} {...on(a.i)}>
+                                    <title>{`${a.category}: ${S(a.total)} (${(a.frac * 100).toFixed(1)}%)`}</title>
+                                </path>
+                            ))}
+                            <ellipse className="pie3d__fx" cx={CX} cy={CY} rx={RX} ry={RY} fill="url(#pie3d-gloss)" />
+                            {arcs.map(a => (a.frac >= 0.06 || single) && (
+                                <text key={'t' + a.category} className="pie3d__pct" x={a.lx} y={a.ly + 4} textAnchor="middle">
                                     {Math.round(a.frac * 100)}%
                                 </text>
                             ))}
                         </svg>
                         <ul className="pie-legend">
                             {arcs.map(a => (
-                                <li key={a.category} className={'pie-legend__row' + (hover === a.i ? ' is-hover' : '')} onMouseEnter={() => setHover(a.i)} onMouseLeave={() => setHover(null)}>
+                                <li key={a.category} className={'pie-legend__row' + (hover === a.i ? ' is-hover' : '')} {...on(a.i)}>
                                     <span className="pie-legend__dot" style={{ background: a.color }} />
                                     <span className="pie-legend__name" title={a.category}>{a.category}</span>
                                     <span className="pie-legend__val">{S0(a.total)}<span>{(a.frac * 100).toFixed(1)}%</span></span>
