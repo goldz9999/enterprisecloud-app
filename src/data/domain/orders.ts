@@ -4,7 +4,7 @@ import { formatMoney } from '@/shared/lib/format';
 import { currentUser, nextCode } from '../store';
 import type { DB, Order, OrderLine, OrderParty, Row } from '../types';
 import { audit } from './audit';
-import { carrierOptions } from './carriers';
+import { carrierOptions, PICKUP } from './carriers';
 import { addGeneratedDoc, renderDocHtml } from './documents';
 import { bankAccounts, dueFromTerm, termDays } from './finance';
 import { available, moveStock, productBySku, stockRow } from './stock';
@@ -161,6 +161,15 @@ const SALE_STEPS: StepDef[] = [
         ? (selectedVehiculo.conductor?.split(' · ')[0] ?? conPre ?? '')
         : conPre ?? '';
       const useRegistered = placas.length > 0;
+      // Si el cliente recoge la mercadería no hay vehículo ni conductor de la empresa: la guía va sin ellos.
+      if (tra === PICKUP) {
+        return [
+          { k: 'ft', label: 'Fecha de traslado', type: 'date', value: today(), required: true },
+          { k: 'mot', label: 'Motivo de traslado', type: 'select', options: ['Venta', 'Venta sujeta a confirmación'], value: 'Venta' },
+          { k: 'tra', label: 'Transportista', type: 'select', options: [PICKUP], value: PICKUP },
+          { k: 'lle', label: 'Punto de llegada', value: o.forms[1]?.dir ?? o.party.address, required: true },
+        ];
+      }
       return [
         { k: 'ft', label: 'Fecha de traslado', type: 'date', value: today(), required: true },
         { k: 'mot', label: 'Motivo de traslado', type: 'select', options: ['Venta', 'Venta sujeta a confirmación'], value: 'Venta' },
@@ -184,7 +193,7 @@ const SALE_STEPS: StepDef[] = [
       o.lines.forEach(l => moveStock(d, { sku: l.sku, name: l.name, alm: o.warehouse, delta: -l.qty, reserve: -l.qty, tipo: 'Salida', doc: guia, costo: Number(productBySku(d, l.sku)?.costo ?? 0) }));
       addGeneratedDoc(d, {
         name: `Guia_${guia}.pdf`, cat: 'Guías de remisión', ref: o.code, entity: o.party.name,
-        html: renderDocHtml(d, { title: 'Guía de remisión electrónica', number: guia, party: o.party, lines: o.lines, facts: [['Motivo', v.mot], ['Transportista', v.tra], ['Placa', v.pla], ['Conductor', v.con], ['Punto de partida', o.warehouse], ['Punto de llegada', v.lle]] }),
+        html: renderDocHtml(d, { title: 'Guía de remisión electrónica', number: guia, party: o.party, lines: o.lines, facts: ([['Motivo', v.mot], ['Transportista', v.tra], ['Placa', v.pla], ['Conductor', v.con], ['Punto de partida', o.warehouse], ['Punto de llegada', v.lle]] as [string, string | undefined][]).filter((f): f is [string, string] => !!f[1]) }),
       });
       return { doc: 'Guía ' + guia };
     },

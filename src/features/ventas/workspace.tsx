@@ -144,6 +144,18 @@ export function VentasPage() {
     toast.flash(failed ? failed : `${done} orden${done === 1 ? '' : 'es'} anulada${done === 1 ? '' : 's'}${skipped ? ` · ${skipped} no se pueden anular porque ya se despacharon` : ''}`);
   };
 
+  // Cobrar: si la aprobación automática quedó a medias (sin guía o sin comprobante), la termina primero.
+  const collect = async (code: string) => {
+    const o = getDB().orders.find(x => x.kind === 'venta' && x.code === code);
+    if (o && o.done < 4) {
+      setBusyCode(code);
+      const res = await approveSaleOrder(code);
+      setBusyCode(null);
+      if (!res.ok) return toast.flash(`${code}: ${res.error}`);
+    }
+    navigate(`/finanzas/cxc?cobrar=${encodeURIComponent(code)}`);
+  };
+
   const approve = async (code: string) => {
     setBusyCode(code);
     const res = await approveSaleOrder(code);
@@ -258,7 +270,7 @@ export function VentasPage() {
                     <button type="button" className="row-actions__text row-actions__text--primary" disabled={busyCode === r.id} onClick={() => void approve(r.id)}>{busyCode === r.id ? 'Aprobando…' : 'Aprobar'}</button>
                   )}
                   {(r.status === 'Pendiente' || r.status === 'Vencido') && can(d, 'Cuentas por cobrar', 'Editar') && (
-                    <button type="button" className="row-actions__text row-actions__text--primary" onClick={() => navigate(`/finanzas/cxc?cobrar=${encodeURIComponent(r.id)}`)}>Cobrar</button>
+                    <button type="button" className="row-actions__text row-actions__text--primary" disabled={busyCode === r.id} onClick={() => void collect(r.id)}>{busyCode === r.id ? 'Preparando…' : 'Cobrar'}</button>
                   )}
                   {canEdit && canCancel(r.order) && r.status !== 'Anulado' && (
                     <button type="button" className="row-actions__text row-actions__text--danger" disabled={busyCode === r.id} onClick={() => void cancelMany([r.id])}>Anular</button>

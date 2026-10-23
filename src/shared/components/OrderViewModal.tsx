@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { StatusChip } from '@/shared/components/StatusChip';
 import { canCancel, cancelOrder, orderStatus, orderSubtotal, orderTotal, payExpired } from '@/data/domain/orders';
 import { cancelPurchaseOrderRemote } from '@/data/domain/purchaseOrders';
@@ -61,6 +61,19 @@ export function OrderViewModal({ order, onClose, onDone }: { order: Order; onClo
     if (!res.ok) return setError(res.error);
     mutate(draft => cancelOrder(draft, order.code));
     onDone(`${order.code} anulada`);
+  };
+
+  const navigate = useNavigate();
+  // Cobrar: si la aprobación automática quedó a medias, la termina antes de ir a Cuentas por cobrar.
+  const collect = async () => {
+    if (order.done < 4) {
+      setBusy(true);
+      setError('');
+      const res = await approveSaleOrder(order.code);
+      setBusy(false);
+      if (!res.ok) return setError(res.error);
+    }
+    navigate(`/finanzas/cxc?cobrar=${encodeURIComponent(order.code)}`);
   };
 
   const approve = async () => {
@@ -190,8 +203,8 @@ export function OrderViewModal({ order, onClose, onDone }: { order: Order; onClo
                 <div><dt>IGV {Math.round(order.igvRate * 100)}%</dt><dd className="mono">{formatMoney(total - subtotal)}</dd></div>
                 <div className="is-total"><dt>Total</dt><dd className="mono">{formatMoney(total)}</dd></div>
               </dl>
-              {sale && !order.cancelled && order.done === 4 && can(d, 'Cuentas por cobrar', 'Editar') && (
-                <Link className="btn btn--primary" style={{ justifyContent: 'center' }} to={`/finanzas/cxc?cobrar=${encodeURIComponent(order.code)}`}>Cobrar</Link>
+              {sale && !order.cancelled && order.done >= 2 && order.done <= 4 && can(d, 'Cuentas por cobrar', 'Editar') && (
+                <button type="button" className="btn btn--primary" style={{ justifyContent: 'center' }} disabled={busy} onClick={() => void collect()}>{busy ? 'Preparando…' : 'Cobrar'}</button>
               )}
               {approvable && (
                 <button type="button" className="btn btn--primary" style={{ justifyContent: 'center' }} disabled={busy} onClick={() => void approve()}>

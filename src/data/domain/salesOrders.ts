@@ -125,6 +125,8 @@ export async function createSaleOrderRemote(input: {
     documentType?: 'Factura' | 'Boleta';
     /** Descuento global en soles (sin IGV), ya repartido en el precio de las líneas. */
     discountAmount?: number;
+    /** 'pct': tope de Configuración; 'amount': monto libre en soles. */
+    discountMode?: 'pct' | 'amount';
 }): Promise<OrderResult> {
     try {
         const customerId =
@@ -155,6 +157,7 @@ export async function createSaleOrderRemote(input: {
             payDeadline: input.payDeadline || null,
             documentType: input.documentType || null,
             discountAmount: input.discountAmount || 0,
+            discountMode: input.discountMode ?? 'pct',
             lines: input.lines.map(l => ({
                 productId: productUuidBySku(l.sku),
                 sku: l.sku,

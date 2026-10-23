@@ -5,7 +5,7 @@ import { PartyPicker, type PartyOption } from '@/shared/components/PartyPicker';
 import { SearchSelect } from '@/shared/components/SearchSelect';
 import { TransportPicker } from '@/shared/components/TransportPicker';
 import './OrderCreateModal.css';
-import { OWN_FLEET } from '@/data/domain/carriers';
+import { OWN_FLEET, PICKUP } from '@/data/domain/carriers';
 import { supplierCost } from '@/data/domain/masters';
 import { igvRate, orderSubtotal, orderTotal, partyFromClient, partyFromSupplier, payTermOptions, warehouses } from '@/data/domain/orders';
 import { createPurchaseOrderRemote } from '@/data/domain/purchaseOrders';
@@ -79,7 +79,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
     setPickedDriver(name && fleetDrivers.some(c => c.nombre === name) ? name : '');
   };
   const needsFleet = transport === 'fleet' && fleetDrivers.length > 0 && fleetVehicles.length > 0;
-  const carrier = transport === 'fleet' ? OWN_FLEET : 'Retira el cliente';
+  const carrier = transport === 'fleet' ? OWN_FLEET : PICKUP;
   const seller = currentUser(d).name;
   const terms = pickedTerms || String(party?.cond || 'Contado');
   const creditDays = Number(/(\d+)/.exec(terms)?.[1] ?? 0);
@@ -107,10 +107,12 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   const gross = orderSubtotal({ lines });
   const maxDiscountPct = parseFloat(String(d.settings.desc ?? '')) || 0;
   const discount = sale ? discountAmount(gross, discountMode, Number(discountInput.replace(',', '.'))) : 0;
-  const discountPct = gross > 0 ? (discount / gross) * 100 : 0;
+  // Tope de Configuración solo cuando se escribe en %; se compara en soles al céntimo (5 % de S/ 18.90 = S/ 0.95).
+  // En soles el monto es libre (se reparte entre los productos), solo debe ser menor que el subtotal.
+  const maxDiscount = discountAmount(gross, 'pct', maxDiscountPct);
   const discountError = !discount ? ''
     : discount >= gross ? 'El descuento no puede ser igual o mayor que el subtotal'
-      : discountPct > maxDiscountPct + 0.01 ? `Máximo ${maxDiscountPct}% (Configuración)` : '';
+      : discountMode === 'pct' && discount > maxDiscount + 0.005 ? `Máximo ${maxDiscountPct}% (Configuración)` : '';
   const netLines = discount && !discountError ? distributeDiscount(lines, discount) : lines;
   const lineDiscounts = netLines === lines ? undefined : lines.map((l, i) => Math.round((l.qty * l.price - netLines[i].qty * netLines[i].price) * 100) / 100);
   const subtotal = orderSubtotal({ lines: netLines });
@@ -167,6 +169,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
           party: { ...partyFromClient(party), terms },
           lines: netLines,
           discountAmount: discount && !discountError ? discount : 0,
+          discountMode,
           warehouse,
           seller,
           customerLocalId: Number(party._id),
@@ -341,8 +344,8 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
                       Descuento
                       <span className="om-discount__ctl">
                         <span className="om-discount__seg" role="radiogroup" aria-label="Tipo de descuento">
-                          <button type="button" role="radio" aria-checked={discountMode === 'amount'} className={discountMode === 'amount' ? 'is-on' : undefined} onClick={() => setDiscountMode('amount')}>S/</button>
-                          <button type="button" role="radio" aria-checked={discountMode === 'pct'} className={discountMode === 'pct' ? 'is-on' : undefined} onClick={() => setDiscountMode('pct')}>%</button>
+                          <button type="button" role="radio" aria-checked={discountMode === 'amount'} className={discountMode === 'amount' ? 'is-on' : undefined} onClick={() => { if (discountMode !== 'amount') { setDiscountMode('amount'); setDiscountInput(''); } }}>S/</button>
+                          <button type="button" role="radio" aria-checked={discountMode === 'pct'} className={discountMode === 'pct' ? 'is-on' : undefined} onClick={() => { if (discountMode !== 'pct') { setDiscountMode('pct'); setDiscountInput(''); } }}>%</button>
                         </span>
                         <input
                           className={'om-discount__input mono' + (discountError ? ' is-invalid' : '')}
@@ -352,7 +355,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
                           disabled={!lines.length}
                           onChange={e => setDiscountInput(e.target.value.replace(/[^\d.,]/g, ''))}
                           aria-label={discountMode === 'pct' ? 'Descuento en porcentaje' : 'Descuento en soles'}
-                          title={`Máximo ${maxDiscountPct}% según Configuración`}
+                          title={discountMode === 'pct' ? `Máximo ${maxDiscountPct}% según Configuración` : 'Monto en soles; se reparte entre los productos'}
                         />
                       </span>
                     </dt>

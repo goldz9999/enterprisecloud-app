@@ -2,6 +2,8 @@ import type { DB, Row } from '../types';
 
 /** Valor de "Empresa" para el personal y los vehículos propios. */
 export const OWN_FLEET = 'Movilidad propia';
+/** Transporte cuando el cliente recoge la mercadería en el almacén. */
+export const PICKUP = 'Retira el cliente';
 
 const plain = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
