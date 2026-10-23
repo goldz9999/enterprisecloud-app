@@ -13,6 +13,7 @@ import { fmtDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
 import { OrderCreateModal } from '@/shared/components/OrderCreateModal';
 import { OrderViewModal } from '@/shared/components/OrderViewModal';
+import { takePurchasePrefill } from '@/modules/reposicion/prefill';
 
 const TONE: Record<string, Tone> = { 'Por recibir': 'blue', Recibida: 'blue', Facturada: 'amber', Pagada: 'green', Anulada: 'muted' };
 const STATUSES = ['Todos', 'Por recibir', 'Recibida', 'Facturada', 'Pagada', 'Anulada'] as const;
@@ -26,7 +27,9 @@ export function ComprasPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(10);
-  const [creating, setCreating] = useState(false);
+  // Gestión › Reposición sugerida deja una orden sugerida: se abre el modal ya lleno (una sola vez).
+  const [prefill] = useState(() => takePurchasePrefill());
+  const [creating, setCreating] = useState(!!prefill);
   // ?ver=OC-… abre la orden en un modal de solo lectura (también es a donde redirigen los enlaces a una orden).
   const [params, setParams] = useSearchParams();
   const viewing = params.get('ver');
@@ -202,6 +205,7 @@ export function ComprasPage() {
       {creating && (
         <OrderCreateModal
           kind="compra"
+          initial={prefill ? { party: prefill.supplier, warehouse: prefill.warehouse, lines: prefill.lines } : undefined}
           onClose={() => setCreating(false)}
           onCreated={o => {
             setCreating(false);

@@ -1,5 +1,6 @@
 import { getSession, useSession } from './session';
 import type { DB, PermMatrix } from './types';
+import { OPTIONAL_MODULES } from '@/modules/catalog';
 
 export const ACTIONS = ['Ver', 'Crear', 'Editar', 'Eliminar', 'Aprobar'] as const;
 export type PermAction = (typeof ACTIONS)[number];
@@ -50,7 +51,11 @@ export const MODULE_KEYS: Record<string, string> = {
 };
 
 /** Pantallas que no son un módulo propio y se rigen por el permiso de otro. «Historial» consolida eventos del servidor: pide ver Auditoría. */
-const MODULE_ALIAS: Record<string, string> = { Historial: 'Auditoría' };
+const MODULE_ALIAS: Record<string, string> = {
+  Historial: 'Auditoría',
+  // Módulos opcionales (src/modules): se rigen por un permiso que ya existe, así no hace falta crear permisos en el backend.
+  ...Object.fromEntries(OPTIONAL_MODULES.map(m => [m.label, m.viewPerm])),
+};
 
 const ACTION_KEYS: Record<PermAction, string> = { Ver: 'view', Crear: 'create', Editar: 'edit', Eliminar: 'delete', Aprobar: 'approve' };
 

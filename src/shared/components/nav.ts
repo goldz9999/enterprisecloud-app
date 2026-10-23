@@ -1,3 +1,5 @@
+import { enabledModules } from '@/modules/catalog';
+
 export interface NavChild {
   label: string;
   to: string;
@@ -93,3 +95,14 @@ export const NAV: NavEntry[] = [
     icon: 'M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6M12 2v3M12 19v3M4.9 4.9L7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1',
   },
 ];
+/** Grupo «Gestión» con los módulos opcionales encendidos en Configuración (src/modules). */
+const GESTION_ICON = 'M12 21a9 9 0 1 0 0-18a9 9 0 1 0 0 18M12 16a4 4 0 1 0 0-8a4 4 0 1 0 0 8M12 12h.01';
+
+/** Menú completo: el fijo más «Gestión» (después de Finanzas) si hay algún módulo opcional encendido. */
+export function buildNav(): NavEntry[] {
+  const extra = enabledModules();
+  if (!extra.length) return NAV;
+  const gestion: NavItem = { kind: 'item', label: 'Gestión', icon: GESTION_ICON, children: extra.map(m => ({ label: m.label, to: m.path })) };
+  const i = NAV.findIndex(e => e.kind === 'item' && e.label === 'Finanzas');
+  return [...NAV.slice(0, i + 1), gestion, ...NAV.slice(i + 1)];
+}

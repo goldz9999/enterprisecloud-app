@@ -8,7 +8,8 @@ import { currentUser, mutate, useDB } from '@/data/store';
 import { audit } from '@/data/domain/audit';
 import { isLoaded } from '@/data/loadAll';
 import { Modal } from './Modal';
-import { NAV, type NavEntry, type NavItem } from './nav';
+import { buildNav, type NavEntry, type NavItem } from './nav';
+import { useModuleSwitches } from '@/modules/catalog';
 
 interface SidebarProps {
   /** Label of the active screen (top-level item or child). */
@@ -23,6 +24,7 @@ export function Sidebar({ active, startCollapsed = false }: SidebarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);
   const d = useDB();
+  useModuleSwitches(); // al encender/apagar un módulo opcional, el menú se actualiza solo
   useSession(); // permissions can change after /auth/me
   const me = currentUser(d);
   const initials = me.name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -44,7 +46,7 @@ export function Sidebar({ active, startCollapsed = false }: SidebarProps) {
 
   // Only modules the user's role can see; groups disappear when all their screens are hidden.
   const visible: NavEntry[] = [];
-  for (const e of NAV) {
+  for (const e of buildNav()) {
     if (e.kind === 'section') visible.push(e);
     else if (e.children) {
       const kids = e.children.filter(c => can(d, c.label, 'Ver')).map(c => ({ ...c, badge: badge(c.label) }));

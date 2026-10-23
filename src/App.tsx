@@ -25,6 +25,9 @@ import { cotizaciones } from '@/shared/lib/configs/cotizaciones';
 import { solicitudes } from '@/shared/lib/configs/solicitudes';
 import { notifyRouteRendered } from '@/shared/lib/effects';
 import { startRealtime, stopRealtime } from '@/shared/lib/realtime';
+import { enabledModules, useModuleSwitches } from '@/modules/catalog';
+import { MODULE_PAGES } from '@/modules/pages';
+import { LocalCopySync } from '@/modules/LocalCopySync';
 
 /** Las órdenes de venta tampoco tienen página propia: se ven y aprueban en un modal de la lista (?ver=). */
 function OrdenVentaRedirect() {
@@ -91,6 +94,7 @@ function Guard({ module, children }: { module: string; children: ReactNode }) {
 export function App() {
   const d = useDB();
   const session = useSession();
+  useModuleSwitches(); // las rutas de los módulos opcionales siguen a los interruptores, sin recargar
   const { hash, pathname } = useLocation();
 
   const token = session?.token;
@@ -122,9 +126,17 @@ export function App() {
   }, [hash, pathname]);
 
   return (
+    <>
+    {/* Copia local de los datos para los módulos de Gestión (se actualiza sola con cada cambio del sistema). */}
+    {token && <LocalCopySync key={token} />}
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       {CUSTOM.map(r => <Route key={r.path} path={r.path} element={<Guard module={r.module}>{r.el}</Guard>} />)}
+      {/* Módulos opcionales encendidos en Configuración › Módulos opcionales (apagados, su ruta cae en «*» y vuelve al inicio). */}
+      {enabledModules().map(m => {
+        const Page = MODULE_PAGES[m.id];
+        return Page ? <Route key={m.path} path={m.path} element={<Guard module={m.viewPerm}><Page /></Guard>} /> : null;
+      })}
       {Object.entries(RECORD_PAGES).map(([path, cfg]) => (
         <Route key={path} path={path} element={<Guard module={cfg.module ?? cfg.active}><RecordsPage key={path} cfg={cfg} /></Guard>} />
       ))}
@@ -134,5 +146,6 @@ export function App() {
       <Route path="/compras/recepcion" element={<Navigate to="/inventario/kardex" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

@@ -8,6 +8,7 @@ import { useDB } from '@/data/store';
 import type { Settings } from '@/data/types';
 import { api } from '@/shared/lib/api';
 import { useSidebarFollowsTheme, useTheme } from '@/shared/lib/theme';
+import { ModulosOpcionales } from '@/modules/ModulosOpcionales';
 
 // Map section titles to anchor ids
 const sectionId = (title: string) => title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -19,6 +20,7 @@ const CFG_GROUPS = [
   { id: 'comprobantes', label: 'Comprobantes e impuestos', titles: ['Comprobantes electrónicos', 'Impuestos y precios'] },
   { id: 'tesoreria', label: 'Tesorería e inventario', titles: ['Tesorería', 'Inventario'] },
   { id: 'seguridad', label: 'Seguridad y apariencia', titles: ['Seguridad', 'Apariencia'] },
+  { id: 'modulos', label: 'Módulos opcionales', titles: [] as string[] }, // special: src/modules
 ] as const;
 
 const SIDEBAR_ITEMS = CFG_GROUPS.map(g => ({ id: g.id, label: g.label }));
@@ -129,8 +131,12 @@ export function ConfiguracionPage() {
             </div>
           ))}
 
+          {activeSection === 'modulos' && renderSection('modulos', 'Módulos opcionales', 'Gestión para pymes (solo frontend): enciende solo lo que la empresa usa. Apagado, desaparece del menú y sus datos se conservan.', (
+            <ModulosOpcionales canEdit={canEdit} onMessage={toast.flash} />
+          ))}
+
           {/* Dynamic groups — show all sections belonging to the active group */}
-          {CFG_GROUPS.filter(g => g.id === activeSection && g.id !== 'datos').map(group => (
+          {CFG_GROUPS.filter(g => g.id === activeSection && g.id !== 'datos' && g.id !== 'modulos').map(group => (
             <div key={group.id} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {SETTING_SECTIONS.filter(sec => (group.titles as readonly string[]).includes(sec.title)).map(sec =>
                 renderSection(sectionId(sec.title), sec.title, sec.desc, (

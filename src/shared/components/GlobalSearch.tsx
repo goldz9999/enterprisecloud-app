@@ -4,7 +4,8 @@ import { can } from '@/data/permissions';
 import { useDB } from '@/data/store';
 import { ALL_DOMAINS, ensureLoaded } from '@/data/loadAll';
 import type { DB } from '@/data/types';
-import { NAV } from './nav';
+import { buildNav } from './nav';
+import { useModuleSwitches } from '@/modules/catalog';
 
 interface Hit {
   kind: string;
@@ -19,7 +20,7 @@ const enc = encodeURIComponent;
 
 function buildIndex(d: DB): Hit[] {
   const hits: Hit[] = [];
-  for (const e of NAV) {
+  for (const e of buildNav()) {
     if (e.kind === 'section') continue;
     if (e.to) hits.push({ kind: 'Pantalla', title: e.label, sub: 'Ir a la pantalla', to: e.to, module: e.label });
     for (const c of e.children ?? []) hits.push({ kind: 'Pantalla', title: c.label, sub: e.label, to: c.to, module: c.label });
@@ -82,12 +83,13 @@ const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 /** Topbar search across screens and records. ⌘K / Ctrl+K focuses it. */
 export function GlobalSearch({ placeholder }: { placeholder: string }) {
   const d = useDB();
+  const switches = useModuleSwitches();
   const navigate = useNavigate();
   const input = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const index = useMemo(() => buildIndex(d).filter(h => can(d, h.module, 'Ver')), [d]);
+  const index = useMemo(() => buildIndex(d).filter(h => can(d, h.module, 'Ver')), [d, switches]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const terms = norm(q.trim()).split(/\s+/).filter(Boolean);
   const results = terms.length ? index.filter(h => terms.every(t => norm(h.title + ' ' + h.sub + ' ' + h.kind).includes(t))).slice(0, 8) : [];

@@ -26,6 +26,8 @@ interface Props {
   onClose: () => void;
   /** Se llama con la orden ya guardada en el servidor; el modal no navega a ninguna otra pantalla. */
   onCreated: (order: Order) => void;
+  /** Valores iniciales (p. ej. desde Gestión › Reposición sugerida): proveedor/cliente por nombre, almacén y productos. */
+  initial?: { party?: string; warehouse?: string; lines?: OrderLine[] };
 }
 
 /**
@@ -33,7 +35,7 @@ interface Props {
  * Compras: proveedor + almacén destino + productos. Ventas: cliente, entrega y condiciones + productos.
  * La orden de compra no pide aprobación al crearse: queda lista para recepción en Kardex.
  */
-export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
+export function OrderCreateModal({ kind, onClose, onCreated, initial }: Props) {
   const d = useDB();
   const sale = kind === 'venta';
   const parties = (sale ? d.records.clientes : d.records.proveedores).filter(p => p.estado !== 'Inactivo');
@@ -41,8 +43,8 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   const rate = igvRate(d);
 
   // Lo elegido por el usuario; si aún no eligió (o los datos llegaron después del primer render) se usa la primera opción real.
-  const [pickedParty, setPickedParty] = useState<number | ''>('');
-  const [pickedWarehouse, setPickedWarehouse] = useState('');
+  const [pickedParty, setPickedParty] = useState<number | ''>(() => (parties.find(p => p.razon === initial?.party)?._id as number | undefined) ?? '');
+  const [pickedWarehouse, setPickedWarehouse] = useState(initial?.warehouse ?? '');
   // Transporte: «Nuestras movilidades» (flota de la empresa, con conductor y vehículo) o «Movilidad propia» (la lleva el cliente).
   const [transport, setTransport] = useState<'' | 'fleet' | 'client'>('');
   const [pickedDriver, setPickedDriver] = useState('');
@@ -52,7 +54,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   const [deliveryDate, setDeliveryDate] = useState(() => isoDate(addDays(new Date(), 3)));
   // Al contado: fecha límite de pago; si no se aprueba y paga hasta ese día, la orden se anula sola.
   const [payDeadline, setPayDeadline] = useState(() => isoDate(addDays(new Date(), 1)));
-  const [lines, setLines] = useState<OrderLine[]>([]);
+  const [lines, setLines] = useState<OrderLine[]>(() => initial?.lines ?? []);
   const [discountMode, setDiscountMode] = useState<'amount' | 'pct'>('pct');
   const [discountInput, setDiscountInput] = useState('');
   const [error, setError] = useState('');

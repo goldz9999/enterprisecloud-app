@@ -9,6 +9,7 @@ import { loadPurchaseOrders } from './domain/purchaseOrders';
 import { loadGoodsReceipts } from './domain/goodsReceipts';
 import { loadAdjustments, loadKardex, loadStock, loadTransfers } from './domain/inventory';
 import { loadBankMovements, loadCash, loadPayables, loadReceivables } from './domain/finance';
+import { OPTIONAL_MODULES } from '@/modules/catalog';
 
 /**
  * Datos por módulo. Al iniciar solo se descarga lo común (sesión, permisos, configuración y maestros);
@@ -59,6 +60,8 @@ const ROUTES: [prefix: string, needs: Domain[]][] = [
   ['/mantenimiento/proveedores', ['purchases', 'payables']],
   ['/mantenimiento/productos', ['stock', 'sales', 'purchases']],
   ['/mantenimiento/almacenes', ['stock']],
+  // Módulos opcionales (src/modules/catalog.ts): cada uno declara qué datos necesita.
+  ...OPTIONAL_MODULES.map(m => [m.path, m.needs] as [string, Domain[]]),
   ['/mantenimiento', []],
   ['/reportes', ALL_DOMAINS],
   ['/historial', ALL_DOMAINS], // reúne eventos de todos los módulos
@@ -82,6 +85,8 @@ const loaded = new Set<Domain>();
 const inflight = new Set<Domain>();
 const markLoading = () => document.documentElement.classList.toggle('ec-loading', inflight.size > 0);
 export const isLoaded = (...ds: Domain[]) => ds.every(d => loaded.has(d));
+/** Pedido y ya terminado (no está en curso). Si falló, la lectura queda anotada en loadStatus. */
+export const isReady = (d: Domain) => loaded.has(d) && !inflight.has(d);
 
 /** Pide lo que falte de estos módulos (lo ya cargado no se vuelve a pedir). */
 export function ensureLoaded(ds: Domain[]) {

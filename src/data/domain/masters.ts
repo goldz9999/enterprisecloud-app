@@ -44,6 +44,8 @@ const warehouseTypeOf = (label: string) => Object.entries(WAREHOUSE_TYPES).find(
 
 const raw: Record<MasterCollection, Raw[]> = { clientes: [], proveedores: [], productos: [], categorias: [], almacenes: [], conductores: [], vehiculos: [], preciosProv: [] };
 const loaded = new Set<MasterCollection>();
+/** Si la colección ya se descargó bien del servidor en esta sesión (la usa la copia local de Gestión). */
+export const masterLoaded = (c: MasterCollection) => loaded.has(c);
 let users: { id: string; name: string; active: boolean }[] = [];
 
 /** Ids locales (numéricos) estables para cada uuid del backend. */

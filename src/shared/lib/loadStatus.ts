@@ -20,6 +20,9 @@ export function noteLoad(path: string, ok: boolean) {
   if (failed.size !== before) emit();
 }
 
+/** Si la última lectura de esta ruta del backend falló (p. ej. '/stock'). */
+export const isLoadFailed = (path: string) => failed.has(path);
+
 export function clearLoadFailures() {
   if (!failed.size) return;
   failed.clear();
