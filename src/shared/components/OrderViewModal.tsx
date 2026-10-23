@@ -179,7 +179,14 @@ export function OrderViewModal({ order, onClose, onDone }: { order: Order; onClo
 
               <div className="purchase-modal__label">Importe</div>
               <dl className="purchase-modal__totals">
-                <div><dt>Subtotal</dt><dd className="mono">{formatMoney(subtotal)}</dd></div>
+                {Number(form.dsc) > 0 ? (
+                  <>
+                    <div><dt>Subtotal</dt><dd className="mono">{formatMoney(subtotal + Number(form.dsc))}</dd></div>
+                    <div><dt>Descuento</dt><dd className="mono" style={{ color: 'var(--green)' }}>−{formatMoney(Number(form.dsc))}</dd></div>
+                  </>
+                ) : (
+                  <div><dt>Subtotal</dt><dd className="mono">{formatMoney(subtotal)}</dd></div>
+                )}
                 <div><dt>IGV {Math.round(order.igvRate * 100)}%</dt><dd className="mono">{formatMoney(total - subtotal)}</dd></div>
                 <div className="is-total"><dt>Total</dt><dd className="mono">{formatMoney(total)}</dd></div>
               </dl>

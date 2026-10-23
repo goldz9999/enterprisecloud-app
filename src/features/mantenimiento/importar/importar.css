@@ -431,3 +431,7 @@
         grid-column: 2 / -1;
     }
 }
+
+.imp__nums .is-skip {
+    color: var(--faint);
+}

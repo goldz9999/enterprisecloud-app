@@ -22,10 +22,12 @@ interface LinesEditorProps {
   showTotals?: boolean;
   /** Texto del estado vacío (sin líneas). Sin él, solo se ve el encabezado y el botón de agregar. */
   emptyHint?: string;
+  /** Parte del descuento global que le toca a cada línea (S/), para mostrarla bajo su subtotal. */
+  lineDiscounts?: number[];
 }
 
 /** Editable table of product lines with live totals. */
-export function LinesEditor({ lines, onChange, priceFrom, warehouse, igvRate, priceLabel = 'P. unit.', lockPrice = priceFrom === 'precio', costFor, showTotals = true, emptyHint }: LinesEditorProps) {
+export function LinesEditor({ lines, onChange, priceFrom, warehouse, igvRate, priceLabel = 'P. unit.', lockPrice = priceFrom === 'precio', costFor, showTotals = true, emptyHint, lineDiscounts }: LinesEditorProps) {
   const suggestedPrice = (p: Record<string, unknown>) => costFor?.(String(p.sku)) ?? (Number(p[priceFrom]) || 0);
   const d = useDB();
   const products = d.records.productos.filter(p => p.estado !== 'Inactivo');
@@ -111,7 +113,10 @@ export function LinesEditor({ lines, onChange, priceFrom, warehouse, igvRate, pr
               ) : (
                 <input className="field__control t-right" type="number" min="0" step="any" value={l.price} onChange={e => set(i, { price: Math.max(0, Number(e.target.value)) })} aria-label={`Precio ${i + 1}`} />
               )}
-              <span className="mono t-right le-sub">{formatMoney(l.qty * l.price)}</span>
+              <span className="mono t-right le-sub">
+                {formatMoney(l.qty * l.price)}
+                {lineDiscounts?.[i] ? <small className="le-dsc">−{formatMoney(lineDiscounts[i])}</small> : null}
+              </span>
               <button type="button" className="le-del" title="Quitar línea" aria-label={`Quitar línea ${i + 1}`} onClick={() => onChange(lines.filter((_, j) => j !== i))}>×</button>
             </div>
           );

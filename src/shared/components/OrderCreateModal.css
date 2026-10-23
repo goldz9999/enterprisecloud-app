@@ -185,3 +185,93 @@
     flex: none;
     max-height: 300px;
 }
+
+/* Descuento global en el resumen de la orden de venta */
+.om-discount {
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.om-discount dt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.om-discount__ctl {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.om-discount__seg {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+}
+
+.om-discount__seg button {
+    border: 0;
+    background: none;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 11.5px;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.om-discount__seg button.is-on {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+    font-weight: 600;
+}
+
+.om-discount__input {
+    width: 64px;
+    height: 26px;
+    padding: 0 6px;
+    text-align: right;
+    font-size: 12.5px;
+    border: 1px solid var(--ctl-border);
+    border-radius: var(--r-sm);
+    background: var(--ctl-bg);
+    color: var(--text);
+}
+
+.om-discount__input:focus {
+    outline: 0;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--ring);
+}
+
+.om-discount__input.is-invalid {
+    border-color: var(--red);
+}
+
+.om-discount__amt {
+    color: var(--green);
+}
+
+.om-discount__err {
+    flex-basis: 100%;
+    margin: 2px 0 0;
+    font-size: 11.5px;
+    color: var(--red);
+    text-align: right;
+}
+
+/* Parte del descuento que le toca a cada producto, bajo su subtotal */
+.le-sub {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.le-dsc {
+    font-size: 11px;
+    color: var(--green);
+}

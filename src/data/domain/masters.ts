@@ -439,8 +439,9 @@ export async function deactivateMaster(c: MasterCollection, localRowId: number, 
 // ---------- importación desde archivo ----------
 
 /** `fields`: campos de la API con error (los manda el servidor) · `keys`: campos del formulario con error (para pintar la celda). */
-export interface ImportRowResult { row: number; action: 'create' | 'update' | 'error'; errors: string[]; fields?: string[]; keys?: string[] }
-export interface ImportResult { results: ImportRowResult[]; summary: { create: number; update: number; error: number }; saved: boolean }
+/** «skip»: se omite (p. ej. stock inicial de un producto que ya tiene movimientos); `note` dice por qué. */
+export interface ImportRowResult { row: number; action: 'create' | 'update' | 'error' | 'skip'; errors: string[]; fields?: string[]; keys?: string[]; note?: string }
+export interface ImportResult { results: ImportRowResult[]; summary: { create: number; update: number; error: number; skip?: number }; saved: boolean }
 
 const loose = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
@@ -565,6 +566,7 @@ export function pendingRow(c: MasterCollection, v: Record<string, string>): Raw 
     const id = nextPendingId();
     switch (c) {
         case 'categorias': return v.nombre ? { id, name: v.nombre } : null;
+        case 'almacenes': return v.nombre ? { id, name: v.nombre } : null;
         case 'proveedores': return v.razon || v.ruc ? { id, legal_name: v.razon, tax_id: v.ruc } : null;
         case 'productos': return v.nombre || v.sku ? { id, name: v.nombre, sku: v.sku } : null;
         case 'conductores': return v.nombre || v.dni ? { id, full_name: v.nombre, national_id: v.dni } : null;
@@ -589,3 +591,37 @@ function withPending<T>(pending: PendingRows, fn: () => T): T {
 
 /** true si la fila apunta a algo que todavía no está guardado (se importa en una segunda pasada). */
 export const usesPending = (body: Record<string, unknown> | undefined) => !!body && JSON.stringify(body).includes(PENDING_PREFIX);
+
+// ---------- stock inicial (hoja «Stock inicial» del importador general) ----------
+
+/**
+ * Fila de stock inicial → cuerpo para `/opening-stock`. Producto por SKU o nombre y almacén por nombre o código,
+ * sin importar mayúsculas ni tildes; acepta también los que vienen en otras hojas del mismo archivo (`pending`).
+ * `pendingKeys`: campos que apuntan a algo aún no guardado (el servidor todavía no los conoce al simular).
+ */
+export function stockBody(vals: Record<string, string>, pending?: PendingRows): { body?: Record<string, unknown>; error?: string; keys?: string[]; pendingKeys?: string[] } {
+    if (pending) return withPending(pending, () => stockBody(vals));
+    const find = (c: MasterCollection, value: string, fields: string[]) => {
+        const v = loose(value);
+        return v ? raw[c].find(x => fields.some(f => x[f] != null && loose(x[f]) === v)) : undefined;
+    };
+    const p = find('productos', vals.sku, ['sku', 'name']);
+    if (!p) return { error: `No existe el producto «${text(vals.sku)}». Cárgalo en la hoja Productos o corrige el SKU.`, keys: ['sku'] };
+    const w = find('almacenes', vals.alm, ['name', 'code']);
+    if (!w) return { error: `No existe el almacén «${text(vals.alm)}».`, keys: ['alm'] };
+    const qty = Number(vals.cant);
+    if (!(qty > 0)) return { error: 'La cantidad debe ser mayor a 0.', keys: ['cant'] };
+    const cost = Number(vals.costo);
+    if (text(vals.costo) === '' || !(cost >= 0)) return { error: 'Indica el costo unitario (S/, sin IGV).', keys: ['costo'] };
+    const pendingKeys = [String(p.id).startsWith(PENDING_PREFIX) && 'sku', String(w.id).startsWith(PENDING_PREFIX) && 'alm'].filter(Boolean) as string[];
+    return { body: { sku: p.sku || p.name, warehouse: w.name, quantity: qty, unitCost: cost }, pendingKeys };
+}
+
+/** Simula o guarda el stock inicial. Al guardar, recarga el inventario para ver el stock en las pantallas. */
+export async function importOpeningStock(bodies: Record<string, unknown>[], dryRun: boolean): Promise<ImportResult> {
+    try {
+        return await api<ImportResult>('/opening-stock', { method: 'POST', body: { rows: bodies, dryRun } });
+    } catch (e) {
+        throw new Error(explain(e));
+    }
+}

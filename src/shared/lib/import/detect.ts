@@ -1,7 +1,7 @@
 import { normalize, proposeMapping, type FieldLike } from './match';
 
 /** Orden de carga: primero lo que otras tablas necesitan (categorías antes que productos, etc.). */
-export const IMPORT_ORDER = ['categorias', 'almacenes', 'proveedores', 'clientes', 'productos', 'conductores', 'vehiculos', 'preciosProv'] as const;
+export const IMPORT_ORDER = ['categorias', 'almacenes', 'proveedores', 'clientes', 'productos', 'conductores', 'vehiculos', 'preciosProv', 'stock'] as const;
 export type ImportTable = (typeof IMPORT_ORDER)[number];
 
 /** Nombres con los que suele venir cada hoja. */
@@ -14,6 +14,7 @@ const SHEET_NAMES: Record<ImportTable, string[]> = {
     conductores: ['conductores', 'conductor', 'choferes', 'chofer', 'drivers'],
     vehiculos: ['vehiculos', 'vehiculo', 'flota', 'unidades', 'camiones'],
     preciosProv: ['precios proveedor', 'precios por proveedor', 'precios proveedores', 'precios', 'lista precios', 'costos'],
+    stock: ['stock inicial', 'stock', 'existencias', 'inventario inicial', 'saldos iniciales', 'saldo inicial'],
 };
 
 /**

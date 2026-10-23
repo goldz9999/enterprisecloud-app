@@ -81,4 +81,10 @@ export const SYNONYMS: Record<string, Record<string, string[]>> = {
         notas: ['notas', 'observaciones', 'comentario'],
         estado: ['estado', 'activo', 'status'],
     },
+    stock: {
+        sku: ['sku', 'codigo', 'cod', 'producto', 'codigo producto', 'item'],
+        alm: ['almacen', 'sede', 'bodega', 'local', 'deposito'],
+        cant: ['cantidad', 'stock', 'existencia', 'existencias', 'unidades', 'saldo', 'cant'],
+        costo: ['costo', 'costo unitario', 'precio compra', 'costo promedio', 'precio unitario'],
+    },
 };

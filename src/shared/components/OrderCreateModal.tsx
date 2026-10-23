@@ -14,6 +14,7 @@ import { currentUser, useDB } from '@/data/store';
 import type { Order, OrderLine, Row } from '@/data/types';
 import { addDays, isoDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
+import { discountAmount, distributeDiscount } from '@/shared/lib/discount';
 import { linesError } from '@/shared/lib/lines';
 
 /** Tipos de comprobante que puede emitir una orden de venta. */
@@ -52,6 +53,8 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
   // Al contado: fecha límite de pago; si no se aprueba y paga hasta ese día, la orden se anula sola.
   const [payDeadline, setPayDeadline] = useState(() => isoDate(addDays(new Date(), 1)));
   const [lines, setLines] = useState<OrderLine[]>([]);
+  const [discountMode, setDiscountMode] = useState<'amount' | 'pct'>('pct');
+  const [discountInput, setDiscountInput] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -100,8 +103,18 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
     credit: sale ? Number(p.linea) || 0 : undefined,
   }));
 
-  const subtotal = orderSubtotal({ lines });
-  const total = orderTotal({ lines, igvRate: rate });
+  // Descuento global: se escribe en S/ o en %, y se reparte entre las líneas en proporción a su subtotal.
+  const gross = orderSubtotal({ lines });
+  const maxDiscountPct = parseFloat(String(d.settings.desc ?? '')) || 0;
+  const discount = sale ? discountAmount(gross, discountMode, Number(discountInput.replace(',', '.'))) : 0;
+  const discountPct = gross > 0 ? (discount / gross) * 100 : 0;
+  const discountError = !discount ? ''
+    : discount >= gross ? 'El descuento no puede ser igual o mayor que el subtotal'
+      : discountPct > maxDiscountPct + 0.01 ? `Máximo ${maxDiscountPct}% (Configuración)` : '';
+  const netLines = discount && !discountError ? distributeDiscount(lines, discount) : lines;
+  const lineDiscounts = netLines === lines ? undefined : lines.map((l, i) => Math.round((l.qty * l.price - netLines[i].qty * netLines[i].price) * 100) / 100);
+  const subtotal = orderSubtotal({ lines: netLines });
+  const total = orderTotal({ lines: netLines, igvRate: rate });
   // Crédito del cliente: línea − saldo por cobrar − ventas a crédito aún sin facturar. Una venta a crédito debe caber.
   const creditLimit = Number(party?.linea ?? 0);
   const owed = d.records.cxc.filter(r => r.cliente === partyName && r.estado !== 'Cobrada').reduce((a, r) => a + Number(r.saldo), 0);
@@ -118,7 +131,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
         : '';
   const units = lines.reduce((a, l) => a + l.qty, 0);
   // Qué falta para poder guardar: se muestra en el resumen en vez de dejar un botón que "no hace nada".
-  const missing = !party ? 'Elige un ' + (sale ? 'cliente' : 'proveedor') : sale && !transport ? 'Elige la movilidad' : !sale && !warehouse ? 'Elige el almacén destino' : !lines.length ? 'Agrega al menos un producto' : creditError ? creditError : sale && needsFleet && (!driver || !plate) ? 'Elige conductor y vehículo' : '';
+  const missing = !party ? 'Elige un ' + (sale ? 'cliente' : 'proveedor') : sale && !transport ? 'Elige la movilidad' : !sale && !warehouse ? 'Elige el almacén destino' : !lines.length ? 'Agrega al menos un producto' : discountError ? `Descuento: ${discountError}` : creditError ? creditError : sale && needsFleet && (!driver || !plate) ? 'Elige conductor y vehículo' : '';
 
   // Esc cierra el modal, salvo mientras se guarda.
   useEffect(() => {
@@ -152,7 +165,8 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
       const res = sale
         ? await createSaleOrderRemote({
           party: { ...partyFromClient(party), terms },
-          lines,
+          lines: netLines,
+          discountAmount: discount && !discountError ? discount : 0,
           warehouse,
           seller,
           customerLocalId: Number(party._id),
@@ -256,6 +270,7 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
                   {lines.length > 0 && <span className="om-count">{lines.length}</span>}
                 </h3>
                 <LinesEditor
+                  lineDiscounts={sale ? lineDiscounts : undefined}
                   lines={lines}
                   onChange={setLines}
                   priceFrom={sale ? 'precio' : 'costo'}
@@ -319,7 +334,32 @@ export function OrderCreateModal({ kind, onClose, onCreated }: Props) {
               </dl>
 
               <dl className="purchase-modal__totals">
-                <div><dt>Subtotal</dt><dd className="mono">{formatMoney(subtotal)}</dd></div>
+                <div><dt>Subtotal</dt><dd className="mono">{formatMoney(gross)}</dd></div>
+                {sale && (
+                  <div className="om-discount">
+                    <dt>
+                      Descuento
+                      <span className="om-discount__ctl">
+                        <span className="om-discount__seg" role="radiogroup" aria-label="Tipo de descuento">
+                          <button type="button" role="radio" aria-checked={discountMode === 'amount'} className={discountMode === 'amount' ? 'is-on' : undefined} onClick={() => setDiscountMode('amount')}>S/</button>
+                          <button type="button" role="radio" aria-checked={discountMode === 'pct'} className={discountMode === 'pct' ? 'is-on' : undefined} onClick={() => setDiscountMode('pct')}>%</button>
+                        </span>
+                        <input
+                          className={'om-discount__input mono' + (discountError ? ' is-invalid' : '')}
+                          inputMode="decimal"
+                          placeholder="0"
+                          value={discountInput}
+                          disabled={!lines.length}
+                          onChange={e => setDiscountInput(e.target.value.replace(/[^\d.,]/g, ''))}
+                          aria-label={discountMode === 'pct' ? 'Descuento en porcentaje' : 'Descuento en soles'}
+                          title={`Máximo ${maxDiscountPct}% según Configuración`}
+                        />
+                      </span>
+                    </dt>
+                    <dd className={'mono' + (discount && !discountError ? ' om-discount__amt' : '')}>{discount && !discountError ? `−${formatMoney(discount)}` : '—'}</dd>
+                    {discountError && <p className="om-discount__err">{discountError}</p>}
+                  </div>
+                )}
                 <div><dt>IGV {Math.round(rate * 100)}%</dt><dd className="mono">{formatMoney(total - subtotal)}</dd></div>
                 <div className="is-total"><dt>Total</dt><dd className="mono">{formatMoney(total)}</dd></div>
               </dl>

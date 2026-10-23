@@ -1,5 +1,5 @@
 /** Campos que son montos o cantidades en cada pantalla. */
-const NUMERIC = new Set(['linea', 'precio', 'costo', 'min']);
+const NUMERIC = new Set(['linea', 'precio', 'costo', 'min', 'cant']);
 
 const strip = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 

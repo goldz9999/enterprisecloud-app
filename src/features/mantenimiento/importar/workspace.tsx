@@ -3,7 +3,9 @@ import { AppShell } from '@/shared/components/AppShell';
 import { ColumnMapper, importableFields, requiredError } from '@/shared/components/records/ColumnMapper';
 import type { RecordsConfig } from '@/shared/components/records/types';
 import { Toast, useToast } from '@/shared/components/Toast';
-import { apiToFormKeys, importBody, importFields, importMaster, pendingRow, usesPending, type ImportResult, type MasterCollection, type PendingRows } from '@/data/domain/masters';
+import { apiToFormKeys, importBody, importFields, importMaster, importOpeningStock, pendingRow, stockBody, usesPending, type ImportResult, type MasterCollection, type PendingRows } from '@/data/domain/masters';
+import { loadInventory } from '@/data/domain/inventory';
+import type { Field } from '@/shared/components/records/types';
 import { can } from '@/data/permissions';
 import { RECORD_PAGES } from '@/shared/lib/configs';
 import { downloadBlob } from '@/shared/lib/csv';
@@ -30,6 +32,7 @@ const TABLE_ICON: Record<ImportTable, React.ReactNode> = {
     conductores: ico(<><circle cx="12" cy="7" r="4" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></>),
     vehiculos: ico(<><path d="M2 6h11v10H2z" /><path d="M13 9h4l4 4v3h-8" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" /></>),
     preciosProv: ico(<><path d="M20 12l-8 8-9-9V3h8z" /><circle cx="7.5" cy="7.5" r="1.5" /></>),
+    stock: ico(<><path d="M3 7l9-4 9 4v10l-9 4-9-4z" /><path d="M3 7l9 4 9-4M12 11v10" /><path d="M16 14h4M18 12v4" /></>),
 };
 const XLS = (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -43,9 +46,25 @@ const CHECK = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke
 const CFG = Object.fromEntries(
     Object.values(RECORD_PAGES).filter(c => (IMPORT_ORDER as readonly string[]).includes(String(c.collection))).map(c => [c.collection, c]),
 ) as Record<ImportTable, RecordsConfig>;
-const fieldsOf = (t: ImportTable) => importableFields(CFG[t]?.fields ?? []);
-const titleOf = (t: ImportTable) => CFG[t]?.title ?? t;
-const allowed = (t: ImportTable) => !!CFG[t] && can(undefined, CFG[t].active, 'Crear') && can(undefined, CFG[t].active, 'Editar');
+/**
+ * «Stock inicial» no es una pantalla de Mantenimiento: cada fila se registra como un ajuste de inventario
+ * (tipo Sobrante, motivo «Stock inicial») con su costo, igual que en Inventario › Ajustes.
+ */
+const STOCK_FIELDS: Field[] = [
+    { k: 'sku', label: 'Producto (SKU)', required: true },
+    { k: 'alm', label: 'Almacén', required: true },
+    { k: 'cant', label: 'Cantidad', required: true },
+    { k: 'costo', label: 'Costo unitario (S/, sin IGV)', required: true },
+];
+const fieldsOf = (t: ImportTable) => (t === 'stock' ? STOCK_FIELDS : importableFields(CFG[t]?.fields ?? []));
+const titleOf = (t: ImportTable) => (t === 'stock' ? 'Stock inicial' : CFG[t]?.title ?? t);
+const allowed = (t: ImportTable) => (t === 'stock'
+    ? can(undefined, 'Ajustes', 'Crear')
+    : !!CFG[t] && can(undefined, CFG[t].active, 'Crear') && can(undefined, CFG[t].active, 'Editar'));
+const hasTable = (t: ImportTable) => t === 'stock' || !!CFG[t];
+/** Campos con error que devuelve el servidor → columnas de la hoja (para pintar la celda). */
+const STOCK_API: Record<string, string> = { sku: 'sku', warehouse: 'alm', quantity: 'cant', unit_cost: 'costo' };
+const serverKeys = (t: ImportTable, fields: string[]) => (t === 'stock' ? fields.map(f => STOCK_API[f] ?? f) : apiToFormKeys(t, fields));
 
 interface SheetState {
     name: string;
@@ -145,10 +164,31 @@ export function ImportarDatosPage() {
         const out: PendingRows = {};
         for (const { s } of plan) {
             const st = s.target!;
-            if (IMPORT_ORDER.indexOf(st) > IMPORT_ORDER.indexOf(t) || (st === t && t !== 'categorias')) continue;
+            if (st === 'stock' || IMPORT_ORDER.indexOf(st) > IMPORT_ORDER.indexOf(t) || (st === t && t !== 'categorias')) continue;
             out[st as MasterCollection] = s.table.rows.map(r => pendingRow(st as MasterCollection, rowValues(s, st, r))).filter(Boolean) as NonNullable<PendingRows[MasterCollection]>;
         }
         return out;
+    };
+
+    /** Simula el stock inicial. Lo que apunta a productos/almacenes que vienen en este mismo archivo se da por válido. */
+    const checkStock = async (s: SheetState, pending: PendingRows): Promise<ImportResult> => {
+        const prepared = s.table.rows.map(r => {
+            const vals = rowValues(s, 'stock', r);
+            return requiredError(STOCK_FIELDS, vals) ?? stockBody(vals, pending);
+        });
+        const res = await importOpeningStock(prepared.map(p => p.body ?? {}), true);
+        prepared.forEach((p, j) => {
+            const r = res.results[j];
+            if (p.error) res.results[j] = { row: j + 1, action: 'error', errors: [p.error], keys: p.keys };
+            else if (r?.action === 'error' && 'pendingKeys' in p && p.pendingKeys?.length) {
+                // El servidor aún no conoce ese producto/almacén porque se crea en este mismo archivo: es válido.
+                const fromServer = (r.fields ?? []).map(f => (f === 'warehouse' ? 'alm' : f === 'quantity' ? 'cant' : f === 'unit_cost' ? 'costo' : f));
+                if (fromServer.every(k => p.pendingKeys!.includes(k))) res.results[j] = { row: j + 1, action: 'create', errors: [] };
+            }
+        });
+        const count = (a: string) => res.results.filter(r => r.action === a).length;
+        res.summary = { create: count('create'), update: 0, error: count('error'), skip: count('skip') };
+        return res;
     };
 
     const check = async () => {
@@ -160,6 +200,10 @@ export function ImportarDatosPage() {
                 const t = s.target!;
                 setBusy(`Revisando ${titleOf(t)}…`);
                 const pending = pendingFor(t);
+                if (t === 'stock') {
+                    out[i] = await checkStock(s, pending);
+                    continue;
+                }
                 const prepared = s.table.rows.map(r => {
                     const vals = rowValues(s, t, r);
                     const missingValue = requiredError(fieldsOf(t), vals);
@@ -190,6 +234,17 @@ export function ImportarDatosPage() {
                 const t = s.target!;
                 current = titleOf(t);
                 setBusy(`Guardando ${current}…`);
+                if (t === 'stock') {
+                    // Los productos y almacenes ya quedaron guardados en los pasos anteriores.
+                    const prepared = s.table.rows.map(r => stockBody(rowValues(s, t, r)));
+                    const bad = prepared.find(p => p.error);
+                    if (bad) throw new Error(`${current}: ${bad.error}`);
+                    const res = await importOpeningStock(prepared.map(p => p.body!), false);
+                    if (!res.saved) throw new Error(`${current}: ${res.results.find(r => r.errors.length)?.errors.join(' · ') ?? 'no se pudo guardar'}`);
+                    total.create += res.summary.create;
+                    await loadInventory();
+                    continue;
+                }
                 const fields = importFields(t, Object.values(s.map).filter(Boolean) as string[]);
                 // Las filas que apuntan a otra de la misma hoja (categoría padre) van en una segunda pasada.
                 let left = s.table.rows.map(r => rowValues(s, t, r));
@@ -215,7 +270,7 @@ export function ImportarDatosPage() {
     };
 
     const template = () => {
-        const blob = writeXlsx(IMPORT_ORDER.filter(t => CFG[t]).map(t => ({ name: titleOf(t), rows: [fieldsOf(t).map(f => f.label + (f.required ? ' *' : ''))] })));
+        const blob = writeXlsx(IMPORT_ORDER.filter(hasTable).map(t => ({ name: titleOf(t), rows: [fieldsOf(t).map(f => f.label + (f.required ? ' *' : ''))] })));
         downloadBlob('plantilla-mantenimiento.xlsx', blob);
     };
 
@@ -295,7 +350,7 @@ export function ImportarDatosPage() {
                                             <span className="imp__tbl-ico" aria-hidden="true">{t ? TABLE_ICON[t] : null}</span>
                                             <select value={t ?? ''} disabled={!!busy || !!done} onChange={e => setTarget(i, (e.target.value || null) as ImportTable | null)} aria-label={`Tabla para la hoja ${s.name}`}>
                                                 <option value="">No importar</option>
-                                                {IMPORT_ORDER.filter(x => CFG[x]).map(x => <option key={x} value={x} disabled={!allowed(x)}>{titleOf(x)}{allowed(x) ? '' : ' (sin permiso)'}</option>)}
+                                                {IMPORT_ORDER.filter(hasTable).map(x => <option key={x} value={x} disabled={!allowed(x)}>{titleOf(x)}{allowed(x) ? '' : ' (sin permiso)'}</option>)}
                                             </select>
                                         </label>
                                         <button type="button" className="imp__chips" disabled={!t || !!done} onClick={() => change(i, { open: !s.open })} aria-expanded={s.open} title={t ? 'Ver y corregir columnas' : undefined}>
@@ -311,6 +366,7 @@ export function ImportarDatosPage() {
                                                         {r.summary.create > 0 && <b className="is-new" title="Nuevos">{r.summary.create}</b>}
                                                         {r.summary.update > 0 && <b className="is-upd" title="Se actualizan">{r.summary.update}</b>}
                                                         {r.summary.error > 0 && <b className="is-err" title="Con error">{r.summary.error}</b>}
+                                                        {(r.summary.skip ?? 0) > 0 && <b className="is-skip" title="Se omiten (ya tienen stock)">{r.summary.skip}</b>}
                                                     </span>
                                                     <span className="imp__bar" aria-hidden="true">
                                                         <i className="is-new" style={{ flex: r.summary.create }} />
@@ -327,7 +383,7 @@ export function ImportarDatosPage() {
                                     {problems[i] && !missing.length && <div className="imp__problem">{problems[i]}</div>}
                                     {s.open && t && (
                                         <div className="imp__sheet-body">
-                                            <ColumnMapper table={s.table} fields={fieldsOf(t)} map={s.map} onChange={map => change(i, { map })} errors={errs.length ? new Map(errs.map(x => [x.row, { msgs: x.errors, keys: x.keys ?? apiToFormKeys(t, x.fields ?? []) }])) : undefined} updates={r ? new Set(r.results.filter(x => x.action === 'update').map(x => x.row)) : undefined} onEdit={done ? undefined : (row, col, v) => editCell(i, row, col, v)} />
+                                            <ColumnMapper table={s.table} fields={fieldsOf(t)} map={s.map} onChange={map => change(i, { map })} errors={errs.length ? new Map(errs.map(x => [x.row, { msgs: x.errors, keys: x.keys ?? serverKeys(t, x.fields ?? []) }])) : undefined} notes={r ? new Map(r.results.filter(x => x.action === 'skip').map(x => [x.row, x.note ?? 'Se omite'])) : undefined} updates={r ? new Set(r.results.filter(x => x.action === 'update').map(x => x.row)) : undefined} onEdit={done ? undefined : (row, col, v) => editCell(i, row, col, v)} />
                                         </div>
                                     )}
                                 </li>

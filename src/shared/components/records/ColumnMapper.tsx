@@ -11,7 +11,7 @@ const PAGE = 50;
  * - si se pasa `onEdit`, las celdas se pueden corregir ahí mismo (la fila queda marcada como editada).
  * La usan el botón «Importar» de cada pantalla y la pantalla general «Importar datos».
  */
-export function ColumnMapper({ table, fields, map, onChange, errors, updates, onEdit }: {
+export function ColumnMapper({ table, fields, map, onChange, errors, updates, notes, onEdit }: {
     table: Table;
     fields: Field[];
     map: Record<number, string | null>;
@@ -20,6 +20,8 @@ export function ColumnMapper({ table, fields, map, onChange, errors, updates, on
     errors?: Map<number, RowIssue>;
     /** Filas (mismo número) que ya existen y se actualizarán: se marcan en azul. */
     updates?: Set<number>;
+    /** Filas que se omiten, con el motivo (se muestran en gris). */
+    notes?: Map<number, string>;
     /** Corrige una celda: fila de datos (desde 0), columna y nuevo valor. */
     onEdit?: (row: number, col: number, value: string) => void;
 }) {
@@ -40,7 +42,7 @@ export function ColumnMapper({ table, fields, map, onChange, errors, updates, on
     const pages = Math.max(1, Math.ceil(list.length / PAGE));
     const cur = Math.min(page, pages - 1);
     const shown = list.slice(cur * PAGE, cur * PAGE + PAGE);
-    const showProblem = errCount > 0;
+    const showProblem = errCount > 0 || (notes?.size ?? 0) > 0;
 
     const edit = (row: number, col: number, value: string) => {
         if (!onEdit || table.rows[row][col] === value) return;
@@ -92,7 +94,7 @@ export function ColumnMapper({ table, fields, map, onChange, errors, updates, on
                             const err = fixed ? undefined : errors?.get(i + 1);
                             // Si se sabe en qué columna está el error, se pinta solo esa celda; si no, toda la fila.
                             const badCols = new Set(table.headers.map((_, c) => c).filter(c => err && map[c] && err.keys.includes(map[c]!)));
-                            const cls = fixed ? 'is-edited' : err ? (badCols.size ? 'is-err' : 'is-err is-err-row') : updates?.has(i + 1) ? 'is-upd' : undefined;
+                            const cls = fixed ? 'is-edited' : err ? (badCols.size ? 'is-err' : 'is-err is-err-row') : updates?.has(i + 1) ? 'is-upd' : notes?.has(i + 1) ? 'is-skip' : undefined;
                             return (
                                 <tr key={i} className={cls}>
                                     <td className="cm__num">{i + 2}</td>
@@ -111,7 +113,7 @@ export function ColumnMapper({ table, fields, map, onChange, errors, updates, on
                                             ) : <span title={r[c]}>{r[c]}</span>}
                                         </td>
                                     ))}
-                                    {showProblem && <td className="cm__problem">{fixed ? <span className="cm__fixed">Editada</span> : err?.msgs.join(' · ')}</td>}
+                                    {showProblem && <td className="cm__problem">{fixed ? <span className="cm__fixed">Editada</span> : err ? err.msgs.join(' · ') : notes?.get(i + 1)}</td>}
                                 </tr>
                             );
                         })}

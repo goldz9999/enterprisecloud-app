@@ -524,3 +524,13 @@
     color: var(--amber);
     font-weight: 600;
 }
+
+/* Filas que se omiten (p. ej. stock inicial de un producto que ya tiene movimientos) */
+.cm__grid tr.is-skip td {
+    color: var(--faint);
+}
+
+.cm__grid tr.is-skip td.cm__problem {
+    color: var(--muted) !important;
+    font-style: italic;
+}
