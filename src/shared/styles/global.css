@@ -5313,8 +5313,8 @@ html[data-theme="light"] .login__card {
   border-color: rgba(255, 255, 255, .9);
 }
 
-/* Sidebar azul marino también en tema claro: da estructura y hace resaltar el contenido */
-html[data-theme="light"] .sidebar {
+/* Sidebar azul marino también en tema claro (si "Sidebar según el tema" está activada en Configuración, sigue el tema) */
+html[data-theme="light"]:not([data-sidebar="sync"]) .sidebar {
   --surface: #0E1A33;
   --surface-2: #132244;
   --border: #1D2D52;

@@ -7,7 +7,7 @@ import { SETTING_SECTIONS } from '@/data/settings';
 import { useDB } from '@/data/store';
 import type { Settings } from '@/data/types';
 import { api } from '@/shared/lib/api';
-import { useTheme } from '@/shared/lib/theme';
+import { useSidebarFollowsTheme, useTheme } from '@/shared/lib/theme';
 
 // Map section titles to anchor ids
 const sectionId = (title: string) => title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -26,6 +26,7 @@ const SIDEBAR_ITEMS = CFG_GROUPS.map(g => ({ id: g.id, label: g.label }));
 export function ConfiguracionPage() {
   const d = useDB();
   const { theme, setTheme } = useTheme();
+  const { sidebarFollowsTheme, setSidebarFollowsTheme } = useSidebarFollowsTheme();
   const saved = d.settings;
   const [form, setForm] = useState<Settings>(() => ({ ...saved }));
   const [conn, setConn] = useState<'checking' | 'ok' | 'down'>('checking');
@@ -39,7 +40,7 @@ export function ConfiguracionPage() {
   useEffect(() => { void loadAdmin(); }, []);
   useEffect(() => { setForm({ ...saved }); }, [savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const canEdit = can(d, 'Configuración', 'Editar');
-  const keys = SETTING_SECTIONS.flatMap(s => s.fields.map(f => f.k)).filter(k => k !== 'theme');
+  const keys = SETTING_SECTIONS.flatMap(s => s.fields.map(f => f.k)).filter(k => k !== 'theme' && k !== 'sbtheme'); // preferencias locales del navegador: no se guardan en el servidor
   const changes = keys.filter(k => form[k] !== saved[k]);
   const set = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
@@ -135,16 +136,17 @@ export function ConfiguracionPage() {
                 renderSection(sectionId(sec.title), sec.title, sec.desc, (
                   <div className="settings__fields">
                     {sec.fields.map(f => {
-                      const value = f.k === 'theme' ? (theme === 'dark' ? 'Oscuro' : 'Claro') : form[f.k];
-                      const changed = f.k !== 'theme' && form[f.k] !== saved[f.k];
+                      const isLocalPref = f.k === 'theme' || f.k === 'sbtheme';
+                      const value = f.k === 'theme' ? (theme === 'dark' ? 'Oscuro' : 'Claro') : f.k === 'sbtheme' ? sidebarFollowsTheme : form[f.k];
+                      const changed = !isLocalPref && form[f.k] !== saved[f.k];
                       const cls = 'field__control' + (changed ? ' is-changed' : '');
                       const options = typeof f.options === 'function' ? f.options(d) : f.options ?? [];
-                      const disabled = !canEdit && f.k !== 'theme';
+                      const disabled = !canEdit && !isLocalPref;
                       return (
                         <div key={f.k} className={'field' + (f.wide ? ' field--wide' : '')}>
                           <span className="field__label">{f.label}</span>
                           {f.type === 'toggle' ? (
-                            <button type="button" role="switch" aria-checked={!!value} aria-label={f.label} className="switch-row" disabled={disabled} onClick={() => set(f.k, !form[f.k])}>
+                            <button type="button" role="switch" aria-checked={!!value} aria-label={f.label} className="switch-row" disabled={disabled} onClick={() => (f.k === 'sbtheme' ? setSidebarFollowsTheme(!sidebarFollowsTheme) : set(f.k, !form[f.k]))}>
                               <span className={'switch' + (value ? ' is-on' : '')}><span /></span>
                               {f.hint}
                             </button>
