@@ -6346,7 +6346,7 @@ input[type="radio"] {
   border-radius: inherit;
   padding: 1px;
   pointer-events: none;
-  background: conic-gradient(from var(--ec-angle), transparent 0 62%, var(--accent) 82%, var(--accent-2) 94%, transparent);
+  background: linear-gradient(var(--neon-a), var(--neon-a));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -6365,10 +6365,6 @@ input[type="radio"] {
 
   .meter>div::after {
     animation: ec-sheen-bar 2.6s ease-in-out infinite;
-  }
-
-  .login__card::before {
-    animation: ec-angle 7s linear infinite;
   }
 
   .sb-avatar::after {
@@ -7433,15 +7429,7 @@ html[data-theme="light"] {
   border-radius: inherit;
   pointer-events: none;
   z-index: 3;
-  background:
-    conic-gradient(from var(--ec-angle),
-      transparent 0deg,
-      transparent 190deg,
-      var(--neon-a) 280deg,
-      var(--neon-b) 322deg,
-      var(--neon-c) 352deg,
-      transparent 360deg),
-    linear-gradient(var(--neon-base), var(--neon-base));
+  background: linear-gradient(var(--neon-a), var(--neon-a));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -7455,73 +7443,28 @@ html[data-theme="light"] {
   content: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-
-  .panel::after,
-  .table::after,
-  .filters::after,
-  .lines-editor::after,
-  .card::after,
-  .flowdetail::after,
-  .modal::after,
-  .purchase-modal::after,
-  .drawer::after {
-    animation: ec-angle 9s linear infinite;
-  }
-
-  .kpi::after,
-  .dash-kpi::after,
-  .dash-stat::after {
-    animation: ec-angle 6.5s linear infinite;
-  }
-
-  /* Desfase para que no giren todos a la vez */
-  .panel:nth-child(2n)::after,
-  .kpi:nth-child(2n)::after,
-  .dash-kpi:nth-child(2n)::after,
-  .dash-stat:nth-child(2n)::after {
-    animation-delay: -2.2s;
-  }
-
-  .panel:nth-child(3n)::after,
-  .kpi:nth-child(3n)::after,
-  .dash-kpi:nth-child(3n)::after,
-  .dash-stat:nth-child(3n)::after {
-    animation-delay: -4.6s;
-  }
-
-  .kpi:nth-child(4n)::after,
-  .dash-kpi:nth-child(4n)::after {
-    animation-delay: -1.1s;
-  }
-
-  /* Al pasar el cursor la luz acelera y brilla más */
-  .kpi:hover::after,
-  .dash-kpi:hover::after,
-  .dash-stat:hover::after,
-  .panel:hover::after,
-  .flowdetail:hover::after {
-    animation-duration: 3.2s;
-    filter: drop-shadow(0 0 5px var(--neon-glow));
-  }
+/* Borde neón estático (sin animación) */
+.kpi:hover::after,
+.dash-kpi:hover::after,
+.dash-stat:hover::after,
+.panel:hover::after,
+.flowdetail:hover::after {
+  filter: drop-shadow(0 0 5px var(--neon-glow));
 }
 
-@media (prefers-reduced-motion: reduce) {
-
-  .panel::after,
-  .table::after,
-  .filters::after,
-  .lines-editor::after,
-  .card::after,
-  .kpi::after,
-  .dash-kpi::after,
-  .dash-stat::after,
-  .flowdetail::after,
-  .modal::after,
-  .purchase-modal::after,
-  .drawer::after {
-    --ec-angle: 20deg;
-  }
+.panel::after,
+.table::after,
+.filters::after,
+.lines-editor::after,
+.card::after,
+.kpi::after,
+.dash-kpi::after,
+.dash-stat::after,
+.flowdetail::after,
+.modal::after,
+.purchase-modal::after,
+.drawer::after {
+  --ec-angle: 20deg;
 }
 
 /* Las copias de salida (ventanas que se cierran) no animan la luz */
@@ -7546,20 +7489,7 @@ html::after {
   border-radius: 0;
   pointer-events: none;
   z-index: 190;
-  background:
-    conic-gradient(from var(--ec-angle),
-      transparent 0deg,
-      transparent 60deg,
-      var(--neon-a) 110deg,
-      var(--neon-b) 142deg,
-      var(--neon-c) 172deg,
-      transparent 182deg,
-      transparent 240deg,
-      var(--neon-a) 290deg,
-      var(--neon-b) 322deg,
-      var(--neon-c) 352deg,
-      transparent 360deg),
-    linear-gradient(var(--frame-base), var(--frame-base));
+  background: linear-gradient(var(--neon-a), var(--neon-a));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -7574,16 +7504,8 @@ html[data-theme="light"]::after {
   filter: drop-shadow(0 0 4px var(--neon-glow));
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  html::after {
-    animation: ec-angle 10s linear infinite;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html::after {
-    --ec-angle: 20deg;
-  }
+html::after {
+  --ec-angle: 20deg;
 }
 
 ::view-transition-group(ec-frame) {
