@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AnimatedValue } from '@/shared/components/AnimatedValue';
 import { AppShell } from '@/shared/components/AppShell';
 import { StatusChip, type Tone } from '@/shared/components/StatusChip';
+import { CategorySalesChart, DailySalesChart } from './DashboardCharts';
 import { alertsFrom, useDashboard, type SaleStatus } from '@/data/domain/dashboard';
 import type { Period } from '@/data/domain/metrics';
 import { can } from '@/data/permissions';
@@ -14,6 +15,7 @@ const SALE_TONE: Record<string, Tone> = { Pagado: 'green', Pendiente: 'amber', V
 const SALE_LABEL: Record<SaleStatus, string> = { PAID: 'Pagado', PENDING: 'Pendiente', OVERDUE: 'Vencido', CANCELLED: 'Anulado' };
 const FILTERS = ['Todas', 'Pagado', 'Pendiente', 'Vencido'] as const;
 const PERIODS: Period[] = ['Hoy', 'Semana', 'Mes', 'Año'];
+const CHART_RANGE: Record<Period, string> = { Hoy: 'Últimos 7 días', Semana: 'Últimos 7 días', Mes: 'Mes actual', Año: 'Año actual' };
 const PERIOD_PREV: Record<Period, string> = { Hoy: 'vs. ayer', Semana: 'vs. semana anterior', Mes: 'vs. mes anterior', Año: 'vs. año anterior' };
 
 const S0 = (n: number) => 'S/ ' + Math.round(n).toLocaleString('en-US');
@@ -125,6 +127,11 @@ export function DashboardPage() {
             <div className="dash-stat__value"><AnimatedValue text={s.value} /></div>
           </Link>
         ))}
+      </section>
+
+      <section className="dash-charts">
+        <DailySalesChart data={data?.dailySales ?? []} rangeLabel={CHART_RANGE[period]} />
+        <CategorySalesChart data={data?.salesByCategory ?? []} rangeLabel={CHART_RANGE[period]} />
       </section>
 
       <section className="dash-bottom">

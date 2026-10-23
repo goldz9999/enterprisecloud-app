@@ -20,6 +20,10 @@ export interface DashboardData {
     latestSales: { code: string; partyName: string; partyTaxId: string | null; total: number; status: SaleStatus; createdAt: string }[];
     salesTotalCount: number;
     userAlerts: { id: string; fullName: string; email: string; status: 'INVITED' | 'LOCKED'; roleName: string | null }[];
+    /** Ventas facturadas por día y por categoría (rango en chartsRange). Pueden faltar si el backend es una versión anterior. */
+    dailySales?: { date: string; total: number; count: number }[];
+    salesByCategory?: { category: string; total: number; units: number }[];
+    chartsRange?: { from: string | null; to: string | null };
 }
 
 const API_PERIOD: Record<Period, string> = { Hoy: 'today', Semana: 'week', Mes: 'month', Año: 'year' };
