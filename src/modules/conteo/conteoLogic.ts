@@ -1,6 +1,6 @@
-type R = Record<string, unknown>;
-
 export interface CountItem {
+    /** Id del renglón en el servidor. */
+    id: string;
     sku: string;
     name: string;
     unit: string;
@@ -11,6 +11,14 @@ export interface CountItem {
     cost: number;
 }
 
+export interface CountSummary {
+    pending: number;
+    withDiff: number;
+    missingValue: number;
+    surplusValue: number;
+    net: number;
+}
+
 export interface Count {
     id: string;
     code: string;
@@ -19,29 +27,18 @@ export interface Count {
     by: string;
     status: 'Abierto' | 'Cerrado';
     closedAt?: string;
+    /** Cantidad de productos del conteo (la lista no trae los ítems). */
+    itemCount: number;
+    /** Resumen calculado por el servidor; en la pantalla de conteo se recalcula con `countSummary(items)` al ir contando. */
+    summary: CountSummary;
+    /** Solo viene al abrir un conteo; en la lista está vacío. */
     items: CountItem[];
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-/** Abre un conteo con la «foto» del stock del almacén en este momento. */
-export function openCount(stock: R[], warehouse: string, product: (sku: string) => { cost: number; unit: string }, by: string, seq: number, now: Date, id: string): Count {
-    return {
-        id,
-        code: `CF-${now.getFullYear()}-${String(seq).padStart(4, '0')}`,
-        warehouse,
-        openedAt: now.toISOString(),
-        by,
-        status: 'Abierto',
-        items: stock
-            .filter(s => s.alm === warehouse)
-            .map(s => ({ sku: String(s.sku), name: String(s.prod), unit: product(String(s.sku)).unit, system: Number(s.stock) || 0, counted: null, cost: product(String(s.sku)).cost }))
-            .sort((a, b) => a.name.localeCompare(b.name)),
-    };
-}
-
 /** Pendientes, ítems con diferencia y su valor (faltante, sobrante y neto) al costo promedio. */
-export function countSummary(c: Pick<Count, 'items'>) {
+export function countSummary(c: Pick<Count, 'items'>): CountSummary {
     let pending = 0;
     let withDiff = 0;
     let missingValue = 0;
@@ -57,10 +54,4 @@ export function countSummary(c: Pick<Count, 'items'>) {
         if (d > 0) surplusValue += d * i.cost;
     }
     return { pending, withDiff, missingValue: r2(missingValue), surplusValue: r2(surplusValue), net: r2(surplusValue - missingValue) };
-}
-
-/** Siguiente correlativo del año para el código CF-AAAA-NNNN. */
-export function nextSeq(counts: Count[], year: number): number {
-    const prefix = `CF-${year}-`;
-    return counts.filter(c => c.code.startsWith(prefix)).reduce((a, c) => Math.max(a, Number(c.code.slice(prefix.length)) || 0), 0) + 1;
 }

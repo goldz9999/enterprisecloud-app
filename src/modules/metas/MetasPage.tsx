@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { can } from '@/data/permissions';
+import { useDB } from '@/data/store';
 import { KpiCard, KpiRow } from '@/shared/components/KpiCard';
 import { Modal } from '@/shared/components/Modal';
 import { StatusChip } from '@/shared/components/StatusChip';
 import { Toast, useToast } from '@/shared/components/Toast';
 import { formatMoney } from '@/shared/lib/format';
-import { newId, useModuleStore } from '../localStore';
+import { gestionError, goalsApi, useGoals } from '../gestionApi';
 import { lastMonths, saleFacts, sellers } from '../salesData';
-import { useGestionDB } from '../localCopy';
 import { DataTable, ModulePage, PeriodSelect, periodLabel, Progress, Tabs } from '../ui';
 import { goalProgress, ranking, type Goal } from './metasLogic';
 
@@ -15,12 +15,13 @@ type Tab = 'metas' | 'ranking';
 const EMPTY = { kind: 'vendedor' as Goal['kind'], target: '', amount: '' };
 
 export function MetasPage() {
-    const d = useGestionDB();
+    const d = useDB();
     const toast = useToast();
     const months = lastMonths(12);
     const [period, setPeriod] = useState(months[0]);
     const [tab, setTab] = useState<Tab>('metas');
-    const [store, setStore] = useModuleStore<{ items: Goal[] }>('metas', { items: [] });
+    const goalsRes = useGoals(period);
+    const [busy, setBusy] = useState(false);
     const [form, setForm] = useState<typeof EMPTY & { id?: string }>(EMPTY);
     const [editing, setEditing] = useState(false);
     const canEdit = can(d, 'Configuración', 'Editar');
@@ -31,7 +32,7 @@ export function MetasPage() {
         return (sku: string) => m.get(sku) ?? '—';
     }, [d.records.productos]);
     const today = new Date();
-    const goals = store.items.filter(g => g.period === period);
+    const goals = goalsRes.data.filter(g => g.period === period);
     const progress = goals.map(g => ({ g, p: goalProgress(g, facts, catOf, today) })).sort((a, b) => b.p.pct - a.p.pct);
     const rank = ranking(facts, period);
     const monthTotal = rank.reduce((a, r) => a + r.total, 0);
@@ -44,33 +45,61 @@ export function MetasPage() {
     const openEdit = (g: Goal) => { setForm({ id: g.id, kind: g.kind, target: g.target, amount: String(g.amount) }); setEditing(true); };
     const amount = Number(form.amount.replace(',', '.'));
     const formError = !form.target ? `Elige ${form.kind === 'vendedor' ? 'un vendedor' : 'una categoría'}` : !(amount > 0) ? 'Escribe una meta mayor que cero'
-        : store.items.some(g => g.id !== form.id && g.period === period && g.kind === form.kind && g.target === form.target) ? 'Ya hay una meta para eso en este mes' : '';
-    const save = () => {
-        if (formError) return;
-        const goal: Goal = { id: form.id ?? newId(), period, kind: form.kind, target: form.target, amount: Math.round(amount * 100) / 100 };
-        setStore({ items: form.id ? store.items.map(g => (g.id === form.id ? goal : g)) : [...store.items, goal] });
-        setEditing(false);
-        toast.flash(form.id ? 'Meta actualizada' : 'Meta creada');
+        : goals.some(g => g.id !== form.id && g.kind === form.kind && g.target === form.target) ? 'Ya hay una meta para eso en este mes' : '';
+    /** Guarda en el servidor, vuelve a leer las metas y avisa. Devuelve si salió bien. */
+    const run = async (fn: () => Promise<string>): Promise<boolean> => {
+        if (busy) return false;
+        setBusy(true);
+        try {
+            const msg = await fn();
+            await goalsRes.reload();
+            toast.flash(msg);
+            return true;
+        } catch (e) {
+            toast.flash(gestionError(e));
+            return false;
+        } finally {
+            setBusy(false);
+        }
     };
-    const remove = (id: string) => { setStore({ items: store.items.filter(g => g.id !== id) }); setEditing(false); toast.flash('Meta eliminada'); };
+    const save = async () => {
+        if (formError) return;
+        const body = { kind: form.kind, target: form.target, amount: Math.round(amount * 100) / 100 };
+        const editingId = form.id;
+        const ok = await run(async () => {
+            if (editingId) await goalsApi.update(editingId, body);
+            else await goalsApi.create({ period, ...body });
+            return editingId ? 'Meta actualizada' : 'Meta creada';
+        });
+        if (ok) setEditing(false);
+    };
+    const remove = async (id: string) => {
+        const ok = await run(async () => {
+            await goalsApi.remove(id);
+            return 'Meta eliminada';
+        });
+        if (ok) setEditing(false);
+    };
     const copyPrevious = () => {
         const [y, m] = period.split('-').map(Number);
         const pd = new Date(y, m - 2, 1);
         const prev = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}`;
-        const from = store.items.filter(g => g.period === prev && !goals.some(x => x.kind === g.kind && x.target === g.target));
-        if (!from.length) return toast.flash(`No hay metas nuevas que copiar de ${periodLabel(prev)}`);
-        setStore({ items: [...store.items, ...from.map(g => ({ ...g, id: newId(), period }))] });
-        toast.flash(`${from.length} meta(s) copiadas de ${periodLabel(prev)}`);
+        void run(async () => {
+            const r = await goalsApi.copy(prev, period);
+            return r.created ? `${r.created} meta(s) copiadas de ${periodLabel(prev)}` : `No hay metas nuevas que copiar de ${periodLabel(prev)}`;
+        });
     };
 
     return (
         <ModulePage
             label="Metas y ranking"
             subtitle="Metas mensuales en soles (sin IGV). El avance sale solo de las ventas con comprobante emitido."
-            local
+            loading={!goalsRes.ready}
+            error={goalsRes.error}
+            onRetry={() => void goalsRes.reload()}
             actions={<>
                 <PeriodSelect value={period} options={months} onChange={setPeriod} />
-                {canEdit && <button type="button" className="btn btn--sm" onClick={copyPrevious}>Copiar del mes anterior</button>}
+                {canEdit && <button type="button" className="btn btn--sm" disabled={busy} onClick={copyPrevious}>Copiar del mes anterior</button>}
                 {canEdit && <button type="button" className="btn btn--primary btn--sm" onClick={openNew}>Nueva meta</button>}
             </>}
         >
@@ -116,9 +145,9 @@ export function MetasPage() {
                     title={form.id ? 'Editar meta' : `Nueva meta · ${periodLabel(period)}`}
                     onClose={() => setEditing(false)}
                     footer={<>
-                        {form.id && <button type="button" className="btn btn--danger-text" style={{ marginRight: 'auto' }} onClick={() => remove(form.id!)}>Eliminar</button>}
+                        {form.id && <button type="button" className="btn btn--danger-text" style={{ marginRight: 'auto' }} disabled={busy} onClick={() => void remove(form.id!)}>Eliminar</button>}
                         <button type="button" className="btn" onClick={() => setEditing(false)}>Cancelar</button>
-                        <button type="button" className="btn btn--primary" disabled={!!formError} title={formError || undefined} onClick={save}>Guardar</button>
+                        <button type="button" className="btn btn--primary" disabled={!!formError || busy} title={formError || undefined} onClick={() => void save()}>Guardar</button>
                     </>}
                 >
                     <div className="form-grid">

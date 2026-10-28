@@ -41,14 +41,18 @@ const stopOf = (o: Order, saved: Record<string, Delivery>): Stop => ({
     delivery: saved[o.code],
 });
 
+/** Ventas ya despachadas (guía emitida, no anuladas) con entrega en `day`, por código. Sirve para pedir sus confirmaciones al servidor. */
+export const dispatchedOn = (orders: Order[], day: string): Order[] =>
+    orders
+        .filter(o => o.kind === 'venta' && !o.cancelled && o.done >= 3 && deliveryDate(o) === day)
+        .sort((a, b) => a.code.localeCompare(b.code));
+
 /**
  * Hoja de ruta de un día: ventas ya despachadas (guía emitida) con entrega en `day`, agrupadas por vehículo;
  * las que recoge el cliente van aparte.
  */
 export function routeSheet(orders: Order[], day: string, saved: Record<string, Delivery>) {
-    const ready = orders
-        .filter(o => o.kind === 'venta' && !o.cancelled && o.done >= 3 && deliveryDate(o) === day)
-        .sort((a, b) => a.code.localeCompare(b.code));
+    const ready = dispatchedOn(orders, day);
     const pickups = ready.filter(isPickup).map(o => stopOf(o, saved));
     const map = new Map<string, Route>();
     for (const o of ready) {

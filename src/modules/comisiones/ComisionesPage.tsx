@@ -1,29 +1,28 @@
 import { useMemo, useState } from 'react';
 import { can } from '@/data/permissions';
-import { currentUser } from '@/data/store';
+import { useDB } from '@/data/store';
 import { KpiCard, KpiRow } from '@/shared/components/KpiCard';
 import { StatusChip } from '@/shared/components/StatusChip';
 import { Toast, useToast } from '@/shared/components/Toast';
 import { downloadCsv } from '@/shared/lib/csv';
 import { fmtDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
-import { useModuleStore } from '../localStore';
-import { useGestionDB } from '../localCopy';
+import { commissionsApi, gestionError, useCommissions } from '../gestionApi';
 import { lastMonths, saleFacts, sellers } from '../salesData';
 import { DataTable, ModulePage, PeriodSelect, periodLabel, Tabs } from '../ui';
-import { commissions, payoutStatus, type CommissionRules, type Payout } from './comisionesLogic';
+import { commissions, payoutStatus } from './comisionesLogic';
 
 type Tab = 'liquidacion' | 'detalle' | 'reglas';
-interface Store extends CommissionRules { paid: Payout[] }
-const DEFAULTS: Store = { defaultPct: 2, bySeller: {}, paid: [] };
 
 export function ComisionesPage() {
-    const d = useGestionDB();
+    const d = useDB();
     const toast = useToast();
     const months = lastMonths(12);
     const [period, setPeriod] = useState(months[0]);
     const [tab, setTab] = useState<Tab>('liquidacion');
-    const [store, setStore] = useModuleStore<Store>('comisiones', DEFAULTS);
+    const res = useCommissions();
+    const store = res.data;
+    const [busy, setBusy] = useState(false);
     const [pctDraft, setPctDraft] = useState<Record<string, string>>({});
     const canEdit = can(d, 'Configuración', 'Editar');
 
@@ -34,24 +33,37 @@ export function ComisionesPage() {
     const pendingPay = status.filter(x => x.st.state !== 'Pagada').reduce((a, x) => a + (x.st.state === 'Diferencia' ? x.st.diff : x.s.amount), 0);
     const sellerList = sellers(d, facts);
 
-    const markPaid = (seller: string, amount: number) => {
-        const me = currentUser(d).name;
-        const rest = store.paid.filter(p => !(p.seller === seller && p.period === period));
-        setStore({ ...store, paid: [...rest, { seller, period, amount, at: new Date().toISOString(), by: me }] });
-        toast.flash(`Comisión de ${seller} (${periodLabel(period)}) marcada como pagada`);
+    /** Guarda en el servidor, vuelve a leer y avisa. Devuelve si salió bien. */
+    const run = async (fn: () => Promise<string>): Promise<boolean> => {
+        if (busy) return false;
+        setBusy(true);
+        try {
+            const msg = await fn();
+            await res.reload();
+            toast.flash(msg);
+            return true;
+        } catch (e) {
+            toast.flash(gestionError(e));
+            return false;
+        } finally {
+            setBusy(false);
+        }
     };
-    const savePct = (key: string, raw: string) => {
+    const markPaid = (seller: string, amount: number) =>
+        void run(async () => {
+            await commissionsApi.pay(seller, period, amount);
+            return `Comisión de ${seller} (${periodLabel(period)}) marcada como pagada`;
+        });
+    const savePct = async (key: string, raw: string) => {
         const v = Number(raw.replace(',', '.'));
         if (raw.trim() !== '' && !(v >= 0 && v <= 100)) return toast.flash('El porcentaje debe estar entre 0 y 100');
-        if (key === '__default') setStore({ ...store, defaultPct: raw.trim() === '' ? 0 : v });
-        else {
-            const bySeller = { ...store.bySeller };
-            if (raw.trim() === '') delete bySeller[key];
-            else bySeller[key] = v;
-            setStore({ ...store, bySeller });
-        }
-        setPctDraft(p => { const n = { ...p }; delete n[key]; return n; });
-        toast.flash('Regla guardada');
+        const ok = await run(async () => {
+            if (key === '__default') await commissionsApi.setDefault(raw.trim() === '' ? 0 : v);
+            else await commissionsApi.setSeller(key, raw.trim() === '' ? null : v);
+            return 'Regla guardada';
+        });
+        // Si falló, el borrador se conserva para poder reintentar; si salió bien, la casilla vuelve a mostrar lo guardado.
+        if (ok) setPctDraft(p => { const n = { ...p }; delete n[key]; return n; });
     };
     const exportCsv = () => downloadCsv(`comisiones-${period}.csv`, ['Orden', 'Vendedor', 'Cliente', 'Base sin IGV', '%', 'Comisión'], r.lines.map(l => [l.code, l.seller, l.client, l.base, l.pct, l.amount]));
 
@@ -60,7 +72,7 @@ export function ComisionesPage() {
             className="field__control mod-num" style={{ width: 90 }} inputMode="decimal" disabled={!canEdit} placeholder={placeholder}
             value={pctDraft[key] ?? (value === undefined ? '' : String(value))}
             onChange={e => setPctDraft(p => ({ ...p, [key]: e.target.value.replace(/[^\d.,]/g, '') }))}
-            onBlur={e => pctDraft[key] !== undefined && savePct(key, e.target.value)}
+            onBlur={e => pctDraft[key] !== undefined && void savePct(key, e.target.value)}
             onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
             aria-label={key === '__default' ? 'Porcentaje general' : `Porcentaje de ${key}`}
         />
@@ -70,7 +82,9 @@ export function ComisionesPage() {
         <ModulePage
             label="Comisiones"
             subtitle="Comisión sobre las ventas cobradas del mes (subtotal sin IGV, ya con descuento). Las ventas por cobrar se suman cuando se cobren."
-            local
+            loading={!res.ready}
+            error={res.error}
+            onRetry={() => void res.reload()}
             actions={<>
                 <PeriodSelect value={period} options={months} onChange={setPeriod} />
                 <button type="button" className="btn btn--sm" onClick={exportCsv} disabled={!r.lines.length}>Exportar detalle</button>
@@ -96,7 +110,7 @@ export function ComisionesPage() {
                         st.state === 'Pagada' ? <span key="e"><StatusChip label="Pagada" tone="green" /><span className="mod-sub">{fmtDate(new Date(st.payout!.at))} · {st.payout!.by}</span></span>
                             : st.state === 'Diferencia' ? <span key="e"><StatusChip label={`Diferencia ${formatMoney(st.diff)}`} tone="amber" /><span className="mod-sub">se pagó {formatMoney(st.payout!.amount)}</span></span>
                                 : <StatusChip key="e" label="Pendiente" tone="blue" />,
-                        canEdit && st.state !== 'Pagada' ? <button key="x" type="button" className="btn btn--sm" onClick={() => markPaid(s.seller, s.amount)}>Marcar pagada</button> : <span key="x" />,
+                        canEdit && st.state !== 'Pagada' ? <button key="x" type="button" className="btn btn--sm" disabled={busy} onClick={() => markPaid(s.seller, s.amount)}>Marcar pagada</button> : <span key="x" />,
                     ])}
                     empty={`No hay ventas cobradas en ${periodLabel(period)}.`}
                     foot={r.bySeller.length > 0 && <><span>Marcar como pagada solo registra la liquidación aquí; el egreso regístralo en Finanzas › Caja o Bancos.</span><span>Total <b>{formatMoney(total)}</b></span></>}

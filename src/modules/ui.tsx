@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { AppShell } from '@/shared/components/AppShell';
-import { fmtDayTime, MES } from '@/shared/lib/dates';
-import { hasCopy, useLocalCopy } from './localCopy';
+import { MES } from '@/shared/lib/dates';
 import './modules.css';
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -19,28 +17,36 @@ export const shortDay = (iso: string) => {
     return `${String(d).padStart(2, '0')} ${MES[m - 1] ?? ''}`;
 };
 
-/** Marco común de las pantallas de Gestión: menú, migas, título, subtítulo y acciones. */
-export function ModulePage({ label, subtitle, actions, local, children }: { label: string; subtitle: string; actions?: ReactNode; local?: boolean; children: ReactNode }) {
-    const copy = useLocalCopy();
+/** Marco común de las pantallas de Gestión: menú, migas, título, subtítulo, acciones y aviso de carga o error de lectura. */
+export function ModulePage({ label, subtitle, actions, loading, error, onRetry, children }: {
+    label: string;
+    subtitle: string;
+    actions?: ReactNode;
+    /** Aún no llegaron los datos propios del módulo desde el servidor. */
+    loading?: boolean;
+    /** Mensaje si la última lectura falló. */
+    error?: string;
+    onRetry?: () => void;
+    children: ReactNode;
+}) {
     return (
         <AppShell active={label} breadcrumb={[{ label: 'Inicio', to: '/' }, { label: 'Gestión' }, { label }]}>
             <div className="page-head">
                 <div>
                     <h1 className="page__title">{label}</h1>
-                    <div className="page__subtitle">
-                        {subtitle}
-                        {local && <span className="mod-local" title="Se guarda en este navegador. Puedes respaldarlo en Configuración › Módulos opcionales."> · Guardado en este navegador</span>}
-                    </div>
+                    <div className="page__subtitle">{subtitle}</div>
                 </div>
                 {actions && <div className="mod-actions">{actions}</div>}
             </div>
-            <div className="mod-copy">
-                <span className={'mod-copy__dot' + (hasCopy(copy) ? '' : ' is-empty')} />
-                {hasCopy(copy)
-                    ? <span>Datos de la <b>copia local</b> · se actualiza sola con cada cambio del sistema · última actualización {fmtDayTime(new Date(copy.updatedAt))}</span>
-                    : <span>La <b>copia local</b> aún está vacía: se llena en cuanto el sistema descargue los datos (Mantenimiento, Ventas, Inventario, Finanzas).</span>}
-                <Link to="/configuracion" className="link-btn">Ver copia</Link>
-            </div>
+            {error ? (
+                <div className="mod-hint" role="alert">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+                    <span>{error}</span>
+                    {onRetry && <button type="button" className="link-btn" style={{ marginLeft: 'auto' }} onClick={onRetry}>Reintentar</button>}
+                </div>
+            ) : loading ? (
+                <div className="mod-copy"><span className="mod-copy__dot is-empty" /><span>Cargando datos del servidor…</span></div>
+            ) : null}
             {children}
         </AppShell>
     );

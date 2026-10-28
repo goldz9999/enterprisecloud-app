@@ -1,10 +1,12 @@
+import { useSyncExternalStore } from 'react';
 import type { Domain } from '@/data/loadAll';
-import { readModule, useModuleStore, writeModule } from './localStore';
+import { api } from '@/shared/lib/api';
 
 /**
- * Módulos opcionales (solo frontend). Para agregar uno nuevo: crear su carpeta en src/modules/<id>/,
- * agregarlo aquí y su página en pages.tsx. El menú, la ruta, la carga de datos, el permiso y el
- * interruptor de Configuración salen de esta lista.
+ * Módulos opcionales de Gestión. Para agregar uno nuevo: crear su carpeta en src/modules/<id>/,
+ * agregarlo aquí y su página en pages.tsx (y su id en MODULE_IDS de app/services/gestion.py en el backend).
+ * El menú, la ruta, la carga de datos, el permiso y el interruptor de Configuración salen de esta lista.
+ * Los datos propios de cada módulo se guardan en el backend (ver gestionApi.ts).
  *
  * Este archivo no importa páginas (eso va en pages.tsx) para que el menú y los permisos lo usen sin ciclos.
  */
@@ -58,11 +60,37 @@ export const OPTIONAL_MODULES: OptionalModule[] = [
     },
 ];
 
-/** Interruptores de Configuración. Por defecto todos encendidos. */
-export const isEnabled = (id: string) => readModule<Record<string, boolean>>('activos', {})[id] !== false;
+/**
+ * Interruptores de Configuración › Módulos opcionales. Se guardan en el backend (valen para todos los usuarios).
+ * Mientras no se hayan leído, todos cuentan como encendidos (así una recarga sobre /gestion/... no cae al inicio).
+ */
+let switches: Record<string, boolean> = {};
+const listeners = new Set<() => void>();
+const subscribe = (l: () => void) => {
+    listeners.add(l);
+    return () => {
+        listeners.delete(l);
+    };
+};
+const publish = (next: Record<string, boolean>) => {
+    switches = next;
+    listeners.forEach(l => l());
+};
 
-export function setEnabled(id: string, on: boolean) {
-    writeModule('activos', { ...readModule<Record<string, boolean>>('activos', {}), [id]: on });
+export const isEnabled = (id: string) => switches[id] !== false;
+
+/** Lee los interruptores del servidor (al iniciar sesión y cuando otra persona los cambia). */
+export async function loadSwitches(): Promise<void> {
+    try {
+        publish((await api<{ switches: Record<string, boolean> }>('/module-switches')).switches);
+    } catch {
+        // sin conexión o sin sesión: se conserva lo último que se leyó
+    }
+}
+
+/** Enciende o apaga un módulo para todos. Lanza ApiError si el servidor lo rechaza (p. ej. sin permiso). */
+export async function setEnabled(id: string, on: boolean): Promise<void> {
+    publish((await api<{ switches: Record<string, boolean> }>(`/module-switches/${id}`, { method: 'PUT', body: { enabled: on } })).switches);
 }
 
 export const enabledModules = () => OPTIONAL_MODULES.filter(m => isEnabled(m.id));
@@ -73,4 +101,4 @@ export const moduleByLabel = (label: string) => OPTIONAL_MODULES.find(m => m.lab
  * Suscribe el componente a los interruptores: al encender o apagar un módulo, el menú, el buscador y las rutas
  * se vuelven a pintar al instante (sin recargar la página). Devuelve el estado actual de los interruptores.
  */
-export const useModuleSwitches = () => useModuleStore<Record<string, boolean>>('activos', {})[0];
+export const useModuleSwitches = () => useSyncExternalStore(subscribe, () => switches);

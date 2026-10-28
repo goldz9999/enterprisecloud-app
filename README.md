@@ -14,6 +14,7 @@ La app necesita el backend FastAPI (`El-Real-Backend`) en ejecución. La URL se 
 
 - Al iniciar sesión se descargan del backend los maestros, la administración, las órdenes de venta y compra, cotizaciones, solicitudes, comprobantes, inventario y finanzas (la lista exacta está en `src/data/loadAll.ts`).
 - Las lecturas se reintentan ante fallos transitorios; si siguen fallando se muestra un aviso con **Reintentar** en lugar de dejar la pantalla vacía.
+- Los módulos de **Gestión** (Reposición, Flujo de caja, Metas, Comisiones, Inventario físico, Hoja de ruta) leen los datos reales del sistema ya descargados del backend y guardan lo suyo (metas, reglas y pagos de comisión, conteos, confirmaciones de entrega, saldo inicial de caja y los interruptores de Configuración) en la base de datos, no en el navegador (`src/modules/gestionApi.ts`). Requieren ejecutar `database/010_modulos_gestion.sql` en Supabase.
 - El navegador conserva una copia local en `localStorage` (`ec-db-v1`) y los archivos subidos en IndexedDB; es solo un espejo para pintar las pantallas.
 - Abre la app desde `localhost` (no `127.0.0.1`), salvo que el backend permita ese origen en su configuración CORS.
 

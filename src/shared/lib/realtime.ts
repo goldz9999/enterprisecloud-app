@@ -24,14 +24,23 @@ const subscribe = (fn: () => void) => { listeners.add(fn); return () => { listen
 /** Cambia cada vez que llega un cambio de otra persona (o se recupera la conexión). */
 export const useRealtimeTick = () => useSyncExternalStore(subscribe, () => tick);
 
+// Igual, pero solo cuando cambian datos propios de los módulos de Gestión (o se recupera la conexión): esas pantallas releen sus datos con él.
+let gestionTick = 0;
+const gestionListeners = new Set<() => void>();
+const subscribeGestion = (fn: () => void) => { gestionListeners.add(fn); return () => { gestionListeners.delete(fn); }; };
+const bumpGestion = () => { gestionTick++; gestionListeners.forEach(fn => fn()); };
+export const useGestionTick = () => useSyncExternalStore(subscribeGestion, () => gestionTick);
+
 // ── Qué releer según el recurso que cambió (lo mínimo: el límite del servidor es de 120 peticiones por minuto por IP) ──
 const ADMIN = new Set(['users', 'roles', 'permissions', 'settings']);
 const TREASURY = new Set(['receivables', 'payables', 'cash', 'bank-movements', 'bank-accounts', 'treasury-movements']);
 const STOCK = new Set(['stock', 'kardex', 'transfers', 'adjustments']);
+// Datos propios de los módulos de Gestión: cada pantalla se vuelve a leer sola con el contador de avisos (useRealtimeTick), sin releer el resto.
+const GESTION = new Set(['module-switches', 'sales-goals', 'commissions', 'stock-counts', 'deliveries', 'cashflow']);
 
 type Job = 'session' | 'admin' | 'masters' | 'quotations' | 'requests' | 'sales' | 'purchases' | 'invoices' | 'receipts' | 'stock' | 'kardex' | 'receivables' | 'payables' | 'treasury' | 'inventory';
 const jobsFor = (resource: string): Job[] => {
-  if (resource === 'documents' || resource === 'audit' || resource === 'dashboard') return [];
+  if (resource === 'documents' || resource === 'audit' || resource === 'dashboard' || GESTION.has(resource)) return [];
   if (resource === 'settings') return ['admin'];
   if (ADMIN.has(resource)) return ['admin', 'session'];
   if (TREASURY.has(resource)) return ['treasury'];
@@ -122,10 +131,12 @@ function connect() {
       clearInterval(pingTimer);
       pingTimer = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send('ping'), PING_MS);
       // Tras una reconexión pudo haberse perdido algún aviso: se relee todo una vez.
-      if (wasConnected) schedule(ALL_JOBS);
+      if (wasConnected) { bumpGestion(); schedule(ALL_JOBS); }
       wasConnected = true;
     } else if (msg.type === 'changed' && msg.by !== CLIENT_ID) {
-      schedule(jobsFor(String(msg.resource ?? '')));
+      const resource = String(msg.resource ?? '');
+      if (GESTION.has(resource)) bumpGestion();
+      schedule(jobsFor(resource));
     }
   };
   ws.onclose = e => {

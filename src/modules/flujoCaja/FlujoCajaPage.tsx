@@ -1,19 +1,22 @@
 import { useMemo, useState } from 'react';
 import { can } from '@/data/permissions';
+import { useDB } from '@/data/store';
 import { KpiCard, KpiRow } from '@/shared/components/KpiCard';
 import { StatusChip } from '@/shared/components/StatusChip';
 import { addDays, parseDate } from '@/shared/lib/dates';
 import { formatMoney } from '@/shared/lib/format';
-import { useModuleStore } from '../localStore';
-import { useGestionDB } from '../localCopy';
+import { cashflowApi, gestionError, useCashflow } from '../gestionApi';
 import { DataTable, ModulePage, shortDay } from '../ui';
 import { currentBalance, projectCash } from './flujoCajaLogic';
 
 const WEEKS = 8;
 
 export function FlujoCajaPage() {
-    const d = useGestionDB();
-    const [cfg, setCfg] = useModuleStore<{ opening: number | null }>('flujoCaja', { opening: null });
+    const d = useDB();
+    const cfgRes = useCashflow();
+    const cfg = cfgRes.data;
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState('');
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState('');
     const [open, setOpen] = useState<string | null>(null);
@@ -29,10 +32,19 @@ export function FlujoCajaPage() {
     const totalIn = r.weeks.reduce((a, w) => a + w.inflow, 0);
     const totalOut = r.weeks.reduce((a, w) => a + w.outflow, 0);
 
-    const saveOpening = () => {
+    const saveOpening = async () => {
         const v = Number(draft.replace(',', '.'));
-        setCfg({ opening: draft.trim() === '' || !isFinite(v) ? null : v });
-        setEditing(false);
+        setSaving(true);
+        setSaveError('');
+        try {
+            await cashflowApi.setOpening(draft.trim() === '' || !isFinite(v) ? null : v);
+            await cfgRes.reload();
+            setEditing(false);
+        } catch (e) {
+            setSaveError(gestionError(e)); // la casilla queda abierta para reintentar
+        } finally {
+            setSaving(false);
+        }
     };
     const range = (start: string) => `${shortDay(start)} – ${shortDay(addDaysIso(start, 6))}`;
 
@@ -40,12 +52,14 @@ export function FlujoCajaPage() {
         <ModulePage
             label="Flujo de caja"
             subtitle={`Proyección de las próximas ${WEEKS} semanas: entra lo que vence en Cuentas por cobrar y sale lo que vence en Cuentas por pagar.`}
-            local={cfg.opening !== null}
+            loading={!cfgRes.ready}
+            error={cfgRes.error || saveError}
+            onRetry={() => { setSaveError(''); void cfgRes.reload(); }}
             actions={canEdit && (editing ? (
                 <>
-                    <input className="field__control mod-num" style={{ width: 140 }} autoFocus inputMode="decimal" placeholder={String(fromBooks)} value={draft} onChange={e => setDraft(e.target.value.replace(/[^\d.,-]/g, ''))} onKeyDown={e => e.key === 'Enter' && saveOpening()} aria-label="Saldo inicial" />
+                    <input className="field__control mod-num" style={{ width: 140 }} autoFocus inputMode="decimal" placeholder={String(fromBooks)} value={draft} onChange={e => setDraft(e.target.value.replace(/[^\d.,-]/g, ''))} onKeyDown={e => e.key === 'Enter' && void saveOpening()} aria-label="Saldo inicial" />
                     <button type="button" className="btn btn--sm" onClick={() => setEditing(false)}>Cancelar</button>
-                    <button type="button" className="btn btn--primary btn--sm" onClick={saveOpening}>Guardar</button>
+                    <button type="button" className="btn btn--primary btn--sm" disabled={saving} onClick={() => void saveOpening()}>Guardar</button>
                 </>
             ) : (
                 <button type="button" className="btn btn--sm" onClick={() => { setDraft(cfg.opening === null ? '' : String(cfg.opening)); setEditing(true); }}>Ajustar saldo inicial</button>

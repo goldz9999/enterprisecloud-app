@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import { can } from '@/data/permissions';
-import { currentUser } from '@/data/store';
+import { useDB } from '@/data/store';
 import { KpiCard, KpiRow } from '@/shared/components/KpiCard';
 import { Modal } from '@/shared/components/Modal';
 import { StatusChip } from '@/shared/components/StatusChip';
 import { Toast, useToast } from '@/shared/components/Toast';
 import { addDays, fmtDayTime, isoDate, parseDate } from '@/shared/lib/dates';
-import { useModuleStore } from '../localStore';
-import { useGestionDB } from '../localCopy';
+import { deliveriesApi, gestionError, useDeliveries } from '../gestionApi';
 import { ModulePage, shortDay } from '../ui';
-import { deliveryDate, routeSheet, type Delivery, type Stop } from './entregasLogic';
+import { deliveryDate, dispatchedOn, routeSheet, type Delivery, type Stop } from './entregasLogic';
 
 const REASONS = ['Cliente ausente', 'Dirección errada', 'Cliente rechazó la mercadería', 'Falta de tiempo en la ruta', 'Otro'];
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -18,15 +17,17 @@ const TRUCK = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke
 const STORE = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1.5-5h15L21 9M3 9h18v11H3zM9 20v-6h6v6" /></svg>;
 
 export function EntregasPage() {
-    const d = useGestionDB();
+    const d = useDB();
     const toast = useToast();
     const [day, setDay] = useState(() => isoDate(new Date()));
-    const [store, setStore] = useModuleStore<{ byOrder: Record<string, Delivery> }>('entregas', { byOrder: {} });
+    const [busy, setBusy] = useState(false);
+    // Las confirmaciones viven en el servidor: se piden solo las de las ventas despachadas del día que se muestra.
+    const saved = useDeliveries(dispatchedOn(d.orders, day).map(o => o.code));
     const [marking, setMarking] = useState<Stop | null>(null);
     const [form, setForm] = useState({ status: 'Entregado' as Delivery['status'], receiver: '', reason: REASONS[0], note: '' });
     const canEdit = can(d, 'Órdenes de venta', 'Editar');
 
-    const sheet = routeSheet(d.orders, day, store.byOrder);
+    const sheet = routeSheet(d.orders, day, saved.data);
     const date = parseDate(day) ?? new Date();
     const shift = (n: number) => setDay(isoDate(addDays(date, n)));
     // Próximos días con entregas, para saltar rápido.
@@ -41,21 +42,41 @@ export function EntregasPage() {
         setForm({ status: s.delivery?.status ?? 'Entregado', receiver: s.delivery?.receiver ?? '', reason: s.delivery?.reason ?? REASONS[0], note: s.delivery?.note ?? '' });
         setMarking(s);
     };
-    const saveMark = () => {
+    /** Guarda en el servidor, vuelve a leer las confirmaciones y avisa. Devuelve si salió bien. */
+    const run = async (fn: () => Promise<string>): Promise<boolean> => {
+        if (busy) return false;
+        setBusy(true);
+        try {
+            const msg = await fn();
+            await saved.reload();
+            toast.flash(msg);
+            return true;
+        } catch (e) {
+            toast.flash(gestionError(e));
+            return false;
+        } finally {
+            setBusy(false);
+        }
+    };
+    const saveMark = async () => {
         if (!marking) return;
         if (form.status === 'Entregado' && !form.receiver.trim()) return toast.flash('Escribe quién recibió');
-        const entry: Delivery = form.status === 'Entregado'
-            ? { status: 'Entregado', receiver: form.receiver.trim(), note: form.note.trim() || undefined, at: new Date().toISOString(), by: currentUser(d).name }
-            : { status: 'No entregado', reason: form.reason, note: form.note.trim() || undefined, at: new Date().toISOString(), by: currentUser(d).name };
-        setStore({ byOrder: { ...store.byOrder, [marking.code]: entry } });
-        toast.flash(`${marking.code}: ${entry.status.toLowerCase()}`);
-        setMarking(null);
+        const code = marking.code;
+        const entry = form.status === 'Entregado'
+            ? { status: 'Entregado' as const, receiver: form.receiver.trim(), note: form.note.trim() || undefined }
+            : { status: 'No entregado' as const, reason: form.reason, note: form.note.trim() || undefined };
+        const ok = await run(async () => {
+            await deliveriesApi.save(code, entry);
+            return `${code}: ${entry.status.toLowerCase()}`;
+        });
+        if (ok) setMarking(null);
     };
-    const undo = (code: string) => {
-        const byOrder = { ...store.byOrder };
-        delete byOrder[code];
-        setStore({ byOrder });
-        setMarking(null);
+    const undo = async (code: string) => {
+        const ok = await run(async () => {
+            await deliveriesApi.remove(code);
+            return `${code}: vuelve a pendiente`;
+        });
+        if (ok) setMarking(null);
     };
 
     const stopRow = (s: Stop, i: number) => (
@@ -79,7 +100,9 @@ export function EntregasPage() {
         <ModulePage
             label="Hoja de ruta"
             subtitle="Ventas despachadas (con guía) agrupadas por vehículo según su fecha de entrega. Marca cada entrega al volver de la ruta."
-            local
+            loading={!saved.ready}
+            error={saved.error}
+            onRetry={() => void saved.reload()}
             actions={<>
                 <button type="button" className="btn btn--sm" onClick={() => shift(-1)} aria-label="Día anterior">‹</button>
                 <input type="date" className="field__control mod-select" style={{ minWidth: 150 }} value={day} onChange={e => e.target.value && setDay(e.target.value)} aria-label="Día de entrega" />
@@ -137,9 +160,9 @@ export function EntregasPage() {
                     title={`Entrega ${marking.code}`}
                     onClose={() => setMarking(null)}
                     footer={<>
-                        {marking.delivery && <button type="button" className="btn btn--danger-text" style={{ marginRight: 'auto' }} onClick={() => undo(marking.code)}>Volver a pendiente</button>}
+                        {marking.delivery && <button type="button" className="btn btn--danger-text" style={{ marginRight: 'auto' }} disabled={busy} onClick={() => void undo(marking.code)}>Volver a pendiente</button>}
                         <button type="button" className="btn" onClick={() => setMarking(null)}>Cancelar</button>
-                        <button type="button" className="btn btn--primary" onClick={saveMark}>Guardar</button>
+                        <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void saveMark()}>Guardar</button>
                     </>}
                 >
                     <p className="muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>{marking.client} · {marking.address}</p>

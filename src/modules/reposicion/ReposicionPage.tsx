@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { can } from '@/data/permissions';
+import { useDB } from '@/data/store';
 import { KpiCard, KpiRow } from '@/shared/components/KpiCard';
 import { StatusChip } from '@/shared/components/StatusChip';
 import { Toast, useToast } from '@/shared/components/Toast';
 import { downloadCsv } from '@/shared/lib/csv';
 import { formatMoney } from '@/shared/lib/format';
-import { useGestionDB } from '../localCopy';
 import { DataTable, ModulePage } from '../ui';
 import { suggestRestock, type RestockRow } from './reposicionLogic';
 import { savePurchasePrefill } from './prefill';
@@ -14,7 +14,7 @@ import { savePurchasePrefill } from './prefill';
 const keyOf = (r: RestockRow) => `${r.sku}@${r.warehouse}`;
 
 export function ReposicionPage() {
-    const d = useGestionDB();
+    const d = useDB();
     const navigate = useNavigate();
     const toast = useToast();
     const [warehouse, setWarehouse] = useState('Todos');

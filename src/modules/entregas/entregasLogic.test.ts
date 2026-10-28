@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Order } from '@/data/types';
-import { routeSheet } from './entregasLogic';
+import { dispatchedOn, routeSheet } from './entregasLogic';
 
 const o = (code: string, done: number, ent: string, pla = 'F3Q-920', con = 'Wilber', tra = 'Movilidad propia'): Order => ({
     kind: 'venta', code, createdAt: '2026-10-20T10:00:00', party: { name: 'Cliente ' + code, ruc: '', address: 'Av. 1' } as Order['party'], warehouse: 'Central', done,
@@ -28,5 +28,8 @@ describe('routeSheet', () => {
         expect(r.routes[1].stops[0].status).toBe('Entregado');
         expect(r.routes[0].stops[0].status).toBe('Pendiente');
         expect([r.delivered, r.failed]).toEqual([1, 1]);
+    });
+    it('dispatchedOn lista solo las despachadas del día, ordenadas por código', () => {
+        expect(dispatchedOn(orders, '2026-10-24').map(x => x.code)).toEqual(['OV-1', 'OV-2', 'OV-4']);
     });
 });
