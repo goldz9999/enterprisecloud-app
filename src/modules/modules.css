@@ -451,3 +451,153 @@
     margin-left: auto;
     white-space: nowrap;
 }
+
+/* ---------- Modal "Entrega" de la hoja de ruta (solo presentación) ---------- */
+.modal:has(.dlv) {
+    width: 480px;
+}
+
+.dlv {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* Cliente y dirección */
+.dlv__who {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+}
+
+.dlv__pin {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent-bg);
+    color: var(--blue);
+}
+
+.dlv__who-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.dlv__who-text b {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -.005em;
+}
+
+.dlv__who-text span {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.35;
+}
+
+/* Resultado: dos opciones grandes, verde / rojo */
+.dlv-seg {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.dlv-seg__opt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 12px;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--ctl-bg);
+    border: 1px solid var(--ctl-border);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.dlv-seg__opt:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+}
+
+.dlv-seg__ico {
+    width: 20px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    opacity: .55;
+    transition: all .15s ease;
+}
+
+.dlv-seg__opt.is-on {
+    font-weight: 600;
+}
+
+.dlv-seg__opt.is-on .dlv-seg__ico {
+    opacity: 1;
+    border-color: transparent;
+    background: currentColor;
+}
+
+.dlv-seg__opt.is-on .dlv-seg__ico svg {
+    stroke: var(--surface);
+}
+
+.dlv-seg__opt.is-ok.is-on {
+    color: var(--green);
+    background: var(--green-bg);
+    border-color: var(--green);
+}
+
+.dlv-seg__opt.is-fail.is-on {
+    color: var(--red);
+    background: var(--red-bg);
+    border-color: var(--red);
+}
+
+.dlv-seg__opt:focus-visible {
+    box-shadow: 0 0 0 3px var(--ring);
+    outline: none;
+}
+
+/* Campos */
+.dlv__fields {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.dlv__fields .field {
+    gap: 7px;
+}
+
+html[data-theme="light"] .dlv-seg__opt.is-ok.is-on {
+    color: #15803D;
+    border-color: #22A55A;
+}
+
+html[data-theme="light"] .dlv-seg__opt.is-fail.is-on {
+    color: #DC2626;
+    border-color: #EF6B6B;
+}
+
+html[data-theme="light"] .dlv-seg__opt.is-on .dlv-seg__ico svg {
+    stroke: #fff;
+}

@@ -165,28 +165,45 @@ export function EntregasPage() {
                         <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void saveMark()}>Guardar</button>
                     </>}
                 >
-                    <p className="muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>{marking.client} · {marking.address}</p>
-                    <div className="seg-buttons" role="radiogroup" style={{ marginBottom: 12 }}>
-                        {(['Entregado', 'No entregado'] as const).map(s => (
-                            <button key={s} type="button" role="radio" aria-checked={form.status === s} className={form.status === s ? 'is-on' : undefined} onClick={() => setForm(f => ({ ...f, status: s }))}>{s}</button>
-                        ))}
-                    </div>
-                    <div className="form-grid">
-                        {form.status === 'Entregado' ? (
-                            <label className="field field--wide">
-                                <span className="field__label">Recibió (nombre)</span>
-                                <input className="field__control" style={{ padding: '0 10px' }} value={form.receiver} onChange={e => setForm(f => ({ ...f, receiver: e.target.value }))} placeholder="Ej. Juan Pérez (almacenero)" />
+                    <div className="dlv">
+                        <div className="dlv__who">
+                            <span className="dlv__pin" aria-hidden="true">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+                            </span>
+                            <span className="dlv__who-text">
+                                <b>{marking.client}</b>
+                                <span>{marking.address}</span>
+                            </span>
+                        </div>
+                        <div className="dlv-seg" role="radiogroup" aria-label="Resultado de la entrega">
+                            {(['Entregado', 'No entregado'] as const).map(s => (
+                                <button key={s} type="button" role="radio" aria-checked={form.status === s} className={'dlv-seg__opt ' + (s === 'Entregado' ? 'is-ok' : 'is-fail') + (form.status === s ? ' is-on' : '')} onClick={() => setForm(f => ({ ...f, status: s }))}>
+                                    <span className="dlv-seg__ico" aria-hidden="true">
+                                        {s === 'Entregado'
+                                            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                                            : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M12 6v7M12 18h.01" /></svg>}
+                                    </span>
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="dlv__fields">
+                            {form.status === 'Entregado' ? (
+                                <label className="field">
+                                    <span className="field__label">Recibió (nombre)</span>
+                                    <input className="field__control" value={form.receiver} onChange={e => setForm(f => ({ ...f, receiver: e.target.value }))} placeholder="Ej. Juan Pérez (almacenero)" />
+                                </label>
+                            ) : (
+                                <label className="field">
+                                    <span className="field__label">Motivo</span>
+                                    <select className="field__control" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}>{REASONS.map(r => <option key={r}>{r}</option>)}</select>
+                                </label>
+                            )}
+                            <label className="field">
+                                <span className="field__label">Observación (opcional)</span>
+                                <input className="field__control" value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="Ej. Dejado en recepción" />
                             </label>
-                        ) : (
-                            <label className="field field--wide">
-                                <span className="field__label">Motivo</span>
-                                <select className="field__control" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}>{REASONS.map(r => <option key={r}>{r}</option>)}</select>
-                            </label>
-                        )}
-                        <label className="field field--wide">
-                            <span className="field__label">Observación (opcional)</span>
-                            <input className="field__control" style={{ padding: '0 10px' }} value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
-                        </label>
+                        </div>
                     </div>
                 </Modal>
             )}
