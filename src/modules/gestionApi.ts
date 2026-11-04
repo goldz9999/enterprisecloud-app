@@ -162,3 +162,59 @@ export const cashflowApi = {
     /** `null` = usar Caja + Bancos del sistema. */
     setOpening: (openingBalance: number | null) => api('/cashflow/settings', { method: 'PUT', body: { openingBalance } }),
 };
+
+// ───────────────────────── Mapa de entregas ─────────────────────────
+export interface MapStop {
+    code: string;
+    client: string;
+    address: string;
+    lat: number | null;
+    lng: number | null;
+    vehicle: string;
+    driver: string;
+    status: 'Pendiente' | 'Entregado' | 'No entregado';
+    seq: number;
+    zones: string[];
+}
+
+export interface MapWarehouse {
+    name: string;
+    address: string | null;
+    lat: number | null;
+    lng: number | null;
+}
+
+export interface MapData {
+    stops: MapStop[];
+    warehouses: MapWarehouse[];
+}
+
+export interface RouteData {
+    vehicle: string;
+    driver: string;
+    zones: string[];
+    stops: MapStop[];
+}
+
+export const mapApi = {
+    getMap: (day: string) => api<MapData>(`/entregas/mapa?day=${encodeURIComponent(day)}`),
+    getRoute: (plate: string, day: string) => api<RouteData>(`/entregas/ruta/${encodeURIComponent(plate)}?day=${encodeURIComponent(day)}`),
+    geocodeOrder: (code: string) => api<{ found: boolean }>(`/entregas/geocode/${encodeURIComponent(code)}`, { method: 'POST' }),
+};
+
+// ───────────────────────── Configuración SMTP ─────────────────────────
+export interface SmtpSettings {
+    host: string;
+    port: number;
+    username: string;
+    fromAddress: string;
+    useTls: boolean;
+    enabled: boolean;
+}
+
+export const smtpApi = {
+    get: () => api<SmtpSettings>('/smtp-settings'),
+    save: (s: SmtpSettings & { password?: string | null }) =>
+        api<SmtpSettings>('/smtp-settings', { method: 'PUT', body: { ...s, password: s.password ?? null } }),
+    test: () => api<{ ok: boolean; error?: string }>('/smtp-settings/test', { method: 'POST' }),
+};

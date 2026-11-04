@@ -18,6 +18,10 @@ export interface Stop {
     items: string;
     status: 'Pendiente' | Delivery['status'];
     delivery?: Delivery;
+    lat?: number;
+    lng?: number;
+    vehicle?: string;
+    zones?: string[];
 }
 
 export interface Route {
@@ -28,6 +32,11 @@ export interface Route {
 
 /** Fecha de entrega (YYYY-MM-DD) elegida al crear o confirmar la venta. */
 export const deliveryDate = (o: Order) => o.forms[1]?.ent || o.forms[0]?.ent || '';
+
+export const hasCoords = (s: Stop): boolean => s.lat != null && s.lng != null;
+
+export const isOutOfZone = (s: Stop, zones: string[]): boolean =>
+    zones.length > 0 && !zones.some(z => s.address.toLowerCase().includes(z.toLowerCase()));
 
 const isPickup = (o: Order) => (o.forms[2]?.tra || o.forms[0]?.tra || '') === PICKUP;
 
