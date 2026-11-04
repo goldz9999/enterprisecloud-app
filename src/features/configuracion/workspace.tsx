@@ -9,6 +9,7 @@ import type { Settings } from '@/data/types';
 import { api } from '@/shared/lib/api';
 import { useSidebarFollowsTheme, useTheme } from '@/shared/lib/theme';
 import { ModulosOpcionales } from '@/modules/ModulosOpcionales';
+import { SmtpSection } from './SmtpSection';
 
 // Map section titles to anchor ids
 const sectionId = (title: string) => title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -20,6 +21,7 @@ const CFG_GROUPS = [
   { id: 'comprobantes', label: 'Comprobantes e impuestos', titles: ['Comprobantes electrónicos', 'Impuestos y precios'] },
   { id: 'tesoreria', label: 'Tesorería e inventario', titles: ['Tesorería', 'Inventario'] },
   { id: 'seguridad', label: 'Seguridad y apariencia', titles: ['Seguridad', 'Apariencia'] },
+  { id: 'notificaciones', label: 'Notificaciones', titles: [] as string[] }, // special: smtp
   { id: 'modulos', label: 'Módulos opcionales', titles: [] as string[] }, // special: src/modules
 ] as const;
 
@@ -129,6 +131,10 @@ export function ConfiguracionPage() {
                 Todo lo que crees o edites en Mantenimiento y Administración se guarda en el servidor y se ve igual desde cualquier navegador. Cotizaciones, órdenes de venta y compra, inventario, finanzas y documentos aún no están conectados a la base.
               </div>
             </div>
+          ))}
+
+          {activeSection === 'notificaciones' && renderSection('notificaciones', 'Notificaciones por email', 'Configura el servidor SMTP para enviar correos automáticos a tus clientes cuando un pedido sale del almacén, se entrega o no se pudo entregar.', (
+            <SmtpSection canEdit={canEdit} onMessage={toast.flash} />
           ))}
 
           {activeSection === 'modulos' && renderSection('modulos', 'Módulos opcionales', 'Gestión para pymes (solo frontend): enciende solo lo que la empresa usa. Apagado, desaparece del menú y sus datos se conservan.', (
