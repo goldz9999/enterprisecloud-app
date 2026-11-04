@@ -27,6 +27,7 @@ import { notifyRouteRendered } from '@/shared/lib/effects';
 import { startRealtime, stopRealtime, useGestionTick } from '@/shared/lib/realtime';
 import { enabledModules, loadSwitches, useModuleSwitches } from '@/modules/catalog';
 import { MODULE_PAGES } from '@/modules/pages';
+import { RutaRepartidorPage } from '@/modules/entregas/RutaRepartidorPage';
 
 /** Las órdenes de venta tampoco tienen página propia: se ven y aprueban en un modal de la lista (?ver=). */
 function OrdenVentaRedirect() {
@@ -134,6 +135,8 @@ export function App() {
     <>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* Vista del repartidor: acceso directo sin sidebar */}
+        <Route path="/entregas/ruta/:placa" element={<RutaRepartidorPage />} />
         {CUSTOM.map(r => <Route key={r.path} path={r.path} element={<Guard module={r.module}>{r.el}</Guard>} />)}
         {/* Módulos opcionales encendidos en Configuración › Módulos opcionales (apagados, su ruta cae en «*» y vuelve al inicio). */}
         {enabledModules().map(m => {

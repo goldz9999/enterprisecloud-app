@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { can } from '@/data/permissions';
 import { useDB } from '@/data/store';
 import { KpiCard, KpiRow } from '@/shared/components/KpiCard';
@@ -148,6 +149,7 @@ export function EntregasPage() {
                                     <div className="mod-route__sub">{[r.driver || 'Sin conductor', driverPhone(r.driver), vehicleInfo(r.vehicle)].filter(Boolean).join(' · ')}</div>
                                 </div>
                                 <span className="mod-route__count">{r.stops.filter(s => s.status === 'Entregado').length}/{r.stops.length}</span>
+                                <Link to={`/entregas/ruta/${encodeURIComponent(r.vehicle)}?day=${day}`} target="_blank" className="btn btn--sm mod-noprint" style={{ fontSize: 12 }} title="Abrir vista del repartidor">📱</Link>
                             </div>
                             {r.stops.map(stopRow)}
                         </section>
