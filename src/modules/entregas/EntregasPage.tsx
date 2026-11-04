@@ -6,9 +6,10 @@ import { Modal } from '@/shared/components/Modal';
 import { StatusChip } from '@/shared/components/StatusChip';
 import { Toast, useToast } from '@/shared/components/Toast';
 import { addDays, fmtDayTime, isoDate, parseDate } from '@/shared/lib/dates';
-import { deliveriesApi, gestionError, useDeliveries } from '../gestionApi';
+import { deliveriesApi, gestionError, mapApi, useDeliveries } from '../gestionApi';
 import { ModulePage, shortDay } from '../ui';
 import { deliveryDate, dispatchedOn, routeSheet, type Delivery, type Stop } from './entregasLogic';
+import { EntregasMap } from './EntregasMap';
 
 const REASONS = ['Cliente ausente', 'Dirección errada', 'Cliente rechazó la mercadería', 'Falta de tiempo en la ruta', 'Otro'];
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -26,6 +27,7 @@ export function EntregasPage() {
     const [marking, setMarking] = useState<Stop | null>(null);
     const [form, setForm] = useState({ status: 'Entregado' as Delivery['status'], receiver: '', reason: REASONS[0], note: '' });
     const canEdit = can(d, 'Órdenes de venta', 'Editar');
+    const [showMap, setShowMap] = useState(false);
 
     const sheet = routeSheet(d.orders, day, saved.data);
     const date = parseDate(day) ?? new Date();
@@ -109,6 +111,7 @@ export function EntregasPage() {
                 <button type="button" className="btn btn--sm" onClick={() => shift(1)} aria-label="Día siguiente">›</button>
                 <button type="button" className="btn btn--sm" onClick={() => setDay(isoDate(new Date()))}>Hoy</button>
                 <button type="button" className="btn btn--sm" onClick={() => window.print()} disabled={!sheet.total}>Imprimir</button>
+                <button type="button" className={'btn btn--sm' + (showMap ? ' btn--primary' : '')} onClick={() => setShowMap(v => !v)}>🗺 Mapa</button>
             </>}
         >
             <KpiRow>
@@ -123,6 +126,13 @@ export function EntregasPage() {
                     <span className="muted" style={{ fontSize: 12.5 }}>Próximos días con entregas:</span>
                     {upcoming.map(u => <button key={u} type="button" className={'filter-chip' + (u === day ? ' is-on' : '')} onClick={() => setDay(u)}>{shortDay(u)}</button>)}
                 </div>
+            )}
+
+            {showMap && (
+                <EntregasMap
+                    day={day}
+                    onGeocodeRequest={canEdit ? async (code) => { await mapApi.geocodeOrder(code); } : undefined}
+                />
             )}
 
             {sheet.total === 0 ? (
