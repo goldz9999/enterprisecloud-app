@@ -18,25 +18,19 @@ export interface Stop {
     items: string;
     status: 'Pendiente' | Delivery['status'];
     delivery?: Delivery;
-    lat?: number;
-    lng?: number;
-    vehicle?: string;
-    zones?: string[];
+    /** Almacén desde el que sale la mercadería. */
+    warehouse: string;
 }
 
 export interface Route {
     vehicle: string;
     driver: string;
+    warehouse: string;
     stops: Stop[];
 }
 
 /** Fecha de entrega (YYYY-MM-DD) elegida al crear o confirmar la venta. */
 export const deliveryDate = (o: Order) => o.forms[1]?.ent || o.forms[0]?.ent || '';
-
-export const hasCoords = (s: Stop): boolean => s.lat != null && s.lng != null;
-
-export const isOutOfZone = (s: Stop, zones: string[]): boolean =>
-    zones.length > 0 && !zones.some(z => s.address.toLowerCase().includes(z.toLowerCase()));
 
 const isPickup = (o: Order) => (o.forms[2]?.tra || o.forms[0]?.tra || '') === PICKUP;
 
@@ -48,6 +42,7 @@ const stopOf = (o: Order, saved: Record<string, Delivery>): Stop => ({
     items: o.lines.map(l => `${l.qty.toLocaleString('en-US')} ${l.unit} ${l.name}`).join(' · '),
     status: saved[o.code]?.status ?? 'Pendiente',
     delivery: saved[o.code],
+    warehouse: o.forms[2]?.alm || o.forms[1]?.alm || o.forms[0]?.alm || '',
 });
 
 /** Ventas ya despachadas (guía emitida, no anuladas) con entrega en `day`, por código. Sirve para pedir sus confirmaciones al servidor. */
@@ -67,8 +62,9 @@ export function routeSheet(orders: Order[], day: string, saved: Record<string, D
     for (const o of ready) {
         if (isPickup(o)) continue;
         const vehicle = o.forms[2]?.pla || o.forms[0]?.pla || 'Sin vehículo';
-        const r = map.get(vehicle) ?? { vehicle, driver: o.forms[2]?.con || o.forms[0]?.con || '', stops: [] };
-        r.stops.push(stopOf(o, saved));
+        const stop = stopOf(o, saved);
+        const r = map.get(vehicle) ?? { vehicle, driver: o.forms[2]?.con || o.forms[0]?.con || '', warehouse: stop.warehouse, stops: [] };
+        r.stops.push(stop);
         map.set(vehicle, r);
     }
     const routes = [...map.values()].sort((a, b) => a.vehicle.localeCompare(b.vehicle));
