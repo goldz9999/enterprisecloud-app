@@ -143,6 +143,28 @@ export const useDeliveries = (codes: string[]) =>
         r => Object.fromEntries(r.items.map(i => [String(i.orderCode), toDelivery(i)])),
     );
 
+export interface RouteDeparture {
+    vehicle: string;
+    startedAt: string;
+    startedBy: string;
+}
+
+const NO_DEPARTURES: Record<string, RouteDeparture> = {};
+
+/** Vehículos que ya salieron a ruta con las entregas de `day`, por placa. */
+export const useRouteDepartures = (day: string) =>
+    useRemote<{ items: Raw[] }, Record<string, RouteDeparture>>(
+        `/route-departures?day=${encodeURIComponent(day)}`,
+        NO_DEPARTURES,
+        r => Object.fromEntries(r.items.map(i => [String(i.vehicle), { vehicle: String(i.vehicle), startedAt: String(i.startedAt), startedBy: String(i.startedBy) }])),
+    );
+
+export const routesApi = {
+    /** Marca la salida a ruta y avisa «en camino» a los clientes de esas órdenes que aún no se entregaron. */
+    start: (body: { vehicle: string; day: string; driver?: string; codes: string[] }) =>
+        api<RouteDeparture & { emails: number; smtpEnabled: boolean }>('/route-departures', { method: 'POST', body }),
+};
+
 export const deliveriesApi = {
     save: (code: string, d: Pick<Delivery, 'status' | 'receiver' | 'reason' | 'note'>) =>
         api(`/deliveries/${encodeURIComponent(code)}`, {

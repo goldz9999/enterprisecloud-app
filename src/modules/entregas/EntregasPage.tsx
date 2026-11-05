@@ -6,11 +6,12 @@ import { KpiCard, KpiRow } from '@/shared/components/KpiCard';
 import { StatusChip } from '@/shared/components/StatusChip';
 import { Toast, useToast } from '@/shared/components/Toast';
 import { addDays, fmtDayTime, isoDate, parseDate } from '@/shared/lib/dates';
-import { useDeliveries } from '../gestionApi';
+import { useDeliveries, useRouteDepartures } from '../gestionApi';
 import { ModulePage, shortDay } from '../ui';
-import { deliveryDate, dispatchedOn, routeSheet, type Stop } from './entregasLogic';
+import { deliveryDate, dispatchedOn, routeSheet, type Route, type Stop } from './entregasLogic';
 import { MarkDeliveryModal } from './MarkDeliveryModal';
 import { RouteMap } from './RouteMap';
+import { departureTime, StartRouteModal } from './StartRouteModal';
 import { useMapRoutes } from './useMapRoutes';
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -33,6 +34,8 @@ export function EntregasPage() {
     // Las confirmaciones viven en el servidor: se piden solo las de las ventas despachadas del día que se muestra.
     const saved = useDeliveries(dispatchedOn(d.orders, day).map(o => o.code));
     const [marking, setMarking] = useState<Stop | null>(null);
+    const departures = useRouteDepartures(day);
+    const [starting, setStarting] = useState<Route | null>(null);
     const [view, setViewState] = useState(readView);
     const [focus, setFocus] = useState<string | null>(null);
     const [sel, setSel] = useState<string | null>(null);
@@ -57,6 +60,14 @@ export function EntregasPage() {
     const colorOf = (plate: string) => mapRoutes.find(r => r.vehicle === plate)?.color ?? 'var(--muted)';
     const notFound = new Set(missing.map(s => s.code));
     const driverUrl = (plate: string) => `/entregas/ruta/${encodeURIComponent(plate)}?day=${day}`;
+
+    // Salida a ruta: una vez por vehículo y día; dispara el correo «en camino».
+    const departure = (r: Route) => {
+        const dep = departures.data[r.vehicle];
+        if (dep) return <span className="rp-depart" title={`Registró ${dep.startedBy}`}>En ruta · {departureTime(dep.startedAt)}</span>;
+        if (!canEdit || !r.stops.some(s => s.status === 'Pendiente')) return null;
+        return <button type="button" className="rp-depart-btn mod-noprint" onClick={e => { e.stopPropagation(); setStarting(r); }}>Salir a ruta</button>;
+    };
 
     const pick = (code: string, vehicle: string) => {
         setFocus(vehicle);
@@ -188,6 +199,7 @@ export function EntregasPage() {
                                                 </div>
                                                 <Link to={driverUrl(r.vehicle)} target="_blank" rel="noopener noreferrer" className="rp-phone" title="Abrir vista del repartidor" onClick={e => e.stopPropagation()}>{PHONE}</Link>
                                             </div>
+                                            {departure(r) && <div className="rp-route__go">{departure(r)}</div>}
                                             {r.stops.map((s, i) => sideStop(s, i, r.vehicle, color))}
                                         </div>
                                     );
@@ -216,6 +228,7 @@ export function EntregasPage() {
                                         <div className="mod-route__sub">{[r.driver || 'Sin conductor', driverPhone(r.driver), vehicleInfo(r.vehicle)].filter(Boolean).join(' · ')}</div>
                                     </div>
                                     <span className="mod-route__count">{r.stops.filter(s => s.status === 'Entregado').length}/{r.stops.length}</span>
+                                    {departure(r)}
                                     <Link to={driverUrl(r.vehicle)} target="_blank" rel="noopener noreferrer" className="rp-phone mod-noprint" title="Abrir vista del repartidor">{PHONE}</Link>
                                 </div>
                                 {r.stops.map(stopRow)}
@@ -240,6 +253,17 @@ export function EntregasPage() {
                     stop={marking}
                     onClose={() => setMarking(null)}
                     onSaved={async msg => { await saved.reload(); toast.flash(msg); }}
+                    onError={toast.flash}
+                />
+            )}
+            {starting && (
+                <StartRouteModal
+                    vehicle={starting.vehicle}
+                    driver={starting.driver}
+                    day={day}
+                    stops={starting.stops}
+                    onClose={() => setStarting(null)}
+                    onStarted={async msg => { await departures.reload(); toast.flash(msg); }}
                     onError={toast.flash}
                 />
             )}

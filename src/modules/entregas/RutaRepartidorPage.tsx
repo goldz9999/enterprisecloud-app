@@ -4,12 +4,13 @@ import { can } from '@/data/permissions';
 import { useDB } from '@/data/store';
 import { Toast, useToast } from '@/shared/components/Toast';
 import { isoDate, parseDate } from '@/shared/lib/dates';
-import { useDeliveries } from '../gestionApi';
+import { useDeliveries, useRouteDepartures } from '../gestionApi';
 import { shortDay } from '../ui';
 import { dispatchedOn, routeSheet, type Stop } from './entregasLogic';
 import { distanceKm, navigateUrl, type LatLng } from './geo';
 import { MarkDeliveryModal } from './MarkDeliveryModal';
 import { RouteMap } from './RouteMap';
+import { departureTime, StartRouteModal } from './StartRouteModal';
 import { useMapRoutes } from './useMapRoutes';
 
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
@@ -60,6 +61,9 @@ export function RutaRepartidorPage() {
     const gps = useGps(attempt);
     const [fitKey, setFitKey] = useState(0);
     const [marking, setMarking] = useState<Stop | null>(null);
+    const departures = useRouteDepartures(day);
+    const departed = departures.data[placa];
+    const [starting, setStarting] = useState(false);
 
     const llOf = (code: string) => mine?.stops.find(s => s.code === code)?.ll ?? null;
     const next = stops.find(s => s.status === 'Pendiente');
@@ -90,7 +94,7 @@ export function RutaRepartidorPage() {
                     <Link to="/entregas" className="drv__back" aria-label="Volver a la hoja de ruta">‹</Link>
                     <div style={{ minWidth: 0 }}>
                         <div className="drv__plate">{placa}</div>
-                        <div className="drv__sub">{route?.driver || 'Sin conductor'} · {DIAS[date.getDay()]} {shortDay(day)}</div>
+                        <div className="drv__sub">{route?.driver || 'Sin conductor'} · {DIAS[date.getDay()]} {shortDay(day)}{departed ? ` · en ruta desde ${departureTime(departed.startedAt)}` : ''}</div>
                     </div>
                     <div className="drv__count"><b>{ok}/{stops.length}</b><span>entregas</span></div>
                 </div>
@@ -123,6 +127,12 @@ export function RutaRepartidorPage() {
                     <div className="drv-done"><b>Sin entregas</b><span>{placa} no tiene ventas despachadas para el {shortDay(day)}.</span></div>
                 ) : next ? (
                     <>
+                        {!departed && departures.ready && canEdit && (
+                            <>
+                                <button type="button" className="drv-depart" onClick={() => setStarting(true)}>Salir a ruta</button>
+                                <p className="drv-depart-note">Avisa «en camino» a tus clientes por correo</p>
+                            </>
+                        )}
                         <div className="drv-label">Próxima parada · {stopNumber(next)} de {stops.length}</div>
                         <div className="drv-next">
                             <span className="drv-next__n" style={numStyle}>{stopNumber(next)}</span>
@@ -179,6 +189,17 @@ export function RutaRepartidorPage() {
                     stop={marking}
                     onClose={() => setMarking(null)}
                     onSaved={async msg => { await deliveries.reload(); toast.flash(msg); }}
+                    onError={toast.flash}
+                />
+            )}
+            {starting && route && (
+                <StartRouteModal
+                    vehicle={placa}
+                    driver={route.driver}
+                    day={day}
+                    stops={stops}
+                    onClose={() => setStarting(false)}
+                    onStarted={async msg => { await departures.reload(); toast.flash(msg); }}
                     onError={toast.flash}
                 />
             )}
