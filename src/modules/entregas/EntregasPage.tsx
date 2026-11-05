@@ -149,7 +149,7 @@ export function EntregasPage() {
                                     <div className="mod-route__sub">{[r.driver || 'Sin conductor', driverPhone(r.driver), vehicleInfo(r.vehicle)].filter(Boolean).join(' · ')}</div>
                                 </div>
                                 <span className="mod-route__count">{r.stops.filter(s => s.status === 'Entregado').length}/{r.stops.length}</span>
-                                <Link to={`/entregas/ruta/${encodeURIComponent(r.vehicle)}?day=${day}`} className="btn btn--sm mod-noprint" style={{ fontSize: 12 }} title="Vista del repartidor">📱</Link>
+                                <Link to={`/entregas/ruta/${encodeURIComponent(r.vehicle)}?day=${day}`} target="_blank" rel="noopener noreferrer" className="btn btn--sm mod-noprint" style={{ fontSize: 12 }} title="Vista del repartidor">📱</Link>
                             </div>
                             {r.stops.map(stopRow)}
                         </section>
