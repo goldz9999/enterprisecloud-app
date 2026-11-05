@@ -145,7 +145,7 @@ export function EntregasMap({ day, onGeocodeRequest }: EntregasMapProps) {
     };
 
     return (
-        <div className="entregas-map-wrap">
+        <div className="entregas-map-wrap" style={{ isolation: 'isolate' }}>
             {loading && <div className="entregas-map-banner">Cargando mapa…</div>}
             {error && <div className="entregas-map-banner entregas-map-banner--err">{error}</div>}
             <div ref={containerRef} className="entregas-map" style={{ height: 440, background: '#e8e8e8' }} />
