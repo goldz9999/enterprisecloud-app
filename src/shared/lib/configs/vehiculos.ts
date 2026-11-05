@@ -12,7 +12,7 @@ export const vehiculos: RecordsConfig = {
     newTitle: 'Nuevo vehículo', newKicker: 'Mantenimiento · Vehículos', msgNew: 'Vehículo registrado', msgDel: 'Vehículo eliminado',
     statuses: { 'Activo': 'green', 'Inactivo': 'muted' },
     collection: 'vehiculos',
-    keys: ['placa', 'tipo', 'marca', 'modelo', 'capacidad', 'empresa', 'conductor_cod', 'conductor', 'estado'],
+    keys: ['placa', 'tipo', 'marca', 'modelo', 'capacidad', 'empresa', 'conductor_cod', 'conductor', 'zonas', 'estado'],
     columns: [
         { k: 'placa', label: 'Placa', w: '90px', mono: true, bold: true },
         { k: 'tipo', label: 'Tipo', w: '110px', muted: true },
@@ -36,7 +36,8 @@ export const vehiculos: RecordsConfig = {
             k: 'conductor', label: 'Conductor asignado', type: 'select',
             options: d => ['—', ...d.records.conductores.filter((c: any) => c.estado === 'Activo').map((c: any) => `${c.nombre} · ${c.dni}`)]
         },
+        { k: 'zonas', label: 'Zonas de reparto', placeholder: 'Ej. Miraflores, San Isidro, Surco', wide: true },
         { k: 'estado', label: 'Estado', type: 'select', options: ['Activo', 'Inactivo'] },
     ],
-    note: 'El conductor asignado es el habitual para este vehículo. Al seleccionar la placa en un despacho, se precarga automáticamente. Para agregar una empresa transportista, regístrala en Mantenimiento › Proveedores con rubro "Transporte"; aparecerá en "Empresa / Propietario".',
+    note: 'El conductor asignado es el habitual para este vehículo. Al seleccionar la placa en un despacho, se precarga automáticamente. Las zonas de reparto se usan en el mapa de entregas para alertar cuando una parada está fuera de la zona asignada al vehículo. Para agregar una empresa transportista, regístrala en Mantenimiento › Proveedores con rubro "Transporte"; aparecerá en "Empresa / Propietario".',
 };

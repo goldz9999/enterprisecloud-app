@@ -143,6 +143,28 @@ export const useDeliveries = (codes: string[]) =>
         r => Object.fromEntries(r.items.map(i => [String(i.orderCode), toDelivery(i)])),
     );
 
+export interface RouteDeparture {
+    vehicle: string;
+    startedAt: string;
+    startedBy: string;
+}
+
+const NO_DEPARTURES: Record<string, RouteDeparture> = {};
+
+/** Vehículos que ya salieron a ruta con las entregas de `day`, por placa. */
+export const useRouteDepartures = (day: string) =>
+    useRemote<{ items: Raw[] }, Record<string, RouteDeparture>>(
+        `/route-departures?day=${encodeURIComponent(day)}`,
+        NO_DEPARTURES,
+        r => Object.fromEntries(r.items.map(i => [String(i.vehicle), { vehicle: String(i.vehicle), startedAt: String(i.startedAt), startedBy: String(i.startedBy) }])),
+    );
+
+export const routesApi = {
+    /** Marca la salida a ruta y avisa «en camino» a los clientes de esas órdenes que aún no se entregaron. */
+    start: (body: { vehicle: string; day: string; driver?: string; codes: string[] }) =>
+        api<RouteDeparture & { emails: number; smtpEnabled: boolean }>('/route-departures', { method: 'POST', body }),
+};
+
 export const deliveriesApi = {
     save: (code: string, d: Pick<Delivery, 'status' | 'receiver' | 'reason' | 'note'>) =>
         api(`/deliveries/${encodeURIComponent(code)}`, {
@@ -161,4 +183,60 @@ export const useCashflow = () =>
 export const cashflowApi = {
     /** `null` = usar Caja + Bancos del sistema. */
     setOpening: (openingBalance: number | null) => api('/cashflow/settings', { method: 'PUT', body: { openingBalance } }),
+};
+
+// ───────────────────────── Mapa de entregas ─────────────────────────
+export interface MapStop {
+    code: string;
+    client: string;
+    address: string;
+    lat: number | null;
+    lng: number | null;
+    vehicle: string;
+    driver: string;
+    status: 'Pendiente' | 'Entregado' | 'No entregado';
+    seq: number;
+    zones: string[];
+}
+
+export interface MapWarehouse {
+    name: string;
+    address: string | null;
+    lat: number | null;
+    lng: number | null;
+}
+
+export interface MapData {
+    stops: MapStop[];
+    warehouses: MapWarehouse[];
+}
+
+export interface RouteData {
+    vehicle: string;
+    driver: string;
+    zones: string[];
+    stops: MapStop[];
+}
+
+export const mapApi = {
+    getMap: (day: string) => api<MapData>(`/entregas/mapa?day=${encodeURIComponent(day)}`),
+    getRoute: (plate: string, day: string) => api<RouteData>(`/entregas/ruta/${encodeURIComponent(plate)}?day=${encodeURIComponent(day)}`),
+    geocodeOrder: (code: string) => api<{ found: boolean }>(`/entregas/geocode/${encodeURIComponent(code)}`, { method: 'POST' }),
+};
+
+// ───────────────────────── Configuración SMTP ─────────────────────────
+export interface SmtpSettings {
+    host: string;
+    port: number;
+    username: string;
+    fromAddress: string;
+    useTls: boolean;
+    enabled: boolean;
+}
+
+export const smtpApi = {
+    get: () => api<SmtpSettings>('/smtp-settings'),
+    save: (s: SmtpSettings & { password?: string | null }) =>
+        api<SmtpSettings>('/smtp-settings', { method: 'PUT', body: { ...s, password: s.password ?? null } }),
+    test: () => api<{ ok: boolean; error?: string }>('/smtp-settings/test', { method: 'POST' }),
 };

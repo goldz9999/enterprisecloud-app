@@ -18,11 +18,14 @@ export interface Stop {
     items: string;
     status: 'Pendiente' | Delivery['status'];
     delivery?: Delivery;
+    /** Almacén desde el que sale la mercadería. */
+    warehouse: string;
 }
 
 export interface Route {
     vehicle: string;
     driver: string;
+    warehouse: string;
     stops: Stop[];
 }
 
@@ -39,6 +42,7 @@ const stopOf = (o: Order, saved: Record<string, Delivery>): Stop => ({
     items: o.lines.map(l => `${l.qty.toLocaleString('en-US')} ${l.unit} ${l.name}`).join(' · '),
     status: saved[o.code]?.status ?? 'Pendiente',
     delivery: saved[o.code],
+    warehouse: o.forms[2]?.alm || o.forms[1]?.alm || o.forms[0]?.alm || '',
 });
 
 /** Ventas ya despachadas (guía emitida, no anuladas) con entrega en `day`, por código. Sirve para pedir sus confirmaciones al servidor. */
@@ -58,8 +62,9 @@ export function routeSheet(orders: Order[], day: string, saved: Record<string, D
     for (const o of ready) {
         if (isPickup(o)) continue;
         const vehicle = o.forms[2]?.pla || o.forms[0]?.pla || 'Sin vehículo';
-        const r = map.get(vehicle) ?? { vehicle, driver: o.forms[2]?.con || o.forms[0]?.con || '', stops: [] };
-        r.stops.push(stopOf(o, saved));
+        const stop = stopOf(o, saved);
+        const r = map.get(vehicle) ?? { vehicle, driver: o.forms[2]?.con || o.forms[0]?.con || '', warehouse: stop.warehouse, stops: [] };
+        r.stops.push(stop);
         map.set(vehicle, r);
     }
     const routes = [...map.values()].sort((a, b) => a.vehicle.localeCompare(b.vehicle));
