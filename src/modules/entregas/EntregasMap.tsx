@@ -1,3 +1,4 @@
+import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef, useState } from 'react';
 import type { Map as LMap, Marker, TileLayer } from 'leaflet';
 import { gestionError, mapApi, type MapData, type MapStop } from '../gestionApi';
