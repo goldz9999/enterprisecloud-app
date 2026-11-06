@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react';
-import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { can } from '@/data/permissions';
+import { useSession } from '@/data/session';
 import { useDB } from '@/data/store';
 import { KpiCard, KpiRow } from '@/shared/components/KpiCard';
 import { StatusChip } from '@/shared/components/StatusChip';
@@ -11,15 +12,18 @@ import { ModulePage, shortDay } from '../ui';
 import { deliveryDate, dispatchedOn, routeSheet, type Route, type Stop } from './entregasLogic';
 import { MarkDeliveryModal } from './MarkDeliveryModal';
 import { RouteMap } from './RouteMap';
+import { NavBanner, RouteNavPanel } from './RouteNavPanel';
 import { departureTime, StartRouteModal } from './StartRouteModal';
 import { useMapRoutes } from './useMapRoutes';
+import { useNavigation } from './useNavigation';
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const VIEW_KEY = 'entregas:vista';
 
 const TRUCK = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 6h13v10H1zM14 9h4l3 3v4h-7M5.5 19a1.5 1.5 0 1 0 0-3a1.5 1.5 0 1 0 0 3M17.5 19a1.5 1.5 0 1 0 0-3a1.5 1.5 0 1 0 0 3" /></svg>;
 const STORE = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1.5-5h15L21 9M3 9h18v11H3zM9 20v-6h6v6" /></svg>;
-const PHONE = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M11 18h2" /></svg>;
+/** Nombre comparable: sin tildes, sin mayúsculas ni espacios de más. */
+const norm = (v: unknown) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 
 const tone = (s: Stop['status']) => (s === 'Entregado' ? 'green' : s === 'No entregado' ? 'red' : 'amber');
 
@@ -30,18 +34,29 @@ function readView(): 'mapa' | 'lista' {
 export function EntregasPage() {
     const d = useDB();
     const toast = useToast();
-    const [day, setDay] = useState(() => isoDate(new Date()));
+    const [params] = useSearchParams();
+    const [day, setDay] = useState(() => params.get('day') || isoDate(new Date()));
     // Las confirmaciones viven en el servidor: se piden solo las de las ventas despachadas del día que se muestra.
     const saved = useDeliveries(dispatchedOn(d.orders, day).map(o => o.code));
     const [marking, setMarking] = useState<Stop | null>(null);
     const departures = useRouteDepartures(day);
     const [starting, setStarting] = useState<Route | null>(null);
     const [view, setViewState] = useState(readView);
-    const [focus, setFocus] = useState<string | null>(null);
+    const [picked, setFocus] = useState<string | null>(() => params.get('placa'));
     const [sel, setSel] = useState<string | null>(null);
     const canEdit = can(d, 'Órdenes de venta', 'Editar');
 
-    const sheet = routeSheet(d.orders, day, saved.data);
+    // Un repartidor (su nombre de usuario coincide con un conductor) ve solo los vehículos que tiene asignados.
+    const session = useSession();
+    const me = norm(session?.user.fullName);
+    const isDriver = !!me && d.records.conductores.some(c => norm(c.nombre) === me);
+    const all = routeSheet(d.orders, day, saved.data);
+    const sheet = isDriver ? (() => {
+        const routes = all.routes.filter(r => norm(r.driver) === me);
+        const stops = routes.flatMap(r => r.stops);
+        return { routes, pickups: [], total: stops.length, delivered: stops.filter(x => x.status === 'Entregado').length, failed: stops.filter(x => x.status === 'No entregado').length };
+    })() : all;
+    const focus = isDriver && sheet.routes.length === 1 ? sheet.routes[0].vehicle : sheet.routes.some(r => r.vehicle === picked) ? picked : null;
     const { mapRoutes, pending, missing, inVisitOrder } = useMapRoutes(sheet.routes, d.records.almacenes);
     const date = parseDate(day) ?? new Date();
     const goTo = (iso: string) => { setDay(iso); setFocus(null); setSel(null); };
@@ -59,7 +74,17 @@ export function EntregasPage() {
     };
     const colorOf = (plate: string) => mapRoutes.find(r => r.vehicle === plate)?.color ?? 'var(--muted)';
     const notFound = new Set(missing.map(s => s.code));
-    const driverUrl = (plate: string) => `/entregas/ruta/${encodeURIComponent(plate)}?day=${day}`;
+
+    // Vehículo elegido: su navegación (próxima parada, llegada estimada, simulación) va en el panel derecho.
+    const focused = sheet.routes.find(r => r.vehicle === focus) ?? null;
+    const focusedStops = focused ? inVisitOrder(focused) : [];
+    const nav = useNavigation({
+        route: focused,
+        stops: focusedStops,
+        mapRoute: mapRoutes.find(r => r.vehicle === focus),
+        useDeviceGps: isDriver,
+        notify: toast.flash,
+    });
 
     // Salida a ruta: una vez por vehículo y día; dispara el correo «en camino».
     const departure = (r: Route) => {
@@ -153,11 +178,14 @@ export function EntregasPage() {
                                 <RouteMap
                                     routes={mapRoutes}
                                     focus={focus}
-                                    highlight={sel}
+                                    highlight={sel ?? nav.next?.code ?? null}
+                                    me={nav.me}
+                                    leg={nav.leg}
                                     onStopClick={pick}
                                     onRouteClick={v => { setFocus(v); setSel(null); }}
                                 >
-                                    {mapRoutes.length > 0 && (
+                                    {focused && <NavBanner nav={nav} />}
+                                    {mapRoutes.length > 1 && (
                                         <div className="rm-float rp__chips">
                                             <button type="button" className={'rm-chip' + (!focus ? ' is-on' : '')} style={{ fontFamily: 'inherit' }} onClick={() => { setFocus(null); setSel(null); }}>Todos</button>
                                             {mapRoutes.map(r => (
@@ -181,6 +209,22 @@ export function EntregasPage() {
                                 </RouteMap>
                             </div>
                             <aside className="rp__side">
+                                {focused ? (
+                                    <RouteNavPanel
+                                        route={focused}
+                                        stops={focusedStops}
+                                        color={colorOf(focused.vehicle)}
+                                        nav={nav}
+                                        departure={departures.data[focused.vehicle]}
+                                        departuresReady={departures.ready}
+                                        canEdit={canEdit}
+                                        clients={d.records.clientes}
+                                        vehicleInfo={vehicleInfo(focused.vehicle)}
+                                        onBack={sheet.routes.length > 1 ? () => { setFocus(null); setSel(null); } : undefined}
+                                        onStart={() => setStarting(focused)}
+                                        onMark={setMarking}
+                                    />
+                                ) : <>
                                 <div className="rp__side-head">Rutas del día</div>
                                 {sheet.routes.map(r => {
                                     const color = colorOf(r.vehicle);
@@ -197,7 +241,6 @@ export function EntregasPage() {
                                                     {done}/{r.stops.length}
                                                     <div className="rp-prog__bar"><i style={{ width: `${(done / r.stops.length) * 100}%`, background: color }} /></div>
                                                 </div>
-                                                <Link to={driverUrl(r.vehicle)} target="_blank" rel="noopener noreferrer" className="rp-phone" title="Abrir vista del repartidor" onClick={e => e.stopPropagation()}>{PHONE}</Link>
                                             </div>
                                             {departure(r) && <div className="rp-route__go">{departure(r)}</div>}
                                             {inVisitOrder(r).map((s, i) => sideStop(s, i, r.vehicle, color))}
@@ -214,6 +257,7 @@ export function EntregasPage() {
                                         {sheet.pickups.map((s, i) => sideStop(s, i, null, 'var(--muted)'))}
                                     </div>
                                 )}
+                                </>}
                             </aside>
                         </section>
                     )}
@@ -229,7 +273,6 @@ export function EntregasPage() {
                                     </div>
                                     <span className="mod-route__count">{r.stops.filter(s => s.status === 'Entregado').length}/{r.stops.length}</span>
                                     {departure(r)}
-                                    <Link to={driverUrl(r.vehicle)} target="_blank" rel="noopener noreferrer" className="rp-phone mod-noprint" title="Abrir vista del repartidor">{PHONE}</Link>
                                 </div>
                                 {inVisitOrder(r).map(stopRow)}
                             </section>

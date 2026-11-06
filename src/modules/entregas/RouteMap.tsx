@@ -133,7 +133,7 @@ export function RouteMap({ routes, focus = null, highlight = null, me = null, le
         const key = `${fitKey}|${focus ?? '*'}|${bounds.length}`;
         if (bounds.length && key !== fittedRef.current) {
             fittedRef.current = key;
-            map.fitBounds(L.latLngBounds(bounds), { padding: [56, 56], maxZoom: 15 });
+            map.fitBounds(L.latLngBounds(bounds), { paddingTopLeft: [56, 64], paddingBottomRight: [56, 112], maxZoom: 15 });
         }
     }, [routes, focus, highlight, fitKey, !!leg]);
 
