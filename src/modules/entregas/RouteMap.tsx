@@ -31,6 +31,8 @@ interface Props {
     me?: { ll: LatLng; approx: boolean; sim?: boolean } | null;
     /** Tramo actual (de la posición a la próxima parada): se dibuja encima y el resto de la ruta se atenúa. */
     leg?: LatLng[] | null;
+    /** Con tramo actual: la ruta del vehículo enfocado se dibuja desde esta parada (lo anterior ya se recorrió). */
+    routeFrom?: string | null;
     /** Cambiarlo vuelve a encuadrar el mapa. */
     fitKey?: string | number;
     onStopClick?: (code: string, vehicle: string) => void;
@@ -53,7 +55,7 @@ const meIcon = L.divIcon({ className: '', iconSize: [0, 0], html: '<div class="r
 const TRUCK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v10H1zM14 9h4l3 3v4h-7"/><circle cx="5.5" cy="17.5" r="1.5"/><circle cx="17.5" cy="17.5" r="1.5"/></svg>';
 const truckIcon = L.divIcon({ className: '', iconSize: [0, 0], html: `<div class="rm-truck">${TRUCK}</div>` });
 
-export function RouteMap({ routes, focus = null, highlight = null, me = null, leg = null, fitKey = 0, onStopClick, onRouteClick, children }: Props) {
+export function RouteMap({ routes, focus = null, highlight = null, me = null, leg = null, routeFrom = null, fitKey = 0, onStopClick, onRouteClick, children }: Props) {
     const elRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<L.Map | null>(null);
     const layerRef = useRef<L.LayerGroup | null>(null);
@@ -107,13 +109,16 @@ export function RouteMap({ routes, focus = null, highlight = null, me = null, le
                 path.push(p.ll);
                 bounds.push(p.ll);
             }
-            if (path.length >= 2) {
+            // Con tramo actual, la ruta del vehículo enfocado sigue desde la próxima parada: lo anterior ya se recorrió.
+            const from = leg && r.vehicle === focus && routeFrom ? r.stops.findIndex(p => p.code === routeFrom) : -1;
+            const rest = from >= 0 ? r.stops.slice(from).flatMap(p => (p.ll ? [p.ll] : [])) : path;
+            if (rest.length >= 2) {
                 const dim = !!leg && r.vehicle === focus;
-                const casing = L.polyline(path, { color: '#fff', weight: 8, opacity: dim ? 0.5 : 0.9, interactive: false }).addTo(layer);
-                const line = L.polyline(path, { color: r.color, weight: 4.5, opacity: dim ? 0.35 : 0.95, dashArray: '2 9', lineCap: 'round' })
+                const casing = L.polyline(rest, { color: '#fff', weight: 8, opacity: dim ? 0.5 : 0.9, interactive: false }).addTo(layer);
+                const line = L.polyline(rest, { color: r.color, weight: 4.5, opacity: dim ? 0.35 : 0.95, dashArray: '2 9', lineCap: 'round' })
                     .on('click', () => cbRef.current.onRouteClick?.(r.vehicle))
                     .addTo(layer);
-                void roadPath(path).then(road => {
+                void roadPath(rest).then(road => {
                     if (!road || drawRef.current !== draw) return;
                     casing.setLatLngs(road);
                     line.setLatLngs(road);
@@ -135,7 +140,7 @@ export function RouteMap({ routes, focus = null, highlight = null, me = null, le
             fittedRef.current = key;
             map.fitBounds(L.latLngBounds(bounds), { paddingTopLeft: [56, 64], paddingBottomRight: [56, 112], maxZoom: 15 });
         }
-    }, [routes, focus, highlight, fitKey, !!leg]);
+    }, [routes, focus, highlight, fitKey, !!leg, routeFrom]);
 
     useEffect(() => {
         const layer = legLayerRef.current;

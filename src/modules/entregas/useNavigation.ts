@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { deliveriesApi, gestionError } from '../gestionApi';
 import type { Route, Stop } from './entregasLogic';
-import { distanceKm, pathMeters, pointAlong, roadRoute, type LatLng, type RoadRoute } from './geo';
+import { distanceKm, pathAfter, pathMeters, pointAlong, roadRoute, type LatLng, type RoadRoute } from './geo';
 import type { MapRoute } from './RouteMap';
 
 /** La simulación dura como máximo 5 minutos aunque el viaje real sea más largo. */
@@ -152,7 +152,8 @@ export function useNavigation({ route, stops, mapRoute, useDeviceGps, notify }: 
     return {
         gps, retryGps: () => setAttempt(a => a + 1), approxLl, approxFrom,
         next, nextLl, done, later, llOf,
-        me, leg: sim ? sim.path : leg?.path ?? null, km,
+        // Solo lo que falta recorrer: lo ya andado desaparece del mapa.
+        me, leg: sim ? pathAfter(sim.path, sim.meters * progress) : leg?.path ?? null, km,
         etaSec: sim ? sim.realSec * (1 - progress) : leg?.seconds ?? null,
         etaKm: sim ? (sim.meters * (1 - progress)) / 1000 : leg ? leg.meters / 1000 : km,
         isHere: !!next && arrived === next.code,

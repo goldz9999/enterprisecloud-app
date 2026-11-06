@@ -150,6 +150,17 @@ export function pointAlong(path: LatLng[], meters: number): LatLng {
     return path[path.length - 1];
 }
 
+/** Lo que falta de un recorrido después de avanzar `meters`: desde ese punto hasta el final. */
+export function pathAfter(path: LatLng[], meters: number): LatLng[] {
+    let left = meters;
+    for (let i = 1; i < path.length; i++) {
+        const seg = distanceKm(path[i - 1], path[i]) * 1000;
+        if (left <= seg) return [pointAlong(path, meters), ...path.slice(i)];
+        left -= seg;
+    }
+    return [path[path.length - 1]];
+}
+
 export const pathMeters = (path: LatLng[]) => path.reduce((m, p, i) => (i ? m + distanceKm(path[i - 1], p) * 1000 : 0), 0);
 
 /** Distancia en km en línea recta. */

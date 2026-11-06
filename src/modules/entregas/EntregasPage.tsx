@@ -181,6 +181,7 @@ export function EntregasPage() {
                                     highlight={sel ?? nav.next?.code ?? null}
                                     me={nav.me}
                                     leg={nav.leg}
+                                    routeFrom={nav.next?.code ?? null}
                                     onStopClick={pick}
                                     onRouteClick={v => { setFocus(v); setSel(null); }}
                                 >
