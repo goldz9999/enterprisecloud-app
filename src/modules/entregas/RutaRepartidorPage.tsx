@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { can } from '@/data/permissions';
 import { useDB } from '@/data/store';
 import { Toast, useToast } from '@/shared/components/Toast';
 import { isoDate, parseDate } from '@/shared/lib/dates';
-import { useDeliveries, useRouteDepartures } from '../gestionApi';
+import { deliveriesApi, gestionError, useDeliveries, useRouteDepartures } from '../gestionApi';
 import { shortDay } from '../ui';
 import { dispatchedOn, routeSheet, type Stop } from './entregasLogic';
-import { distanceKm, navigateUrl, type LatLng } from './geo';
+import { distanceKm, navigateUrl, pathMeters, pointAlong, roadRoute, type LatLng, type RoadRoute } from './geo';
 import { MarkDeliveryModal } from './MarkDeliveryModal';
 import { RouteMap } from './RouteMap';
 import { departureTime, StartRouteModal } from './StartRouteModal';
@@ -18,6 +18,36 @@ const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 const NAV = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l18-8-8 18-2-8z" /></svg>;
 const CHECK = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>;
 const TARGET = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2.5" fill="currentColor" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>;
+
+/** La simulación dura como máximo 5 minutos aunque el viaje real sea más largo. */
+const SIM_MAX_MS = 5 * 60 * 1000;
+const SIM_MIN_MS = 15 * 1000;
+/** A esta distancia de la parada se considera que el vehículo llegó. */
+const ARRIVAL_KM = 0.12;
+
+const minutes = (sec: number) => Math.max(1, Math.round(sec / 60));
+const clock = (sec: number) => new Date(Date.now() + sec * 1000).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+interface Sim { code: string; path: LatLng[]; meters: number; realSec: number; durMs: number; start: number }
+
+/** Recorrido por calles de `from` a `to`; se recalcula al cambiar el destino o al moverse unos 100 m. */
+function useLeg(from: LatLng | null, to: LatLng | null): RoadRoute | null {
+    const [leg, setLeg] = useState<RoadRoute | null>(null);
+    const key = from && to ? `${from[0].toFixed(3)},${from[1].toFixed(3)}>${to[0]},${to[1]}` : '';
+    useEffect(() => {
+        if (!from || !to) { setLeg(null); return; }
+        let alive = true;
+        void roadRoute([from, to]).then(r => {
+            if (!alive) return;
+            // Sin servicio de rutas: línea recta a 25 km/h de promedio en ciudad.
+            const meters = distanceKm(from, to) * 1000;
+            setLeg(r ?? { path: [from, to], meters, seconds: meters / (25000 / 3600) });
+        });
+        return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [key]);
+    return leg;
+}
 
 type Gps = { state: 'buscando' } | { state: 'ok'; ll: LatLng } | { state: 'off'; reason: string };
 
@@ -52,8 +82,8 @@ export function RutaRepartidorPage() {
     const deliveries = useDeliveries(dispatchedOn(d.orders, day).map(o => o.code));
     const sheet = routeSheet(d.orders, day, deliveries.data);
     const route = sheet.routes.find(r => r.vehicle === placa);
-    const stops = route?.stops ?? [];
-    const { mapRoutes, pending } = useMapRoutes(sheet.routes, d.records.almacenes, placa);
+    const { mapRoutes, pending, inVisitOrder } = useMapRoutes(sheet.routes, d.records.almacenes, placa);
+    const stops = route ? inVisitOrder(route) : [];
     const mine = mapRoutes.find(r => r.vehicle === placa);
     const color = mine?.color ?? 'var(--accent)';
 
@@ -77,8 +107,73 @@ export function RutaRepartidorPage() {
     const approxLl = lastDone ? llOf(lastDone.code) : mine?.warehouse?.ll ?? null;
     const approxFrom = lastDone ? 'tu última entrega' : 'el almacén';
     const meLl = gps.state === 'ok' ? gps.ll : approxLl;
-    const me = useMemo(() => (meLl ? { ll: meLl, approx: gps.state !== 'ok' } : null), [meLl?.[0], meLl?.[1], gps.state]);
-    const km = meLl && nextLl ? distanceKm(meLl, nextLl) : null;
+
+    // ── Simulación del recorrido hasta la próxima parada ──
+    const [sim, setSim] = useState<Sim | null>(null);
+    const [now, setNow] = useState(() => Date.now());
+    const [simLoading, setSimLoading] = useState(false);
+    const progress = sim ? Math.min(1, (now - sim.start) / sim.durMs) : 0;
+    const simLl = sim ? pointAlong(sim.path, sim.meters * progress) : null;
+    useEffect(() => {
+        if (!sim || progress >= 1) return;
+        const t = setInterval(() => setNow(Date.now()), 200);
+        return () => clearInterval(t);
+    }, [sim, progress >= 1]);
+    // Al marcar la entrega, la simulación termina y se pasa a la siguiente parada.
+    useEffect(() => { if (sim && sim.code !== next?.code) setSim(null); }, [next?.code]);
+
+    const posLl = simLl ?? meLl;
+    const me = useMemo(
+        () => (posLl ? { ll: posLl, approx: !sim && gps.state !== 'ok', sim: !!sim } : null),
+        [posLl?.[0], posLl?.[1], gps.state, !!sim],
+    );
+    const km = posLl && nextLl ? distanceKm(posLl, nextLl) : null;
+    const leg = useLeg(sim ? null : meLl, nextLl);
+
+    // ── Llegada: por GPS (a menos de 120 m) o al terminar la simulación ──
+    const arrivedRef = useRef(new Set<string>());
+    const [arrived, setArrived] = useState<string | null>(null);
+    const arrive = async (s: Stop) => {
+        if (arrivedRef.current.has(s.code)) return;
+        arrivedRef.current.add(s.code);
+        setArrived(s.code);
+        try {
+            const res = await deliveriesApi.arrival(s.code, { vehicle: placa, driver: route?.driver || undefined });
+            const why = { already_delivered: 'ya estaba entregado', already_notified: 'el cliente ya había sido avisado', no_email: 'el cliente no tiene correo registrado', smtp_disabled: 'los correos están desactivados' } as const;
+            toast.flash(res.emailed ? `Llegaste a ${s.client} · avisamos al cliente por correo` : `Llegaste a ${s.client} · sin correo: ${why[res.reason!]}`);
+        } catch (e) {
+            arrivedRef.current.delete(s.code);
+            toast.flash(gestionError(e));
+        }
+    };
+    useEffect(() => {
+        if (next && sim?.code === next.code && progress >= 1) void arrive(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [progress >= 1, sim?.code]);
+    useEffect(() => {
+        if (!sim && next && gps.state === 'ok' && nextLl && distanceKm(gps.ll, nextLl) <= ARRIVAL_KM) void arrive(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gps.state === 'ok' ? gps.ll.join() : '', next?.code, nextLl?.join()]);
+
+    // La simulación parte de la última entrega o del almacén (no del GPS real del dispositivo).
+    const simFrom = lastDone ? llOf(lastDone.code) : mine?.warehouse?.ll ?? null;
+    const startSim = async () => {
+        if (!next || !nextLl || !simFrom) return;
+        setSimLoading(true);
+        const r = await roadRoute([simFrom, nextLl]);
+        setSimLoading(false);
+        const path = r?.path ?? [simFrom, nextLl];
+        const meters = pathMeters(path);
+        const realSec = r?.seconds ?? meters / (25000 / 3600);
+        arrivedRef.current.delete(next.code);
+        setArrived(null);
+        setNow(Date.now());
+        setSim({ code: next.code, path, meters, realSec, durMs: Math.min(SIM_MAX_MS, Math.max(SIM_MIN_MS, realSec * 1000)), start: Date.now() });
+    };
+    const skipSim = () => setSim(sm => (sm ? { ...sm, start: Date.now() - sm.durMs } : sm));
+    const etaSec = sim ? sim.realSec * (1 - progress) : leg?.seconds ?? null;
+    const etaKm = sim ? (sim.meters * (1 - progress)) / 1000 : leg ? leg.meters / 1000 : km;
+    const isHere = !!next && arrived === next.code;
 
     const client = (name: string) => d.records.clientes.find(c => c.razon === name);
     const nextClient = next ? client(next.client) : undefined;
@@ -102,8 +197,13 @@ export function RutaRepartidorPage() {
             </header>
 
             <div className="drv__map">
-                <RouteMap routes={mapRoutes} focus={placa} highlight={next?.code ?? null} me={me} fitKey={fitKey}>
-                    {stops.length > 0 && (gps.state === 'ok' ? (
+                <RouteMap routes={mapRoutes} focus={placa} highlight={next?.code ?? null} me={me} leg={sim ? sim.path : leg?.path ?? null} fitKey={fitKey}>
+                    {sim ? (
+                        <div className="rm-float rm-card drv-banner">
+                            <span className="drv-banner__dot" style={{ background: 'var(--accent)', boxShadow: '0 0 0 3px var(--accent-bg)' }} />
+                            {progress >= 1 ? 'Simulación · el vehículo llegó a destino' : `Simulación · llega en ${minutes(etaSec ?? 0)} min`}
+                        </div>
+                    ) : stops.length > 0 && (gps.state === 'ok' ? (
                         <div className="rm-float rm-card drv-banner">
                             <span className="drv-banner__dot" />
                             {km != null ? `GPS activo · a ${km.toLocaleString('es-PE', { maximumFractionDigits: 1 })} km de la próxima parada` : 'GPS activo'}
@@ -142,6 +242,32 @@ export function RutaRepartidorPage() {
                                 <div className="drv-next__meta">{next.code} · {next.items}</div>
                             </div>
                         </div>
+                        {nextLl && etaSec != null && (
+                            isHere ? (
+                                <div className="drv-eta is-here"><span>Llegaste a destino{sim ? ' (simulación)' : ''}. Marca la entrega cuando la recibas.</span></div>
+                            ) : (
+                                <div className="drv-eta">
+                                    <span>Llegada aprox.</span>
+                                    <b>{clock(etaSec)}</b>
+                                    <span>· {minutes(etaSec)} min · {(etaKm ?? 0).toLocaleString('es-PE', { maximumFractionDigits: 1 })} km{sim ? ' · simulado' : ''}</span>
+                                </div>
+                            )
+                        )}
+                        {nextLl && simFrom && (
+                            sim ? (
+                                <>
+                                    <div className="drv-sim__bar"><i style={{ width: `${progress * 100}%` }} /></div>
+                                    <div className="drv-sim">
+                                        <button type="button" className="drv-sim__btn" onClick={() => setSim(null)}>Detener simulación</button>
+                                        {progress < 1 && <button type="button" className="drv-sim__btn is-skip" onClick={skipSim}>Saltar · llegar ya</button>}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="drv-sim">
+                                    <button type="button" className="drv-sim__btn" disabled={simLoading} onClick={() => void startSim()}>{simLoading ? 'Calculando ruta…' : '▶ Simular ruta'}</button>
+                                </div>
+                            )
+                        )}
                         <div className="drv-actions">
                             <a className="drv-btn drv-btn--go" href={navigateUrl(next.address, nextLl)} target="_blank" rel="noopener noreferrer">{NAV} Navegar</a>
                             {canEdit

@@ -42,7 +42,7 @@ export function EntregasPage() {
     const canEdit = can(d, 'Órdenes de venta', 'Editar');
 
     const sheet = routeSheet(d.orders, day, saved.data);
-    const { mapRoutes, pending, missing } = useMapRoutes(sheet.routes, d.records.almacenes);
+    const { mapRoutes, pending, missing, inVisitOrder } = useMapRoutes(sheet.routes, d.records.almacenes);
     const date = parseDate(day) ?? new Date();
     const goTo = (iso: string) => { setDay(iso); setFocus(null); setSel(null); };
     const shift = (n: number) => goTo(isoDate(addDays(date, n)));
@@ -200,7 +200,7 @@ export function EntregasPage() {
                                                 <Link to={driverUrl(r.vehicle)} target="_blank" rel="noopener noreferrer" className="rp-phone" title="Abrir vista del repartidor" onClick={e => e.stopPropagation()}>{PHONE}</Link>
                                             </div>
                                             {departure(r) && <div className="rp-route__go">{departure(r)}</div>}
-                                            {r.stops.map((s, i) => sideStop(s, i, r.vehicle, color))}
+                                            {inVisitOrder(r).map((s, i) => sideStop(s, i, r.vehicle, color))}
                                         </div>
                                     );
                                 })}
@@ -231,7 +231,7 @@ export function EntregasPage() {
                                     {departure(r)}
                                     <Link to={driverUrl(r.vehicle)} target="_blank" rel="noopener noreferrer" className="rp-phone mod-noprint" title="Abrir vista del repartidor">{PHONE}</Link>
                                 </div>
-                                {r.stops.map(stopRow)}
+                                {inVisitOrder(r).map(stopRow)}
                             </section>
                         ))}
                         {sheet.pickups.length > 0 && (
@@ -261,7 +261,7 @@ export function EntregasPage() {
                     vehicle={starting.vehicle}
                     driver={starting.driver}
                     day={day}
-                    stops={starting.stops}
+                    stops={inVisitOrder(starting)}
                     onClose={() => setStarting(null)}
                     onStarted={async msg => { await departures.reload(); toast.flash(msg); }}
                     onError={toast.flash}

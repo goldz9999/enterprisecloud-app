@@ -171,6 +171,10 @@ export const deliveriesApi = {
             method: 'PUT',
             body: { status: d.status === 'Entregado' ? 'DELIVERED' : 'NOT_DELIVERED', receiver: d.receiver ?? null, reason: d.reason ?? null, note: d.note ?? null },
         }),
+    /** Avisa al cliente que el vehículo llegó a su dirección (una sola vez por orden). */
+    arrival: (code: string, body: { vehicle: string; driver?: string }) =>
+        api<{ emailed: boolean; reason: 'already_delivered' | 'already_notified' | 'no_email' | 'smtp_disabled' | null }>(
+            `/deliveries/${encodeURIComponent(code)}/arrival`, { method: 'POST', body }),
     /** Vuelve la entrega a «Pendiente». */
     remove: (code: string) => api(`/deliveries/${encodeURIComponent(code)}`, { method: 'DELETE' }),
 };

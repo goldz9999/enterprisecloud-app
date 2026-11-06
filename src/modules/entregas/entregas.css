@@ -782,3 +782,86 @@ html[data-theme="dark"] .rm .leaflet-tile-pane {
     color: var(--muted);
     text-align: center;
 }
+
+.rm-truck {
+    position: absolute;
+    left: -18px;
+    top: -18px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: #2563eb;
+    color: #fff;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, .22), 0 2px 8px rgba(15, 23, 42, .45);
+}
+
+/* Tiempo estimado y simulación (vista del repartidor) */
+.drv-eta {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.drv-eta b {
+    font: 700 18px/1 var(--font-mono, ui-monospace);
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+.drv-eta.is-here {
+    background: var(--green-bg);
+    color: var(--text);
+}
+
+.drv-sim {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.drv-sim + .drv-actions,
+.drv-sim__bar + .drv-sim + .drv-actions {
+    margin-top: 10px;
+}
+
+.drv-sim__btn {
+    flex: 1;
+    padding: 11px;
+    border-radius: 10px;
+    border: 1px dashed var(--border-strong);
+    background: none;
+    color: var(--text);
+    font: 600 13px/1 inherit;
+    cursor: pointer;
+}
+
+.drv-sim__btn.is-skip {
+    flex: none;
+    border-style: solid;
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.drv-sim__bar {
+    height: 4px;
+    margin-top: 8px;
+    border-radius: 2px;
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.drv-sim__bar i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+}
