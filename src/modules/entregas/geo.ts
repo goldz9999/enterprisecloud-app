@@ -89,22 +89,79 @@ export function useGeocode(addresses: string[]) {
 
 // ── Ruta por calles (OSRM, servidor público) ────────────────────────────────
 
-const routes = new Map<string, Promise<LatLng[] | null>>();
+export interface RoadRoute {
+    path: LatLng[];
+    /** Duración estimada en segundos y distancia en metros. */
+    seconds: number;
+    meters: number;
+}
 
-/** Trazo por calles que une los puntos en orden, o `null` si el servicio no responde. */
-export function roadPath(points: LatLng[]): Promise<LatLng[] | null> {
-    const coords = points.map(([lat, lng]) => `${lng.toFixed(6)},${lat.toFixed(6)}`).join(';');
+const routes = new Map<string, Promise<RoadRoute | null>>();
+
+/** Recorrido por calles que une los puntos en orden, o `null` si el servicio no responde. */
+export function roadRoute(points: LatLng[]): Promise<RoadRoute | null> {
+    const coords = points.map(([lat, lng]) => `${lng.toFixed(5)},${lat.toFixed(5)}`).join(';');
     let p = routes.get(coords);
     if (!p) {
         p = fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`)
-            .then(r => r.json() as Promise<{ routes?: { geometry: { coordinates: [number, number][] } }[] }>)
-            .then(d => d.routes?.[0]?.geometry.coordinates.map(([lng, lat]) => [lat, lng] as LatLng) ?? null)
+            .then(r => r.json() as Promise<{ routes?: { duration: number; distance: number; geometry: { coordinates: [number, number][] } }[] }>)
+            .then(d => {
+                const r = d.routes?.[0];
+                return r ? { path: r.geometry.coordinates.map(([lng, lat]) => [lat, lng] as LatLng), seconds: r.duration, meters: r.distance } : null;
+            })
             .catch(() => null);
         routes.set(coords, p);
         void p.then(r => { if (!r) routes.delete(coords); });
     }
     return p;
 }
+
+export const roadPath = (points: LatLng[]) => roadRoute(points).then(r => r?.path ?? null);
+
+/**
+ * Orden de visita: desde `start`, siempre la parada más cercana que falta.
+ * Las que no tienen coordenadas van al final, en su orden original.
+ */
+export function orderByNearest<T extends { ll: LatLng | null }>(start: LatLng | null, items: T[]): T[] {
+    const left = items.filter(i => i.ll);
+    const out: T[] = [];
+    let at = start ?? left[0]?.ll ?? null;
+    while (left.length && at) {
+        let best = 0;
+        for (let i = 1; i < left.length; i++) if (distanceKm(at, left[i].ll!) < distanceKm(at, left[best].ll!)) best = i;
+        const [next] = left.splice(best, 1);
+        out.push(next);
+        at = next.ll;
+    }
+    return [...out, ...items.filter(i => !i.ll)];
+}
+
+/** Punto a `meters` del inicio de un recorrido. */
+export function pointAlong(path: LatLng[], meters: number): LatLng {
+    let left = meters;
+    for (let i = 1; i < path.length; i++) {
+        const seg = distanceKm(path[i - 1], path[i]) * 1000;
+        if (left <= seg && seg > 0) {
+            const t = left / seg;
+            return [path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t, path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t];
+        }
+        left -= seg;
+    }
+    return path[path.length - 1];
+}
+
+/** Lo que falta de un recorrido después de avanzar `meters`: desde ese punto hasta el final. */
+export function pathAfter(path: LatLng[], meters: number): LatLng[] {
+    let left = meters;
+    for (let i = 1; i < path.length; i++) {
+        const seg = distanceKm(path[i - 1], path[i]) * 1000;
+        if (left <= seg) return [pointAlong(path, meters), ...path.slice(i)];
+        left -= seg;
+    }
+    return [path[path.length - 1]];
+}
+
+export const pathMeters = (path: LatLng[]) => path.reduce((m, p, i) => (i ? m + distanceKm(path[i - 1], p) * 1000 : 0), 0);
 
 /** Distancia en km en línea recta. */
 export function distanceKm(a: LatLng, b: LatLng): number {

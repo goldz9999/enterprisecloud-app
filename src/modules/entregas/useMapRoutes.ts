@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { Row } from '@/data/types';
-import type { Route } from './entregasLogic';
-import { useGeocode, VEHICLE_COLORS, type LatLng } from './geo';
+import type { Route, Stop } from './entregasLogic';
+import { orderByNearest, useGeocode, VEHICLE_COLORS, type LatLng } from './geo';
 import type { MapRoute } from './RouteMap';
 
 /** Dirección geocodificable de un almacén del maestro. */
@@ -9,7 +9,8 @@ const warehouseAddress = (w: Row | undefined) => (w ? [w.dir, w.distrito].filter
 
 /**
  * Rutas del día listas para el mapa: cada camión con su color (el mismo en todas las vistas),
- * su almacén de salida y sus paradas con coordenadas. `only` limita la geocodificación a un camión.
+ * su almacén de salida y sus paradas en orden de visita (desde el almacén, siempre la más cercana).
+ * `only` limita la geocodificación a un camión.
  */
 export function useMapRoutes(routes: Route[], warehouses: Row[], only?: string) {
     const active = warehouses.filter(w => w.estado !== 'Inactivo');
@@ -28,16 +29,23 @@ export function useMapRoutes(routes: Route[], warehouses: Row[], only?: string) 
     const mapRoutes = useMemo<MapRoute[]>(() => routes.map((r, i) => {
         const wh = whOf(r.warehouse);
         const whLl: LatLng | null = wh ? coords[warehouseAddress(wh)] ?? null : null;
+        const visit = orderByNearest(whLl, r.stops.map(s => ({ s, ll: coords[s.address] ?? null })));
         return {
             vehicle: r.vehicle,
             color: VEHICLE_COLORS[i % VEHICLE_COLORS.length],
             warehouse: wh ? { name: String(wh.nombre), ll: whLl } : null,
-            stops: r.stops.map((s, j) => ({ code: s.code, n: j + 1, client: s.client, address: s.address, status: s.status, ll: coords[s.address] ?? null })),
+            stops: visit.map(({ s, ll }, j) => ({ code: s.code, n: j + 1, client: s.client, address: s.address, status: s.status, ll })),
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [sig, coords]);
 
     const missing = mapRoutes.filter(r => !only || r.vehicle === only).flatMap(r => r.stops).filter(s => !s.ll && s.address && coords[s.address] === null);
 
-    return { mapRoutes, pending, missing };
+    /** Paradas de la ruta en orden de visita. */
+    const inVisitOrder = (r: Route): Stop[] => {
+        const order = mapRoutes.find(m => m.vehicle === r.vehicle)?.stops.map(s => s.code) ?? [];
+        return [...r.stops].sort((a, b) => order.indexOf(a.code) - order.indexOf(b.code));
+    };
+
+    return { mapRoutes, pending, missing, inVisitOrder };
 }

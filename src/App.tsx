@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
-import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { AppShell } from '@/shared/components/AppShell';
 import { logout, sessionExpired } from '@/data/domain/auth';
 import { bootData, domainsForPath, ensureLoaded } from '@/data/loadAll';
@@ -27,7 +27,6 @@ import { notifyRouteRendered } from '@/shared/lib/effects';
 import { startRealtime, stopRealtime, useGestionTick } from '@/shared/lib/realtime';
 import { enabledModules, loadSwitches, useModuleSwitches } from '@/modules/catalog';
 import { MODULE_PAGES } from '@/modules/pages';
-import { RutaRepartidorPage } from '@/modules/entregas/RutaRepartidorPage';
 
 /** Las órdenes de venta tampoco tienen página propia: se ven y aprueban en un modal de la lista (?ver=). */
 function OrdenVentaRedirect() {
@@ -59,6 +58,13 @@ const CUSTOM: { path: string; module: string; el: ReactNode }[] = [
   // Importación general: cada hoja exige además permiso de crear y editar en su propia tabla.
   { path: '/mantenimiento/importar', module: 'Importar datos', el: <ImportarDatosPage /> },
 ];
+
+function DriverRouteRedirect() {
+  const { placa = '' } = useParams();
+  const [q] = useSearchParams();
+  const day = q.get('day');
+  return <Navigate to={`/gestion/entregas?placa=${encodeURIComponent(placa)}${day ? `&day=${encodeURIComponent(day)}` : ''}`} replace />;
+}
 
 function SignOut() {
   useEffect(() => logout(), []);
@@ -135,8 +141,8 @@ export function App() {
     <>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        {/* Vista del repartidor: acceso directo sin sidebar */}
-        <Route path="/entregas/ruta/:placa" element={<RutaRepartidorPage />} />
+        {/* Enlaces antiguos a la vista del repartidor: ahora es la Hoja de ruta con ese vehículo elegido. */}
+        <Route path="/entregas/ruta/:placa" element={<DriverRouteRedirect />} />
         {CUSTOM.map(r => <Route key={r.path} path={r.path} element={<Guard module={r.module}>{r.el}</Guard>} />)}
         {/* Módulos opcionales encendidos en Configuración › Módulos opcionales (apagados, su ruta cae en «*» y vuelve al inicio). */}
         {enabledModules().map(m => {
